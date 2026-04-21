@@ -193,6 +193,165 @@ async def me(user: dict = Depends(get_current_user)):
     return UserPublic(**user)
 
 
+async def require_staff(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") not in ("admin", "support"):
+        raise HTTPException(status_code=403, detail="Staff access required")
+    return user
+
+
+# -------------- Orders & Chat --------------
+class OrderItem(BaseModel):
+    product_id: str
+    name: str
+    quantity: int
+    price: float
+
+
+class OrderCreate(BaseModel):
+    member_id: str
+    items: List[OrderItem]
+    total: float
+
+
+class ChatSend(BaseModel):
+    text: str
+
+
+@api_router.post("/orders")
+async def create_order(data: OrderCreate):
+    member = await db.members.find_one({"member_id": data.member_id}, {"_id": 0})
+    if not member:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    order_id = f"ord_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    await db.orders.insert_one({
+        "order_id": order_id,
+        "member_id": data.member_id,
+        "member_name": member["name"],
+        "items": [i.dict() for i in data.items],
+        "total": data.total,
+        "status": "open",
+        "created_at": now,
+    })
+
+    # Create initial support message describing the order
+    lines = [f"• {i.name} x{i.quantity} — R$ {i.price * i.quantity:.2f}" for i in data.items]
+    summary = (
+        f"🛒 *NOVO PEDIDO #{order_id[-6:].upper()}*\n\n"
+        f"Cliente: {member['name']}\n"
+        f"Telefone: {member['phone']}\n"
+        f"Endereço: {member['address']}\n\n"
+        f"Itens:\n" + "\n".join(lines) + f"\n\n*Total: R$ {data.total:.2f}*"
+    )
+    await db.messages.insert_one({
+        "message_id": f"msg_{uuid.uuid4().hex[:12]}",
+        "thread_id": data.member_id,
+        "sender": "member",
+        "sender_name": member["name"],
+        "text": summary,
+        "order_id": order_id,
+        "created_at": now,
+    })
+    return {"order_id": order_id, "status": "open"}
+
+
+@api_router.get("/chat/member/{member_id}")
+async def chat_member_get(member_id: str):
+    cursor = db.messages.find({"thread_id": member_id}, {"_id": 0}).sort("created_at", 1)
+    msgs = await cursor.to_list(length=500)
+    return msgs
+
+
+@api_router.post("/chat/member/{member_id}")
+async def chat_member_send(member_id: str, data: ChatSend):
+    member = await db.members.find_one({"member_id": member_id}, {"_id": 0})
+    if not member:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    text = data.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Mensagem vazia")
+    msg = {
+        "message_id": f"msg_{uuid.uuid4().hex[:12]}",
+        "thread_id": member_id,
+        "sender": "member",
+        "sender_name": member["name"],
+        "text": text,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.messages.insert_one(msg)
+    msg.pop("_id", None)
+    return msg
+
+
+@api_router.get("/chat/threads")
+async def chat_threads(staff: dict = Depends(require_staff)):
+    pipeline = [
+        {"$sort": {"created_at": -1}},
+        {"$group": {
+            "_id": "$thread_id",
+            "last_message": {"$first": "$text"},
+            "last_sender": {"$first": "$sender"},
+            "last_at": {"$first": "$created_at"},
+            "unread_support": {
+                "$sum": {"$cond": [{"$eq": ["$sender", "member"]}, 1, 0]},
+            },
+        }},
+        {"$sort": {"last_at": -1}},
+    ]
+    rows = await db.messages.aggregate(pipeline).to_list(length=500)
+    threads = []
+    for r in rows:
+        member = await db.members.find_one({"member_id": r["_id"]}, {"_id": 0})
+        if not member:
+            continue
+        threads.append({
+            "member_id": r["_id"],
+            "member_name": member["name"],
+            "member_phone": member["phone"],
+            "last_message": r["last_message"][:120],
+            "last_sender": r["last_sender"],
+            "last_at": r["last_at"],
+            "unread": r["unread_support"],
+        })
+    return threads
+
+
+@api_router.get("/chat/support/{member_id}")
+async def chat_support_get(member_id: str, staff: dict = Depends(require_staff)):
+    cursor = db.messages.find({"thread_id": member_id}, {"_id": 0}).sort("created_at", 1)
+    msgs = await cursor.to_list(length=500)
+    # Mark as read by support
+    await db.messages.update_many(
+        {"thread_id": member_id, "sender": "member"},
+        {"$set": {"read_by_support": True}},
+    )
+    return msgs
+
+
+@api_router.post("/chat/support/{member_id}")
+async def chat_support_send(member_id: str, data: ChatSend, staff: dict = Depends(require_staff)):
+    text = data.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Mensagem vazia")
+    msg = {
+        "message_id": f"msg_{uuid.uuid4().hex[:12]}",
+        "thread_id": member_id,
+        "sender": "support",
+        "sender_name": staff["name"],
+        "text": text,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.messages.insert_one(msg)
+    msg.pop("_id", None)
+    return msg
+
+
+@api_router.get("/orders/member/{member_id}")
+async def orders_member(member_id: str):
+    cursor = db.orders.find({"member_id": member_id}, {"_id": 0}).sort("created_at", -1)
+    return await cursor.to_list(length=100)
+
+
 # -------------- Product Routes --------------
 @api_router.get("/products", response_model=List[Product])
 async def list_products(category: Optional[str] = None, q: Optional[str] = None):
@@ -438,6 +597,25 @@ async def seed_admin():
             {"$set": {"password_hash": hash_password(admin_password), "role": "admin"}},
         )
 
+    # Seed support user
+    support_email = "suporte@farmaclube.com"
+    support_password = "suporte123"
+    support_existing = await db.users.find_one({"email": support_email})
+    if not support_existing:
+        await db.users.insert_one({
+            "user_id": f"user_{uuid.uuid4().hex[:12]}",
+            "email": support_email,
+            "name": "Equipe de Suporte",
+            "password_hash": hash_password(support_password),
+            "role": "support",
+            "created_at": datetime.now(timezone.utc),
+        })
+    elif not verify_password(support_password, support_existing["password_hash"]):
+        await db.users.update_one(
+            {"email": support_email},
+            {"$set": {"password_hash": hash_password(support_password), "role": "support"}},
+        )
+
 
 SEED_PRODUCTS = [
     {
@@ -583,6 +761,9 @@ async def on_startup():
     await db.users.create_index("email", unique=True)
     await db.products.create_index("category")
     await db.members.create_index("invite_code", unique=True)
+    await db.messages.create_index("thread_id")
+    await db.messages.create_index("created_at")
+    await db.orders.create_index("member_id")
     await seed_admin()
     await seed_products()
 

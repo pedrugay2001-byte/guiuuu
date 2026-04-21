@@ -26,41 +26,43 @@ export default function Terms() {
           </View>
 
           <Text style={styles.kicker}>TERMO DE COMPROMISSO</Text>
-          <Text style={styles.title}>O que você assume ao entrar</Text>
+          <Text style={styles.title}>O QUE VOCÊ ASSUME{"\n"}AO ENTRAR.</Text>
+          <Text style={styles.subCopy}>
+            Quatro cláusulas curtas. Aceitação obrigatória para acessar o clube.
+          </Text>
 
           <View style={styles.card}>
             <Clause
               n="01"
-              title="Uso exclusivamente pessoal"
-              body="Todos os produtos adquiridos no FarmaClube são para seu uso pessoal. É expressamente proibido comprar para terceiros, revender ou repassar."
+              title="USO EXCLUSIVAMENTE PESSOAL"
+              body="Tudo que você adquire no FarmaClube é para seu próprio uso. Proibido comprar para terceiros, revender ou repassar."
             />
             <Clause
               n="02"
-              title="Sigilo do acesso"
-              body="Seu código de acesso é pessoal e intransferível. Não compartilhe login, senha ou seu código com qualquer pessoa fora do clube."
+              title="SIGILO DO ACESSO"
+              body="Seu código é pessoal e intransferível. Nada de publicar em redes, grupos ou emprestar para alguém de fora."
             />
             <Clause
               n="03"
-              title="Indicações permitidas"
-              body="Você pode indicar pessoas de sua confiança. Ao gerar seu código pessoal, você assume responsabilidade pelo comportamento de quem entrar por ele."
+              title="INDICAÇÕES DE CONFIANÇA"
+              body="Você pode convidar pessoas que conhece. Ao gerar seu código pessoal, assume a responsabilidade pelo que eles fizerem aqui dentro."
             />
             <Clause
               n="04"
-              title="Discrição absoluta"
-              body="O FarmaClube é um clube privado. Não divulgue em redes sociais, grupos públicos ou qualquer meio que possa comprometer o sigilo."
+              title="DISCRIÇÃO ABSOLUTA"
+              body="FarmaClube é privado. Prints, stories, grupos públicos e qualquer exposição são proibidos."
             />
 
             <View style={styles.warnCard} testID="terms-penalty">
               <View style={styles.warnHead}>
-                <Ionicons name="warning" size={18} color={theme.colors.error} />
+                <Ionicons name="warning" size={16} color={theme.colors.error} />
                 <Text style={styles.warnTitle}>EXCLUSÃO PERMANENTE</Text>
               </View>
               <Text style={styles.warnBody}>
-                Caso haja qualquer indício de descumprimento deste termo — compra para
-                terceiros, compartilhamento de acesso com pessoas fora do clube ou
-                revenda — o membro será{" "}
-                <Text style={styles.warnEm}>permanentemente excluído do FarmaClube</Text>
-                , sem direito a reativação, recuperação de código ou reembolso.
+                Ao menor indício de descumprimento — revenda, compartilhamento de acesso ou
+                exposição pública — o membro é{" "}
+                <Text style={styles.warnEm}>banido de forma definitiva</Text>
+                , sem reativação, recuperação de código ou reembolso.
               </Text>
             </View>
           </View>
@@ -120,22 +122,26 @@ const styles = StyleSheet.create({
   },
   kicker: {
     color: theme.colors.silver, fontSize: 11,
-    fontWeight: "700", letterSpacing: 2, marginBottom: 4,
+    fontWeight: "800", letterSpacing: 3, marginBottom: 8,
   },
   title: {
-    color: theme.colors.white, fontSize: 26,
-    fontWeight: "800", letterSpacing: -0.5,
-    marginBottom: theme.spacing.lg,
+    color: theme.colors.white, fontSize: 32,
+    fontWeight: "900", letterSpacing: -1.2, lineHeight: 34,
+    textTransform: "uppercase",
+  },
+  subCopy: {
+    color: theme.colors.textMuted, fontSize: 13,
+    lineHeight: 20, marginTop: 10, marginBottom: theme.spacing.lg,
   },
   card: { gap: theme.spacing.lg },
   clause: { flexDirection: "row", gap: 14 },
   clauseNum: {
-    color: theme.colors.silver, fontSize: 12, fontWeight: "800",
+    color: theme.colors.silver, fontSize: 12, fontWeight: "900",
     letterSpacing: 1.5, width: 24, marginTop: 2,
   },
   clauseTitle: {
-    color: theme.colors.white, fontSize: 15,
-    fontWeight: "700", marginBottom: 4,
+    color: theme.colors.white, fontSize: 13,
+    fontWeight: "900", letterSpacing: 1.5, marginBottom: 6,
   },
   clauseBody: {
     color: theme.colors.textMuted, fontSize: 13, lineHeight: 20,

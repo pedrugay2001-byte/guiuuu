@@ -1,35 +1,41 @@
 import {
-  View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Alert, Linking,
+  View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useCart } from "../../src/cart";
-import { theme, WHATSAPP_NUMBER } from "../../src/theme";
-import { formatBRL } from "../../src/api";
-import { useAuth } from "../../src/auth";
+import { theme } from "../../src/theme";
+import { api, formatBRL } from "../../src/api";
+import { useGate } from "../../src/gate";
+import { useState } from "react";
 
 export default function Cart() {
+  const router = useRouter();
   const { items, updateQty, remove, total, clear, count } = useCart();
-  const { user } = useAuth();
+  const { member } = useGate();
+  const [placing, setPlacing] = useState(false);
 
-  const checkoutWhatsapp = async () => {
-    if (items.length === 0) return;
-    const lines = items.map(
-      (i) => `• ${i.product.name} x${i.quantity} — ${formatBRL(i.product.member_price * i.quantity)}`,
-    );
-    const msg =
-      `*Pedido FarmaClube*\n` +
-      `Membro: ${user?.name}\n` +
-      `Email: ${user?.email}\n\n` +
-      lines.join("\n") +
-      `\n\n*Total:* ${formatBRL(total)}\n\nGostaria de finalizar a compra.`;
-    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
+  const placeOrder = async () => {
+    if (items.length === 0 || !member) return;
+    setPlacing(true);
     try {
-      const ok = await Linking.canOpenURL(url);
-      if (ok) await Linking.openURL(url);
-      else Alert.alert("WhatsApp", "WhatsApp não está disponível neste dispositivo.");
-    } catch {
-      Alert.alert("Erro", "Não foi possível abrir o WhatsApp.");
+      await api.createOrder({
+        member_id: member.member_id,
+        items: items.map((i) => ({
+          product_id: i.product.product_id,
+          name: i.product.name,
+          quantity: i.quantity,
+          price: i.product.member_price,
+        })),
+        total,
+      });
+      clear();
+      router.push("/chat");
+    } catch (e: any) {
+      Alert.alert("Erro", e.message || "Não foi possível fechar o pedido");
+    } finally {
+      setPlacing(false);
     }
   };
 
@@ -40,6 +46,14 @@ export default function Cart() {
           <Ionicons name="bag-outline" size={64} color={theme.colors.textMuted} />
           <Text style={styles.emptyTitle}>Carrinho vazio</Text>
           <Text style={styles.emptyText}>Adicione produtos do catálogo para continuar.</Text>
+          <TouchableOpacity
+            style={styles.ghostBtn}
+            onPress={() => router.push("/chat")}
+            testID="cart-open-chat"
+          >
+            <Ionicons name="chatbubbles" size={16} color={theme.colors.white} />
+            <Text style={styles.ghostText}>ABRIR CONVERSA COM SUPORTE</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -68,7 +82,6 @@ export default function Cart() {
                 <TouchableOpacity
                   onPress={() => updateQty(item.product.product_id, item.quantity - 1)}
                   style={styles.qtyBtn}
-                  testID={`cart-minus-${item.product.product_id}`}
                 >
                   <Ionicons name="remove" size={14} color={theme.colors.white} />
                 </TouchableOpacity>
@@ -76,14 +89,12 @@ export default function Cart() {
                 <TouchableOpacity
                   onPress={() => updateQty(item.product.product_id, item.quantity + 1)}
                   style={styles.qtyBtn}
-                  testID={`cart-plus-${item.product.product_id}`}
                 >
                   <Ionicons name="add" size={14} color={theme.colors.white} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => remove(item.product.product_id)}
                   style={styles.removeBtn}
-                  testID={`cart-remove-${item.product.product_id}`}
                 >
                   <Ionicons name="trash-outline" size={16} color={theme.colors.error} />
                 </TouchableOpacity>
@@ -99,13 +110,19 @@ export default function Cart() {
           <Text style={styles.totalValue} testID="cart-total">{formatBRL(total)}</Text>
         </View>
         <TouchableOpacity
-          onPress={checkoutWhatsapp}
-          style={styles.whatsappBtn}
-          testID="cart-whatsapp-checkout"
+          onPress={placeOrder}
+          style={[styles.closeBtn, placing && { opacity: 0.6 }]}
+          disabled={placing}
+          testID="cart-close-order"
         >
-          <Ionicons name="logo-whatsapp" size={18} color={theme.colors.white} />
-          <Text style={styles.whatsappText}>FINALIZAR VIA WHATSAPP</Text>
+          <Ionicons name="chatbubble-ellipses" size={18} color={theme.colors.bg} />
+          <Text style={styles.closeText}>
+            {placing ? "ENVIANDO..." : "FECHAR PEDIDO"}
+          </Text>
         </TouchableOpacity>
+        <Text style={styles.hint}>
+          Seu pedido é enviado diretamente para nosso time de suporte via chat interno.
+        </Text>
       </View>
     </SafeAreaView>
   );
@@ -138,17 +155,25 @@ const styles = StyleSheet.create({
   removeBtn: { marginLeft: "auto", padding: 6 },
   footer: {
     padding: theme.spacing.lg, gap: theme.spacing.md,
-    borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface,
+    borderTopWidth: 1, borderTopColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
   },
   totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   totalLabel: { color: theme.colors.textMuted, fontSize: 13 },
   totalValue: { color: theme.colors.white, fontSize: 22, fontWeight: "800" },
-  whatsappBtn: {
+  closeBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
-    backgroundColor: theme.colors.whatsapp, paddingVertical: 16, borderRadius: 4,
+    backgroundColor: theme.colors.white, paddingVertical: 16, borderRadius: 4,
   },
-  whatsappText: { color: theme.colors.white, fontWeight: "800", letterSpacing: 1.5, fontSize: 13 },
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: theme.spacing.lg, gap: 10 },
+  closeText: { color: theme.colors.bg, fontWeight: "800", letterSpacing: 1.5, fontSize: 13 },
+  hint: { color: theme.colors.textMuted, fontSize: 11, textAlign: "center" },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: theme.spacing.lg, gap: 12 },
   emptyTitle: { color: theme.colors.white, fontSize: 20, fontWeight: "700" },
   emptyText: { color: theme.colors.textMuted, fontSize: 14, textAlign: "center" },
+  ghostBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    borderWidth: 1, borderColor: theme.colors.border,
+    paddingHorizontal: 20, paddingVertical: 14, borderRadius: 4, marginTop: 16,
+  },
+  ghostText: { color: theme.colors.white, fontSize: 12, fontWeight: "700", letterSpacing: 1.5 },
 });

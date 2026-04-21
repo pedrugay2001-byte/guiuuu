@@ -55,8 +55,9 @@ export default function Home() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greet}>Olá, {member?.name?.split(" ")[0] || "membro"}</Text>
+            <Text style={styles.greet}>OLÁ, {(member?.name?.split(" ")[0] || "MEMBRO").toUpperCase()}</Text>
             <Text style={styles.brand}>FARMACLUBE</Text>
+            <Text style={styles.brandSub}>MEMBERS ONLY</Text>
           </View>
           <View style={styles.avatar}>
             <Ionicons name="diamond" size={18} color={theme.colors.silver} />
@@ -67,18 +68,19 @@ export default function Home() {
         <ImageBackground
           source={{ uri: "https://images.unsplash.com/photo-1709315957145-a4bad1feef28?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwzfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85" }}
           style={styles.hero}
-          imageStyle={{ borderRadius: 8 }}
+          imageStyle={{ borderRadius: 10 }}
         >
           <View style={styles.heroOverlay}>
             <Text style={styles.heroKicker}>ACESSO EXCLUSIVO</Text>
-            <Text style={styles.heroTitle}>Preços de{"\n"}membro ativo</Text>
+            <Text style={styles.heroTitle}>PREÇOS QUE{"\n"}SÓ MEMBROS VÊEM.</Text>
             <TouchableOpacity
               style={styles.heroBtn}
               onPress={() => router.push("/(tabs)/catalog")}
               testID="home-explore-button"
+              activeOpacity={0.85}
             >
               <Text style={styles.heroBtnText}>EXPLORAR CATÁLOGO</Text>
-              <Ionicons name="arrow-forward" size={16} color={theme.colors.bg} />
+              <Ionicons name="arrow-forward" size={15} color={theme.colors.bg} />
             </TouchableOpacity>
           </View>
         </ImageBackground>
@@ -147,44 +149,45 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.md,
   },
-  greet: { color: theme.colors.textMuted, fontSize: 12, letterSpacing: 1 },
-  brand: { color: theme.colors.white, fontSize: 22, fontWeight: "900", letterSpacing: -0.5, marginTop: 2 },
+  greet: { color: theme.colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 2 },
+  brand: { color: theme.colors.white, fontSize: 24, fontWeight: "900", letterSpacing: 1, marginTop: 4 },
+  brandSub: { color: theme.colors.silver, fontSize: 9, fontWeight: "700", letterSpacing: 3, marginTop: 2 },
   avatar: {
-    width: 40, height: 40, borderRadius: 20, borderWidth: 1,
+    width: 44, height: 44, borderRadius: 22, borderWidth: 1,
     borderColor: theme.colors.border, alignItems: "center", justifyContent: "center",
     backgroundColor: theme.colors.surface,
   },
   hero: {
-    height: 200, marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.lg,
-    borderRadius: 8, overflow: "hidden",
+    height: 220, marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.lg,
+    borderRadius: 10, overflow: "hidden",
   },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.55)",
     padding: theme.spacing.lg,
     justifyContent: "flex-end",
-    borderRadius: 8,
+    borderRadius: 10,
   },
-  heroKicker: { color: theme.colors.silver, fontSize: 10, fontWeight: "700", letterSpacing: 2 },
+  heroKicker: { color: theme.colors.silver, fontSize: 10, fontWeight: "800", letterSpacing: 3 },
   heroTitle: {
-    color: theme.colors.white, fontSize: 28, fontWeight: "900", letterSpacing: -0.5,
-    marginTop: 6, marginBottom: 14, lineHeight: 32,
+    color: theme.colors.white, fontSize: 30, fontWeight: "900", letterSpacing: -1,
+    marginTop: 8, marginBottom: 16, lineHeight: 32, textTransform: "uppercase",
   },
   heroBtn: {
     flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 8,
-    backgroundColor: theme.colors.white, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 4,
+    backgroundColor: theme.colors.white, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 6,
   },
-  heroBtnText: { color: theme.colors.bg, fontWeight: "800", fontSize: 12, letterSpacing: 1 },
+  heroBtnText: { color: theme.colors.bg, fontWeight: "900", fontSize: 12, letterSpacing: 1.5 },
   section: { marginBottom: theme.spacing.lg },
   sectionHeader: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     paddingHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
   },
   sectionTitle: {
-    color: theme.colors.silver, fontSize: 11, fontWeight: "700",
-    letterSpacing: 2, paddingHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
+    color: theme.colors.silver, fontSize: 11, fontWeight: "800",
+    letterSpacing: 3, paddingHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
   },
-  link: { color: theme.colors.white, fontSize: 12, fontWeight: "600" },
+  link: { color: theme.colors.white, fontSize: 11, fontWeight: "700", letterSpacing: 1 },
   catChip: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 16, paddingVertical: 12, borderRadius: 4,

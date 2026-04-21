@@ -93,12 +93,14 @@ export default function Enter() {
             </View>
             <Text style={styles.successKicker}>ACESSO LIBERADO</Text>
             <Text style={styles.successTitle}>
-              Bem-vindo,{"\n"}
-              {success.name.split(" ")[0]}.
+              BEM-VINDO,{"\n"}
+              {success.name.split(" ")[0].toUpperCase()}.
             </Text>
             <Text style={styles.successText}>
-              Você agora faz parte do FarmaClube. Este é o seu código pessoal — use-o
-              para convidar pessoas de sua confiança:
+              Você agora está dentro. Este é o seu código pessoal —{" "}
+              <Text style={{ color: theme.colors.white, fontWeight: "700" }}>
+                use com critério para convidar quem você conhece de verdade.
+              </Text>
             </Text>
 
             <View style={styles.codeCard} testID="enter-success-code">
@@ -138,10 +140,9 @@ export default function Enter() {
       <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <Text style={styles.kicker}>IDENTIFICAÇÃO</Text>
-          <Text style={styles.title}>Seus dados</Text>
+          <Text style={styles.title}>QUEM{"\n"}É VOCÊ?</Text>
           <Text style={styles.sub}>
-            Estas informações são confidenciais e usadas apenas para envio discreto
-            dos pedidos e contato direto.
+            Dados criptografados, usados apenas para envio discreto dos pedidos e contato 1-a-1. Ninguém mais acessa.
           </Text>
 
           <View style={styles.field}>
@@ -225,11 +226,15 @@ export default function Enter() {
 
 const styles = StyleSheet.create({
   container: { padding: theme.spacing.lg, gap: theme.spacing.md, paddingBottom: 40 },
-  kicker: { color: theme.colors.silver, fontSize: 11, fontWeight: "700", letterSpacing: 2 },
-  title: { color: theme.colors.white, fontSize: 26, fontWeight: "800", letterSpacing: -0.5, marginTop: 4 },
-  sub: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 20, marginBottom: theme.spacing.md },
+  kicker: { color: theme.colors.silver, fontSize: 11, fontWeight: "800", letterSpacing: 3 },
+  title: {
+    color: theme.colors.white, fontSize: 38, fontWeight: "900",
+    letterSpacing: -1.2, lineHeight: 40, marginTop: 6,
+    textTransform: "uppercase",
+  },
+  sub: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: theme.spacing.md },
   field: { gap: 8 },
-  label: { color: theme.colors.silver, fontSize: 11, fontWeight: "700", letterSpacing: 1.5 },
+  label: { color: theme.colors.silver, fontSize: 11, fontWeight: "800", letterSpacing: 2 },
   input: {
     backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border,
     borderRadius: 4, padding: 16, color: theme.colors.text, fontSize: 15,
@@ -251,10 +256,11 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     marginTop: theme.spacing.lg, marginBottom: theme.spacing.md,
   },
-  successKicker: { color: theme.colors.silver, fontSize: 11, fontWeight: "700", letterSpacing: 2 },
+  successKicker: { color: theme.colors.silver, fontSize: 11, fontWeight: "800", letterSpacing: 3 },
   successTitle: {
-    color: theme.colors.white, fontSize: 34, fontWeight: "900",
-    letterSpacing: -1, lineHeight: 38, marginTop: 4,
+    color: theme.colors.white, fontSize: 40, fontWeight: "900",
+    letterSpacing: -1.5, lineHeight: 42, marginTop: 6,
+    textTransform: "uppercase",
   },
   successText: {
     color: theme.colors.textMuted, fontSize: 14, lineHeight: 22,

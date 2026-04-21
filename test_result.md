@@ -101,3 +101,79 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  FarmaClube — app mobile (Expo + FastAPI + MongoDB) para compra exclusiva de emagrecedores,
+  peptídeos e produtos Landerlan. Acesso via código de convite (gate) com geração recursiva
+  de códigos para cada novo membro. Design dark/black moderno. Agora estamos implementando
+  Checkout via Chat Interno (substituindo WhatsApp) com painel de staff para responder.
+
+backend:
+  - task: "Orders + In-App Chat endpoints"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: |
+            Novos endpoints implementados:
+            - POST /api/orders (cria pedido + mensagem resumo automática na thread do membro)
+            - GET  /api/chat/member/{member_id}   (mensagens — acesso do membro, sem auth)
+            - POST /api/chat/member/{member_id}   (membro envia mensagem)
+            - GET  /api/chat/threads              (lista threads — staff/admin auth)
+            - GET  /api/chat/support/{member_id}  (staff lê thread, marca como lida)
+            - POST /api/chat/support/{member_id}  (staff responde)
+            - GET  /api/orders/member/{member_id}
+            Seed de usuário suporte: suporte@farmaclube.com / suporte123 (role=support).
+            Helpers `require_staff` permite admin ou support.
+            Precisa validação: criar pedido, verificar mensagem inicial, troca de mensagens nos dois sentidos, listagem de threads, proteção de auth.
+
+frontend:
+  - task: "Checkout Chat + Staff Inbox UI"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/chat.tsx, frontend/src/chat-room.tsx, frontend/app/staff/*"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: |
+            Ajustado bug de import em src/chat-room.tsx (paths relativos estavam ../../src em vez de ./).
+            Checkout do carrinho agora chama createOrder + router.push('/chat').
+            Staff login/inbox/chat verificados visualmente (screenshots OK).
+            Testes de frontend serão executados somente após confirmação do usuário.
+
+metadata:
+  created_by: "main_agent"
+  version: "1.1"
+  test_sequence: 2
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Orders + In-App Chat endpoints"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: |
+        Por favor testar apenas os endpoints novos de pedidos e chat no backend.
+        Fluxo esperado:
+         1) POST /api/members/enter com code X2T → obter member_id
+         2) POST /api/orders com 2 itens → retorna order_id, status=open. Deve criar mensagem inicial.
+         3) POST /api/auth/login com suporte@farmaclube.com/suporte123 → token
+         4) GET /api/chat/threads (Bearer) → lista com 1 thread do membro, unread>=1
+         5) GET /api/chat/support/{member_id} (Bearer) → lista mensagens, marca como lidas
+         6) POST /api/chat/support/{member_id} (Bearer) com {"text":"olá"} → mensagem com sender=support
+         7) GET /api/chat/member/{member_id} (sem auth) → vê resposta do suporte
+         8) POST /api/chat/member/{member_id} com {"text":"obrigado"} → aparece na thread
+         9) GET /api/chat/threads sem auth → deve retornar 401/403
+        Não fazer mudanças — apenas validar.

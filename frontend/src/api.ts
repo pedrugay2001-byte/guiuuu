@@ -61,6 +61,26 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json();
 }
 
+export type ChatMessage = {
+  message_id: string;
+  thread_id: string;
+  sender: "member" | "support";
+  sender_name: string;
+  text: string;
+  created_at: string;
+  order_id?: string;
+};
+
+export type ChatThread = {
+  member_id: string;
+  member_name: string;
+  member_phone: string;
+  last_message: string;
+  last_sender: "member" | "support";
+  last_at: string;
+  unread: number;
+};
+
 export const api = {
   register: (email: string, password: string, name: string) =>
     request<{ user: User; token: string }>("/auth/register", {
@@ -99,6 +119,27 @@ export const api = {
     request<Product>(`/products/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteProduct: (id: string) =>
     request<{ ok: boolean }>(`/products/${id}`, { method: "DELETE" }),
+  // Orders + Chat
+  createOrder: (body: { member_id: string; items: any[]; total: number }) =>
+    request<{ order_id: string; status: string }>("/orders", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  chatMemberGet: (member_id: string) =>
+    request<ChatMessage[]>(`/chat/member/${member_id}`),
+  chatMemberSend: (member_id: string, text: string) =>
+    request<ChatMessage>(`/chat/member/${member_id}`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+  chatThreads: () => request<ChatThread[]>("/chat/threads"),
+  chatSupportGet: (member_id: string) =>
+    request<ChatMessage[]>(`/chat/support/${member_id}`),
+  chatSupportSend: (member_id: string, text: string) =>
+    request<ChatMessage>(`/chat/support/${member_id}`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
 };
 
 export function formatBRL(n: number) {

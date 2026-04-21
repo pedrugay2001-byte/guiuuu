@@ -24,10 +24,11 @@ export default function RootLayout() {
             <Stack.Screen name="enter" options={{ title: "Acesso ao Clube" }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="product/[id]" options={{ title: "Produto" }} />
-            <Stack.Screen
-              name="admin/edit"
-              options={{ title: "Gerenciar Produto", presentation: "modal" }}
-            />
+            <Stack.Screen name="chat" options={{ title: "Suporte FarmaClube" }} />
+            <Stack.Screen name="admin/edit" options={{ title: "Gerenciar Produto", presentation: "modal" }} />
+            <Stack.Screen name="staff/login" options={{ title: "Área da Equipe" }} />
+            <Stack.Screen name="staff/inbox" options={{ title: "Caixa de Mensagens" }} />
+            <Stack.Screen name="staff/chat/[member_id]" options={{ title: "Conversa" }} />
           </Stack>
         </CartProvider>
       </AuthProvider>
