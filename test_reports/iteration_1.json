@@ -1,0 +1,47 @@
+{
+  "summary": "Backend fully tested with 16 pytest cases (auth, products, categories, admin CRUD) — 16/16 PASS. Frontend smoke-tested on mobile viewport 390x844: Welcome screen, admin login with admin@farmaclube.com/admin123, redirect to /home, home tab content (greeting, categories, featured products), catalog search filter (query 'ozempic' returned only Ozempic card), and empty cart state all render correctly. Product-detail navigation via tap and member-tab admin section could not be positively verified via selectors (no testIDs on cards/tabs) — see action items.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Product card (catalog/home)", "issue": "Tapping the product card text ('Ozempic') did not navigate to /product/[id] during automated test. Likely the TouchableOpacity wraps the whole card and works on real taps, but there is no testID to target in tests. Needs manual verification.", "testID": "missing (recommend product-card-<id>)", "priority": "MEDIUM"},
+      {"component": "Bottom tabs (Membro/Carrinho)", "issue": "Tab labels 'Membro' and 'Carrinho' match home-page text selectors; without testIDs it's hard to disambiguate in tests. Recommend adding testID='tab-member', 'tab-cart', 'tab-home', 'tab-catalog' to tab buttons.", "testID": "missing", "priority": "MEDIUM"},
+      {"component": "Product details screen", "issue": "Add-to-cart button (text 'Adicionar') and WhatsApp button need testIDs (e.g. 'add-to-cart-btn', 'whatsapp-btn') for reliable automation.", "testID": "missing", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Welcome", "issues": ["Brand renders as two lines 'FARMA'/'CLUBE' — intentional design but makes text-based checks tricky; OK visually."]}
+    ],
+    "react_native_issues": [
+      {"component": "Image/TouchableOpacity", "issue": "Console warnings: 'props.pointerEvents is deprecated. Use style.pointerEvents' and 'Image: style.resizeMode is deprecated. Please use props.resizeMode'. Non-blocking but should be cleaned up."}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_farmaclube.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Add testID attributes to: product cards (product-card-<id>), Add-to-cart button, WhatsApp CTA, bottom tab buttons (tab-home/catalog/cart/member), admin 'NOVO'/'Editar'/'Excluir' buttons, Edit modal inputs and save/cancel buttons.",
+    "Manually (or after adding testIDs) verify: product detail screen opens from catalog tap, add-to-cart updates cart badge, cart +/- qty, WhatsApp wa.me intent opens, Member tab shows ADMINISTRADOR badge, admin product-manager section (NOVO/Edit/Delete), register flow auto-login.",
+    "Fix deprecated React Native props: replace props.pointerEvents with style.pointerEvents and use props.resizeMode on <Image> instead of style.resizeMode."
+  ],
+  "critical_code_review_comments": [
+    "server.py: MongoDB '_id' is correctly excluded via projection everywhere — good.",
+    "server.py: JWT_SECRET/MONGO_URL/DB_NAME/ADMIN_* read from env via os.environ[...] — fails fast if missing — good.",
+    "server.py: seed_admin re-hashes admin password if ADMIN_PASSWORD in .env differs from current DB hash — idempotent seeding implemented correctly.",
+    "bcrypt used (hashpw/checkpw) — hashes start with $2b$ — compliant with auth playbook.",
+    "CORS allow_origins=['*'] with allow_credentials=True is a known FastAPI/CORS anti-pattern — browsers will reject credentialed requests. Since the app uses Bearer tokens in headers (not cookies) this is not currently exploited, but should be tightened to the actual preview origin if cookies are ever added.",
+    "No rate-limiting / brute-force lockout on /api/auth/login. Not strictly required by this spec but worth noting.",
+    "server.py is ~460 lines — still within the 700-line budget but getting dense; could be split into routers/auth.py, routers/products.py, models.py for future iterations."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_farmaclube.py (new — 16 pytest cases)",
+    "/app/test_reports/pytest/pytest_results.xml (new)",
+    "/app/test_reports/iteration_1.json (new)"
+  ],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "~70% (welcome/login/home/catalog-search/cart-empty verified; product-details, cart-add, WhatsApp checkout, member/admin section NOT positively verified via automation due to missing testIDs)"},
+  "seed_data_creation": "Backend seed_admin + seed_products run on startup — 12 seeded products + 1 admin account verified present. Tests also register throw-away member accounts prefixed with 'TEST_'/'auto_' and a TEST_AdminProduct that is created then deleted within the same test run — no residual test data in DB.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend is solid — re-run /app/backend/tests/test_farmaclube.py for regression. For frontend, ask main agent to add testIDs listed in action_items before the next UI pass; then automate: register flow, add-to-cart flow, WhatsApp checkout intent, admin Novo/Editar/Excluir on Member tab. Admin creds: admin@farmaclube.com / admin123. Backend URL: EXPO_PUBLIC_BACKEND_URL from /app/frontend/.env.",
+  "rca_of_issue": "N/A — no production bug to RCA. The two frontend flows not positively verified (product detail navigation and admin Member tab content) failed only because of missing/ambiguous selectors in the automated test (loop-prevention triggered), not because of visible app bugs. Manual verification or adding testIDs will confirm."
+}

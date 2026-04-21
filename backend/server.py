@@ -1,58 +1,439 @@
-from fastapi import FastAPI, APIRouter
 from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-import os
-import logging
 from pathlib import Path
-from pydantic import BaseModel, Field
-from typing import List
-import uuid
-from datetime import datetime
-
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
+
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel, Field, EmailStr
+from typing import List, Optional
+from datetime import datetime, timezone, timedelta
+import os
+import uuid
+import logging
+import bcrypt
+import jwt
 
 # MongoDB connection
-mongo_url = os.environ['MONGO_URL']
+mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[os.environ["DB_NAME"]]
 
-# Create the main app without a prefix
-app = FastAPI()
+JWT_ALGORITHM = "HS256"
+JWT_SECRET = os.environ["JWT_SECRET"]
 
-# Create a router with the /api prefix
+app = FastAPI(title="FarmaClube API")
 api_router = APIRouter(prefix="/api")
 
 
-# Define Models
-class StatusCheck(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+# -------------- Helpers --------------
+def hash_password(password: str) -> str:
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
 
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
+def create_access_token(user_id: str, email: str) -> str:
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "exp": datetime.now(timezone.utc) + timedelta(days=7),
+        "type": "access",
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-# Include the router in the main app
+
+async def get_current_user(request: Request) -> dict:
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = auth[7:]
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user = await db.users.find_one({"user_id": payload["sub"]}, {"_id": 0, "password_hash": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
+# -------------- Models --------------
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    name: str
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserPublic(BaseModel):
+    user_id: str
+    email: str
+    name: str
+    role: str
+    created_at: datetime
+
+
+class AuthResponse(BaseModel):
+    user: UserPublic
+    token: str
+
+
+class ProductCreate(BaseModel):
+    name: str
+    category: str
+    description: str
+    price: float
+    member_price: float
+    image_url: str
+    stock: int = 10
+    featured: bool = False
+
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    member_price: Optional[float] = None
+    image_url: Optional[str] = None
+    stock: Optional[int] = None
+    featured: Optional[bool] = None
+
+
+class Product(BaseModel):
+    product_id: str
+    name: str
+    category: str
+    description: str
+    price: float
+    member_price: float
+    image_url: str
+    stock: int
+    featured: bool
+    created_at: datetime
+
+
+# -------------- Auth Routes --------------
+@api_router.post("/auth/register", response_model=AuthResponse)
+async def register(data: RegisterRequest):
+    email = data.email.lower()
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email já cadastrado")
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "user_id": user_id,
+        "email": email,
+        "name": data.name,
+        "password_hash": hash_password(data.password),
+        "role": "member",
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.users.insert_one(doc)
+    token = create_access_token(user_id, email)
+    return AuthResponse(
+        user=UserPublic(
+            user_id=user_id,
+            email=email,
+            name=data.name,
+            role="member",
+            created_at=doc["created_at"],
+        ),
+        token=token,
+    )
+
+
+@api_router.post("/auth/login", response_model=AuthResponse)
+async def login(data: LoginRequest):
+    email = data.email.lower()
+    user = await db.users.find_one({"email": email})
+    if not user or not verify_password(data.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Email ou senha inválidos")
+    token = create_access_token(user["user_id"], email)
+    return AuthResponse(
+        user=UserPublic(
+            user_id=user["user_id"],
+            email=user["email"],
+            name=user["name"],
+            role=user.get("role", "member"),
+            created_at=user["created_at"],
+        ),
+        token=token,
+    )
+
+
+@api_router.get("/auth/me", response_model=UserPublic)
+async def me(user: dict = Depends(get_current_user)):
+    return UserPublic(**user)
+
+
+# -------------- Product Routes --------------
+@api_router.get("/products", response_model=List[Product])
+async def list_products(category: Optional[str] = None, q: Optional[str] = None):
+    query: dict = {}
+    if category and category != "all":
+        query["category"] = category
+    if q:
+        query["$or"] = [
+            {"name": {"$regex": q, "$options": "i"}},
+            {"description": {"$regex": q, "$options": "i"}},
+        ]
+    cursor = db.products.find(query, {"_id": 0}).sort("created_at", -1)
+    items = await cursor.to_list(length=500)
+    return [Product(**item) for item in items]
+
+
+@api_router.get("/products/featured", response_model=List[Product])
+async def featured_products():
+    cursor = db.products.find({"featured": True}, {"_id": 0}).limit(10)
+    items = await cursor.to_list(length=10)
+    return [Product(**item) for item in items]
+
+
+@api_router.get("/products/{product_id}", response_model=Product)
+async def get_product(product_id: str):
+    item = await db.products.find_one({"product_id": product_id}, {"_id": 0})
+    if not item:
+        raise HTTPException(status_code=404, detail="Produto não encontrado")
+    return Product(**item)
+
+
+@api_router.post("/products", response_model=Product)
+async def create_product(data: ProductCreate, admin: dict = Depends(require_admin)):
+    product_id = f"prod_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "product_id": product_id,
+        "created_at": datetime.now(timezone.utc),
+        **data.dict(),
+    }
+    await db.products.insert_one(doc)
+    doc.pop("_id", None)
+    return Product(**doc)
+
+
+@api_router.put("/products/{product_id}", response_model=Product)
+async def update_product(product_id: str, data: ProductUpdate, admin: dict = Depends(require_admin)):
+    updates = {k: v for k, v in data.dict().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="Nada para atualizar")
+    result = await db.products.find_one_and_update(
+        {"product_id": product_id},
+        {"$set": updates},
+        return_document=True,
+        projection={"_id": 0},
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Produto não encontrado")
+    return Product(**result)
+
+
+@api_router.delete("/products/{product_id}")
+async def delete_product(product_id: str, admin: dict = Depends(require_admin)):
+    result = await db.products.delete_one({"product_id": product_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Produto não encontrado")
+    return {"ok": True}
+
+
+@api_router.get("/categories")
+async def get_categories():
+    return [
+        {"id": "emagrecedores", "name": "Emagrecedores", "icon": "flame"},
+        {"id": "peptideos", "name": "Peptídeos", "icon": "flask"},
+        {"id": "landerlan", "name": "Linha Landerlan", "icon": "shield-checkmark"},
+        {"id": "hormonios", "name": "Hormônios", "icon": "pulse"},
+        {"id": "pre_treinos", "name": "Pré-treinos", "icon": "rocket"},
+        {"id": "suplementos", "name": "Suplementos", "icon": "nutrition"},
+    ]
+
+
+# -------------- Startup: seed admin + products --------------
+async def seed_admin():
+    admin_email = os.environ["ADMIN_EMAIL"].lower()
+    admin_password = os.environ["ADMIN_PASSWORD"]
+    existing = await db.users.find_one({"email": admin_email})
+    if not existing:
+        await db.users.insert_one({
+            "user_id": f"user_{uuid.uuid4().hex[:12]}",
+            "email": admin_email,
+            "name": "Administrador",
+            "password_hash": hash_password(admin_password),
+            "role": "admin",
+            "created_at": datetime.now(timezone.utc),
+        })
+    elif not verify_password(admin_password, existing["password_hash"]):
+        await db.users.update_one(
+            {"email": admin_email},
+            {"$set": {"password_hash": hash_password(admin_password), "role": "admin"}},
+        )
+
+
+SEED_PRODUCTS = [
+    {
+        "name": "Ozempic 1mg (Semaglutida)",
+        "category": "emagrecedores",
+        "description": "Caneta aplicadora 1mg. Análogo de GLP-1 para controle de peso e glicemia. Uso subcutâneo semanal. Atenção: Sob prescrição médica.",
+        "price": 1250.00,
+        "member_price": 999.00,
+        "image_url": "https://images.unsplash.com/photo-1704018731170-f30899f60917?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwyfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 12,
+        "featured": True,
+    },
+    {
+        "name": "Mounjaro 5mg (Tirzepatida)",
+        "category": "emagrecedores",
+        "description": "Agonista duplo GIP/GLP-1. Redução de apetite e perda de peso progressiva. Caneta pré-preenchida.",
+        "price": 1890.00,
+        "member_price": 1499.00,
+        "image_url": "https://images.unsplash.com/photo-1700225195232-c55a4e9db6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 8,
+        "featured": True,
+    },
+    {
+        "name": "BPC-157 5mg",
+        "category": "peptideos",
+        "description": "Peptídeo de regeneração tecidual. Auxilia recuperação muscular, tendinosa e gástrica. Frasco liofilizado.",
+        "price": 420.00,
+        "member_price": 329.00,
+        "image_url": "https://images.unsplash.com/photo-1549505415-e16dbd446231?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 25,
+        "featured": True,
+    },
+    {
+        "name": "TB-500 5mg",
+        "category": "peptideos",
+        "description": "Fragmento de Timosina Beta 4. Recuperação de lesões, flexibilidade e cicatrização acelerada.",
+        "price": 480.00,
+        "member_price": 379.00,
+        "image_url": "https://images.pexels.com/photos/36591369/pexels-photo-36591369.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "stock": 18,
+        "featured": False,
+    },
+    {
+        "name": "Durateston Landerlan 250mg",
+        "category": "landerlan",
+        "description": "Blend de 4 ésteres de testosterona. Ampola 1ml. Linha Landerlan original, lote rastreável.",
+        "price": 180.00,
+        "member_price": 139.00,
+        "image_url": "https://images.unsplash.com/photo-1709315957145-a4bad1feef28?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwzfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 30,
+        "featured": True,
+    },
+    {
+        "name": "Deposteron Landerlan 200mg",
+        "category": "landerlan",
+        "description": "Cipionato de testosterona. Ampola 2ml. Produto Landerlan autêntico, ideal para TRT ou ciclos.",
+        "price": 160.00,
+        "member_price": 119.00,
+        "image_url": "https://images.pexels.com/photos/29611432/pexels-photo-29611432.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "stock": 40,
+        "featured": False,
+    },
+    {
+        "name": "Stanozolol Landerlan 50mg",
+        "category": "landerlan",
+        "description": "Winstrol injetável. Frasco 30ml. Definição e vascularização, redução de gordura.",
+        "price": 220.00,
+        "member_price": 169.00,
+        "image_url": "https://images.pexels.com/photos/29825227/pexels-photo-29825227.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "stock": 22,
+        "featured": False,
+    },
+    {
+        "name": "HGH Somatropina 10UI",
+        "category": "hormonios",
+        "description": "Hormônio do crescimento recombinante. Caixa com 10 frascos de 10UI + diluentes. Armazenar refrigerado.",
+        "price": 1350.00,
+        "member_price": 1099.00,
+        "image_url": "https://images.unsplash.com/photo-1700225195232-c55a4e9db6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 7,
+        "featured": True,
+    },
+    {
+        "name": "Insulina Humulin R",
+        "category": "hormonios",
+        "description": "Insulina regular de ação rápida. Frasco 10ml 100UI. Uso pré/pós treino sob protocolo.",
+        "price": 95.00,
+        "member_price": 72.00,
+        "image_url": "https://images.unsplash.com/photo-1704018731170-f30899f60917?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwyfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 15,
+        "featured": False,
+    },
+    {
+        "name": "Pré-treino Black Skull 300g",
+        "category": "pre_treinos",
+        "description": "Fórmula com cafeína, beta-alanina e citrulina. Energia extrema e foco para treinos pesados.",
+        "price": 139.00,
+        "member_price": 99.00,
+        "image_url": "https://images.unsplash.com/photo-1549505415-e16dbd446231?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 50,
+        "featured": True,
+    },
+    {
+        "name": "Whey Protein Isolado 900g",
+        "category": "suplementos",
+        "description": "Proteína isolada hidrolisada. 27g de proteína por dose. Baixo teor de gordura e lactose.",
+        "price": 219.00,
+        "member_price": 169.00,
+        "image_url": "https://images.pexels.com/photos/36591369/pexels-photo-36591369.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "stock": 45,
+        "featured": False,
+    },
+    {
+        "name": "Creatina Monohidratada 300g",
+        "category": "suplementos",
+        "description": "Creatina pura micronizada. Aumento de força, volume muscular e performance anaeróbica.",
+        "price": 119.00,
+        "member_price": 89.00,
+        "image_url": "https://images.pexels.com/photos/29611432/pexels-photo-29611432.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "stock": 60,
+        "featured": True,
+    },
+]
+
+
+async def seed_products():
+    count = await db.products.count_documents({})
+    if count > 0:
+        return
+    now = datetime.now(timezone.utc)
+    docs = []
+    for p in SEED_PRODUCTS:
+        docs.append({
+            "product_id": f"prod_{uuid.uuid4().hex[:12]}",
+            "created_at": now,
+            **p,
+        })
+    await db.products.insert_many(docs)
+
+
+@app.on_event("startup")
+async def on_startup():
+    await db.users.create_index("email", unique=True)
+    await db.products.create_index("category")
+    await seed_admin()
+    await seed_products()
+
+
+# -------------- Include --------------
 app.include_router(api_router)
 
 app.add_middleware(
@@ -63,12 +444,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
