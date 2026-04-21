@@ -1,6 +1,6 @@
 import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
 import { useEffect } from "react";
 import { useGate } from "../../src/gate";
 import { useCart } from "../../src/cart";
@@ -23,6 +23,18 @@ export default function TabsLayout() {
     );
   }
 
+  const HeaderChatButton = () => (
+    <TouchableOpacity
+      onPress={() => router.push("/chat")}
+      style={styles.headerChat}
+      testID="header-chat-button"
+      activeOpacity={0.7}
+    >
+      <Ionicons name="chatbubble-ellipses" size={18} color={theme.colors.white} />
+      <Text style={styles.headerChatText}>SUPORTE</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <Tabs
       screenOptions={{
@@ -32,7 +44,8 @@ export default function TabsLayout() {
           borderBottomColor: theme.colors.border,
         },
         headerTintColor: theme.colors.text,
-        headerTitleStyle: { fontWeight: "700", letterSpacing: 0.5 },
+        headerTitleStyle: { fontWeight: "800", letterSpacing: 1 },
+        headerRight: () => <HeaderChatButton />,
         tabBarStyle: {
           backgroundColor: theme.colors.bg,
           borderTopColor: theme.colors.border,
@@ -43,7 +56,7 @@ export default function TabsLayout() {
         },
         tabBarActiveTintColor: theme.colors.white,
         tabBarInactiveTintColor: theme.colors.textMuted,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "600", letterSpacing: 0.5 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "700", letterSpacing: 0.8 },
       }}
     >
       <Tabs.Screen
@@ -92,6 +105,15 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  headerChat: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    marginRight: 14, paddingHorizontal: 12, paddingVertical: 7,
+    borderWidth: 1, borderColor: theme.colors.border,
+    borderRadius: 20, backgroundColor: theme.colors.surface,
+  },
+  headerChatText: {
+    color: theme.colors.white, fontSize: 10, fontWeight: "800", letterSpacing: 1.5,
+  },
   badge: {
     position: "absolute",
     top: -4,

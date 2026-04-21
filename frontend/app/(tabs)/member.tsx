@@ -75,13 +75,8 @@ export default function Member() {
     } catch {}
   };
 
-  const contactSupport = async () => {
-    const msg = `Olá, sou membro FarmaClube (${member?.name}). Preciso de suporte.`;
-    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
-    try {
-      const ok = await Linking.canOpenURL(url);
-      if (ok) await Linking.openURL(url);
-    } catch {}
+  const contactSupport = () => {
+    router.push("/chat");
   };
 
   const deleteProduct = (id: string, name: string) => {
@@ -150,9 +145,26 @@ export default function Member() {
           </View>
         )}
 
+        {/* Prominent support CTA */}
+        <TouchableOpacity
+          style={styles.supportCta}
+          onPress={contactSupport}
+          testID="member-support-cta"
+          activeOpacity={0.85}
+        >
+          <View style={styles.supportIcon}>
+            <Ionicons name="chatbubbles" size={20} color={theme.colors.bg} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.supportTitle}>FALAR COM O SUPORTE</Text>
+            <Text style={styles.supportSub}>Chat interno — resposta em minutos</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.white} />
+        </TouchableOpacity>
+
         {/* Menu */}
         <View style={styles.menu}>
-          <MenuRow icon="help-circle-outline" label="Suporte via WhatsApp" onPress={contactSupport} testID="support-row" />
+          <MenuRow icon="chatbubble-ellipses-outline" label="Suas conversas de pedido" onPress={contactSupport} testID="support-row" />
           <MenuRow icon="lock-closed-outline" label="Sair do clube (bloquear)" onPress={lockClub} testID="logout-button" />
         </View>
 
@@ -274,6 +286,18 @@ const styles = StyleSheet.create({
   statValue: { color: theme.colors.white, fontSize: 28, fontWeight: "900" },
   statLabel: { color: theme.colors.silver, fontSize: 10, fontWeight: "700", letterSpacing: 1.5, marginTop: 4 },
   menu: { marginHorizontal: theme.spacing.lg, gap: 2 },
+  supportCta: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
+    paddingHorizontal: 16, paddingVertical: 16,
+    backgroundColor: theme.colors.white, borderRadius: 8,
+  },
+  supportIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "#000", alignItems: "center", justifyContent: "center",
+  },
+  supportTitle: { color: theme.colors.bg, fontSize: 14, fontWeight: "900", letterSpacing: 1 },
+  supportSub: { color: "#333", fontSize: 11, marginTop: 2 },
   menuRow: {
     flexDirection: "row", alignItems: "center", gap: 14,
     paddingVertical: 16, paddingHorizontal: 16,
