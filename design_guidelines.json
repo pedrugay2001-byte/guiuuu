@@ -1,0 +1,201 @@
+{
+  "app_name": "FarmaClube",
+  "platform": "React Native (Expo)",
+  "theme": "Dark",
+  "archetype": "Archetype 5 (Jewel & Luxury) + Archetype 2 (Performance Pro)",
+  "design_philosophy": "A premium, members-only fitness club experience. The visual language is predominantly black with silver, gray, and stark white accents. High contrast, sharp typography, and atmospheric photography are used to convey exclusivity and elite performance. No flashy colors; trust is built through minimalism and metallic tones.",
+  "colors": {
+    "background_base": "#050505",
+    "surface_card": "#121212",
+    "surface_elevated": "#1A1A1A",
+    "primary": "#FFFFFF",
+    "primary_text": "#F5F5F5",
+    "secondary_text": "#A3A3A3",
+    "border": "#262626",
+    "accent_metallic": "#C0C0C0",
+    "success_whatsapp": "#1EBE5D",
+    "error": "#FF3B30",
+    "overlay": "rgba(0, 0, 0, 0.7)"
+  },
+  "typography": {
+    "fonts": {
+      "heading": "Montserrat",
+      "body": "Inter",
+      "fallback": "sans-serif"
+    },
+    "styles": {
+      "h1": {
+        "fontSize": 32,
+        "fontWeight": "800",
+        "letterSpacing": -1,
+        "color": "#F5F5F5"
+      },
+      "h2": {
+        "fontSize": 24,
+        "fontWeight": "700",
+        "letterSpacing": -0.5,
+        "color": "#F5F5F5"
+      },
+      "h3": {
+        "fontSize": 18,
+        "fontWeight": "600",
+        "color": "#FFFFFF"
+      },
+      "body_large": {
+        "fontSize": 16,
+        "fontWeight": "400",
+        "color": "#A3A3A3",
+        "lineHeight": 24
+      },
+      "body_regular": {
+        "fontSize": 14,
+        "fontWeight": "400",
+        "color": "#A3A3A3",
+        "lineHeight": 20
+      },
+      "label": {
+        "fontSize": 12,
+        "fontWeight": "600",
+        "textTransform": "uppercase",
+        "letterSpacing": 1.5,
+        "color": "#C0C0C0"
+      }
+    }
+  },
+  "spacing": {
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "xxl": 48,
+    "xxxl": 64
+  },
+  "layout_and_components": {
+    "buttons": {
+      "primary": {
+        "backgroundColor": "#FFFFFF",
+        "color": "#050505",
+        "borderRadius": 4,
+        "paddingVertical": 16,
+        "paddingHorizontal": 24,
+        "alignItems": "center",
+        "fontWeight": "700"
+      },
+      "secondary": {
+        "backgroundColor": "transparent",
+        "borderWidth": 1,
+        "borderColor": "#262626",
+        "color": "#FFFFFF",
+        "borderRadius": 4,
+        "paddingVertical": 16,
+        "paddingHorizontal": 24,
+        "alignItems": "center",
+        "fontWeight": "600"
+      },
+      "whatsapp": {
+        "backgroundColor": "#1EBE5D",
+        "color": "#FFFFFF",
+        "borderRadius": 4,
+        "paddingVertical": 16,
+        "paddingHorizontal": 24,
+        "alignItems": "center",
+        "flexDirection": "row",
+        "justifyContent": "center",
+        "fontWeight": "700"
+      }
+    },
+    "cards": {
+      "product_card": {
+        "backgroundColor": "#121212",
+        "borderRadius": 8,
+        "borderWidth": 1,
+        "borderColor": "#262626",
+        "overflow": "hidden",
+        "padding": 16
+      },
+      "category_card": {
+        "backgroundColor": "#1A1A1A",
+        "borderRadius": 8,
+        "overflow": "hidden",
+        "alignItems": "center",
+        "justifyContent": "center"
+      }
+    },
+    "inputs": {
+      "text_input": {
+        "backgroundColor": "#121212",
+        "borderWidth": 1,
+        "borderColor": "#262626",
+        "borderRadius": 4,
+        "color": "#F5F5F5",
+        "padding": 16,
+        "fontSize": 16
+      }
+    },
+    "navigation": {
+      "header": {
+        "backgroundColor": "#050505",
+        "borderBottomWidth": 1,
+        "borderBottomColor": "#262626"
+      },
+      "bottom_tab": {
+        "backgroundColor": "#050505",
+        "borderTopWidth": 1,
+        "borderTopColor": "#262626",
+        "activeTintColor": "#FFFFFF",
+        "inactiveTintColor": "#A3A3A3"
+      }
+    }
+  },
+  "media": {
+    "hero_banners": [
+      {
+        "url": "https://images.unsplash.com/photo-1709315957145-a4bad1feef28?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwzfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Dark gym background with athlete lifting, used for hero banner"
+      },
+      {
+        "url": "https://images.pexels.com/photos/29825227/pexels-photo-29825227.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Black and white dramatic strong bodybuilder posing, ideal for exclusive fitness club vibe"
+      }
+    ],
+    "categories": [
+      {
+        "category_name": "Landerlan & Hormones",
+        "url": "https://images.unsplash.com/photo-1549505415-e16dbd446231?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Grayscale athletic silhouette for hormone category"
+      },
+      {
+        "category_name": "Suplementos & Pré-treinos",
+        "url": "https://images.unsplash.com/photo-1700225195232-c55a4e9db6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Black luxury supplement bottle"
+      },
+      {
+        "category_name": "Emagrecedores & Peptídeos",
+        "url": "https://images.unsplash.com/photo-1704018731170-f30899f60917?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwyfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Premium illuminated black bottle for specialized products"
+      }
+    ],
+    "textures_and_abstracts": [
+      {
+        "url": "https://images.pexels.com/photos/36591369/pexels-photo-36591369.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Black weights on grass, useful for background textures"
+      },
+      {
+        "url": "https://images.pexels.com/photos/29611432/pexels-photo-29611432.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Heavy dumbbell on the floor, fitness texture"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "CRITICAL: Use React Native primitives ONLY (`View`, `Text`, `Image`, `TouchableOpacity`, `ScrollView`, `FlatList`, `TextInput`, `StyleSheet.create`). Do NOT use HTML/CSS elements (div, span) or Tailwind.",
+    "Implement navigation using Expo Router or React Navigation.",
+    "The application must exclusively follow the dark theme palette provided (`background_base`: #050505). Ensure text contrast meets APCA/WCAG standards using the white/silver provided.",
+    "Use `@expo/vector-icons` (e.g., Ionicons, MaterialCommunityIcons) for icons to match the high-end fitness aesthetic. Keep them sharp and minimalist.",
+    "All interactive elements MUST include a `testID` attribute for automated testing. Example: `<TouchableOpacity testID='login-submit-button'>`.",
+    "For the WhatsApp Checkout functionality, utilize React Native's `Linking.openURL('whatsapp://send?phone=NUMBER&text=MESSAGE')`.",
+    "To emulate the 'Exclusive Club' feel, use ample padding (`24px` to `32px` in layout containers), thin `1px` borders (`#262626`), and maintain pure black backgrounds. Avoid rounded corner extremes (stick to `4px` or `8px` radii, avoid pill shapes except occasionally).",
+    "Do NOT use generic placeholders (like via.placeholder.com). Strictly use the images provided in the media section of this JSON.",
+    "For typography, if you cannot load custom fonts (Montserrat), fallback to the system default sans-serif font, utilizing `fontWeight: '800'` and `letterSpacing: -1` for large headings."
+  ]
+}
