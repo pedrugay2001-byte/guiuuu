@@ -73,6 +73,16 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<User>("/auth/me"),
+  memberEnter: (body: { name: string; phone: string; address: string; code: string }) =>
+    request<{
+      member_id: string;
+      name: string;
+      invite_code: string;
+      parent_code: string;
+      parent_name: string | null;
+      total_members: number;
+    }>("/members/enter", { method: "POST", body: JSON.stringify(body) }),
+  memberStats: () => request<{ total_members: number }>("/members/stats"),
   listProducts: (params?: { category?: string; q?: string }) => {
     const qs = new URLSearchParams();
     if (params?.category && params.category !== "all") qs.set("category", params.category);

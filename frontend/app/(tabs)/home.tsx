@@ -7,12 +7,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api, Category, Product, formatBRL } from "../../src/api";
-import { useAuth } from "../../src/auth";
+import { useGate } from "../../src/gate";
 import { theme } from "../../src/theme";
 
 export default function Home() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { member } = useGate();
   const [featured, setFeatured] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,7 +55,7 @@ export default function Home() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greet}>Olá, {user?.name?.split(" ")[0] || "membro"}</Text>
+            <Text style={styles.greet}>Olá, {member?.name?.split(" ")[0] || "membro"}</Text>
             <Text style={styles.brand}>FARMACLUBE</Text>
           </View>
           <View style={styles.avatar}>

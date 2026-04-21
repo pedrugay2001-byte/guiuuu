@@ -2,20 +2,20 @@ import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { useEffect } from "react";
-import { useAuth } from "../../src/auth";
+import { useGate } from "../../src/gate";
 import { useCart } from "../../src/cart";
 import { theme } from "../../src/theme";
 
 export default function TabsLayout() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { member } = useGate();
   const { count } = useCart();
 
   useEffect(() => {
-    if (user === null) router.replace("/");
-  }, [user, router]);
+    if (member === null) router.replace("/welcome");
+  }, [member, router]);
 
-  if (user === undefined || user === null) {
+  if (!member) {
     return (
       <View style={{ flex: 1, backgroundColor: theme.colors.bg, justifyContent: "center" }}>
         <ActivityIndicator color={theme.colors.white} />
@@ -26,7 +26,11 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: theme.colors.bg, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+        headerStyle: {
+          backgroundColor: theme.colors.bg,
+          borderBottomWidth: 1,
+          borderBottomColor: theme.colors.border,
+        },
         headerTintColor: theme.colors.text,
         headerTitleStyle: { fontWeight: "700", letterSpacing: 0.5 },
         tabBarStyle: {

@@ -15,6 +15,14 @@ import uuid
 import logging
 import bcrypt
 import jwt
+import random
+import string
+import asyncio
+
+try:
+    import resend  # type: ignore
+except Exception:  # pragma: no cover
+    resend = None
 
 # MongoDB connection
 mongo_url = os.environ["MONGO_URL"]
@@ -253,6 +261,151 @@ async def delete_product(product_id: str, admin: dict = Depends(require_admin)):
     return {"ok": True}
 
 
+# -------------- Members (gate flow) --------------
+class MemberEnter(BaseModel):
+    name: str
+    phone: str
+    address: str
+    code: str
+
+
+class MemberPublic(BaseModel):
+    member_id: str
+    name: str
+    phone: str
+    address: str
+    invite_code: str
+    parent_code: str
+    parent_name: Optional[str] = None
+    created_at: datetime
+
+
+def _gen_suffix() -> str:
+    return random.choice(string.ascii_uppercase) + random.choice(string.digits)
+
+
+async def _send_new_member_email(member: dict, total_members: int) -> None:
+    notify = os.environ.get("NOTIFY_EMAIL", "")
+    api_key = os.environ.get("RESEND_API_KEY", "")
+    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+
+    subject = f"Novo membro FarmaClube — {member['name']}"
+    html = f"""
+    <div style="font-family: Arial, sans-serif; background:#050505; color:#F5F5F5; padding:24px;">
+      <div style="max-width:560px; margin:0 auto; background:#121212; border:1px solid #262626; border-radius:8px; padding:24px;">
+        <p style="color:#C0C0C0; letter-spacing:2px; font-size:11px; font-weight:700; margin:0 0 8px;">FARMACLUBE</p>
+        <h1 style="color:#FFFFFF; font-size:22px; margin:0 0 16px;">Novo membro no clube</h1>
+        <table cellpadding="8" cellspacing="0" style="width:100%; border-collapse:collapse; color:#F5F5F5; font-size:14px;">
+          <tr><td style="color:#A3A3A3; width:40%;">Nome</td><td><strong>{member['name']}</strong></td></tr>
+          <tr><td style="color:#A3A3A3;">Telefone</td><td>{member['phone']}</td></tr>
+          <tr><td style="color:#A3A3A3;">Endereço</td><td>{member['address']}</td></tr>
+          <tr><td style="color:#A3A3A3;">Código usado</td><td style="font-family:monospace; color:#C0C0C0;">{member['parent_code']}</td></tr>
+          <tr><td style="color:#A3A3A3;">Padrinho</td><td>{member.get('parent_name') or 'Guilherme (raiz)'}</td></tr>
+          <tr><td style="color:#A3A3A3;">Código gerado</td><td style="font-family:monospace; color:#FFFFFF; font-weight:700;">{member['invite_code']}</td></tr>
+          <tr><td style="color:#A3A3A3;">Entrou em</td><td>{member['created_at'].strftime('%d/%m/%Y %H:%M UTC')}</td></tr>
+        </table>
+        <div style="margin-top:24px; padding:16px; background:#1A1A1A; border:1px solid #262626; border-radius:6px;">
+          <p style="margin:0; color:#A3A3A3; font-size:12px;">Total de membros ativos</p>
+          <p style="margin:4px 0 0; color:#FFFFFF; font-size:32px; font-weight:900;">{total_members}</p>
+        </div>
+      </div>
+    </div>
+    """
+
+    if not api_key or resend is None:
+        logger.info(
+            "[EMAIL MOCKED] -> %s | subject=%s | member=%s invite=%s total=%d",
+            notify, subject, member["name"], member["invite_code"], total_members,
+        )
+        return
+
+    try:
+        resend.api_key = api_key
+        params = {
+            "from": sender,
+            "to": [notify],
+            "subject": subject,
+            "html": html,
+        }
+        await asyncio.to_thread(resend.Emails.send, params)
+        logger.info("[EMAIL SENT] -> %s", notify)
+    except Exception as e:  # pragma: no cover
+        logger.error("[EMAIL FAILED] %s", e)
+
+
+@api_router.post("/members/enter", response_model=dict)
+async def member_enter(data: MemberEnter):
+    name = data.name.strip()
+    phone = data.phone.strip()
+    address = data.address.strip()
+    code = data.code.strip().upper()
+
+    if not name or not phone or not address:
+        raise HTTPException(status_code=400, detail="Nome, telefone e endereço são obrigatórios")
+    if len(name) < 3:
+        raise HTTPException(status_code=400, detail="Informe seu nome completo")
+
+    root_code = os.environ.get("GATE_ROOT_CODE", "X2T").upper()
+
+    parent_name: Optional[str] = None
+    if code == root_code:
+        parent_name = "Guilherme (raiz)"
+    else:
+        parent = await db.members.find_one({"invite_code": code}, {"_id": 0})
+        if not parent:
+            raise HTTPException(status_code=401, detail="Código de acesso inválido ou revogado")
+        parent_name = parent["name"]
+
+    # Generate unique invite code (retry on rare collisions)
+    invite_code = ""
+    for _ in range(30):
+        candidate = code + _gen_suffix()
+        exists = await db.members.find_one({"invite_code": candidate})
+        if not exists:
+            invite_code = candidate
+            break
+    if not invite_code:
+        raise HTTPException(status_code=500, detail="Não foi possível gerar código único")
+
+    member_id = f"mem_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    member_doc = {
+        "member_id": member_id,
+        "name": name,
+        "phone": phone,
+        "address": address,
+        "parent_code": code,
+        "parent_name": parent_name,
+        "invite_code": invite_code,
+        "created_at": now,
+    }
+    await db.members.insert_one(member_doc)
+
+    total = await db.members.count_documents({})
+
+    # Fire & forget email notification (MOCKED if RESEND_API_KEY empty)
+    try:
+        await _send_new_member_email(member_doc, total)
+    except Exception as e:
+        logger.error("email notify failed: %s", e)
+
+    return {
+        "member_id": member_id,
+        "name": name,
+        "invite_code": invite_code,
+        "parent_code": code,
+        "parent_name": parent_name,
+        "total_members": total,
+        "created_at": now,
+    }
+
+
+@api_router.get("/members/stats")
+async def members_stats():
+    total = await db.members.count_documents({})
+    return {"total_members": total}
+
+
 @api_router.get("/categories")
 async def get_categories():
     return [
@@ -429,6 +582,7 @@ async def seed_products():
 async def on_startup():
     await db.users.create_index("email", unique=True)
     await db.products.create_index("category")
+    await db.members.create_index("invite_code", unique=True)
     await seed_admin()
     await seed_products()
 
