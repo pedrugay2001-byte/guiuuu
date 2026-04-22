@@ -6,10 +6,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
 import { api, CommunityMember, DMMessage } from "../../../src/api";
 import { useGate } from "../../../src/gate";
 import { TIERS } from "../../../src/theme";
+import { pickCompressedImage } from "../../../src/imagepicker";
 
 const EMOJIS = ["🔥", "💪", "❤️", "🙌", "👊", "✨", "🏋️", "🥶", "😂", "😎", "🎉", "💀", "🍏", "🥊", "🦾", "☀️", "🌙", "💯", "👁️", "🥵"];
 
@@ -55,13 +55,9 @@ export default function DMChat() {
   };
 
   const attachPhoto = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return;
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images" as any], quality: 0.55, base64: true });
-    if (r.canceled || !r.assets?.length) return;
-    const a = r.assets[0];
-    if (a.base64) {
-      const marker = `[IMG]data:image/jpeg;base64,${a.base64}[/IMG]`;
+    const uri = await pickCompressedImage({ quality: 0.35 });
+    if (uri) {
+      const marker = `[IMG]${uri}[/IMG]`;
       await send(marker);
     }
   };

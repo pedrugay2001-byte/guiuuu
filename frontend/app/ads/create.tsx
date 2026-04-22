@@ -5,9 +5,9 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
 import { api } from "../../src/api";
 import { useGate } from "../../src/gate";
+import { pickCompressedImage } from "../../src/imagepicker";
 
 const CATS = [
   { id: "emagrecedores", name: "Emagrecedores" },
@@ -47,12 +47,8 @@ export default function CreateAd() {
 
   const addImage = async () => {
     if (images.length >= 6) { Alert.alert("Limite", "Máximo 6 fotos."); return; }
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return;
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images" as any], quality: 0.6, base64: true, allowsEditing: true });
-    if (r.canceled || !r.assets?.length) return;
-    const a = r.assets[0];
-    if (a.base64) setImages([...images, `data:image/jpeg;base64,${a.base64}`]);
+    const uri = await pickCompressedImage({ quality: 0.4 });
+    if (uri) setImages([...images, uri]);
   };
 
   const submit = async () => {

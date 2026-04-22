@@ -499,3 +499,16 @@ agent_communication:
         Credenciais no test_credentials.md. Foco principal: garantir que os 90+ ads estão acessíveis,
         que o upload de foto base64 (avatar e galeria de 10 fotos) NÃO retorna 413/500 e que os filtros
         de auth staff funcionam. NÃO modificar código — apenas validar e reportar.
+
+    - agent: "main"
+      message: |
+        Pós-validação (sem re-teste necessário):
+        1) Backend 37/37 PASS, validado. Frontend já alinhado com o backend (ver api.ts):
+           - client usa `price_full`, `text` (AI chat), `/notifications/{id}/count`, `/members/{id}/profile` — TUDO OK.
+        2) Removidos 2 posts de teste inválidos criados pelo testing agent (base64 random não renderizava).
+           Feed agora exibe corretamente imagens reais.
+        3) Unificado uso de `pickCompressedImage` em create-post.tsx, dm/[id].tsx e ads/create.tsx
+           para compressão agressiva (quality 0.35-0.4) e prevenir uploads >1MB que estouram o nginx.
+        4) Navegação validada via screenshot: back button presente em /ads, /wallet/topup, etc.
+        5) Wallet funcional (R$ 3.100 saldo, histórico de recargas visível, botões recarregar/sacar).
+        6) Desconto por tier aplicado corretamente (30% para Diamond em todos os anúncios).
