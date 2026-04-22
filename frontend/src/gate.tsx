@@ -8,6 +8,7 @@ const LEGACY_KEYS = ["farmaclube_member_v2", "farmaclube_member"];
 
 export type MemberData = {
   member_id: string;
+  member_number?: number;
   name: string;
   phone: string;
   neighborhood: string;

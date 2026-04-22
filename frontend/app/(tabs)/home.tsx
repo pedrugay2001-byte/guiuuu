@@ -63,6 +63,8 @@ export default function Home() {
 
   const tier = member ? TIERS[member.tier] || TIERS.black : TIERS.black;
   const firstName = member?.name?.split(" ")[0] || "Membro";
+  const memberNum = (member as any)?.member_number;
+  const codeLabel = memberNum ? `#${memberNum}` : `#${(member?.member_id || "").slice(-5)}`;
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="home-screen">
@@ -76,10 +78,21 @@ export default function Home() {
           style={styles.hero}
           imageStyle={styles.heroImg}
         >
+          <View style={styles.heroVignette} />
           <View style={styles.heroOverlay}>
-            <Text style={styles.heroKicker}>ACESSO EXCLUSIVO</Text>
-            <Text style={styles.heroTitle}>DESTAQUES{"\n"}DA SEMANA.</Text>
-            <Text style={styles.heroSub}>Seleção curada de produtos em condições exclusivas para membros.</Text>
+            <View style={styles.heroKickerRow}>
+              <View style={[styles.heroTierPill, { borderColor: tier.color }]}>
+                <Ionicons name={tier.icon as any} size={11} color={tier.color} />
+                <Text style={[styles.heroTierText, { color: tier.color }]}>{tier.label.toUpperCase()}</Text>
+              </View>
+              <Text style={styles.heroCode}>{codeLabel}</Text>
+            </View>
+            <Text style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit>{firstName.toUpperCase()}</Text>
+            <Text style={styles.heroSub}>Bem-vindo de volta ao BLACKSCLUB. Deslize para ver o que preparamos para você.</Text>
+            <View style={styles.heroScrollHint}>
+              <Text style={styles.heroScrollTxt}>DESTAQUES DA SEMANA</Text>
+              <Ionicons name="chevron-down" size={16} color={theme.colors.silver} />
+            </View>
           </View>
         </ImageBackground>
 
@@ -165,18 +178,42 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  hero: { height: 180, marginHorizontal: theme.spacing.lg, marginTop: theme.spacing.sm, marginBottom: theme.spacing.md },
+  hero: { height: 420, marginHorizontal: theme.spacing.lg, marginTop: theme.spacing.sm, marginBottom: theme.spacing.lg },
   heroImg: { borderRadius: 14 },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.55)",
-    padding: theme.spacing.lg, justifyContent: "flex-end", borderRadius: 14,
+  heroVignette: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.70)",
+    borderRadius: 14,
   },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    padding: theme.spacing.lg, justifyContent: "space-between", borderRadius: 14,
+  },
+  heroKickerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 },
+  heroTierPill: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+    borderWidth: 1, backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  heroTierText: { fontSize: 10, fontWeight: "900", letterSpacing: 2 },
+  heroCode: { color: theme.colors.silver, fontSize: 12, fontWeight: "700", letterSpacing: 1 },
   heroKicker: { color: theme.colors.silver, fontSize: 10, fontWeight: "800", letterSpacing: 3 },
   heroTitle: {
-    color: theme.colors.white, fontSize: 26, fontWeight: "900", letterSpacing: -0.8,
-    marginTop: 4, lineHeight: 28, textTransform: "uppercase",
+    color: theme.colors.white, fontSize: 52, fontWeight: "900", letterSpacing: -1.5,
+    lineHeight: 54, textTransform: "uppercase",
+    marginTop: "auto",
   },
-  heroSub: { color: "#CFCFCF", fontSize: 12, marginTop: 6 },
+  heroSub: { color: "#CFCFCF", fontSize: 13, marginTop: 8, maxWidth: 360 },
+  heroScrollHint: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    alignSelf: "center",
+    marginTop: 18,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+  },
+  heroScrollTxt: { color: theme.colors.silver, fontSize: 10, fontWeight: "900", letterSpacing: 2 },
   aiCard: {
     marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.lg,
     padding: 20, borderRadius: 14, overflow: "hidden",

@@ -25,29 +25,34 @@ export default function TabsLayout() {
   }
 
   const tier = TIERS[member.tier] || TIERS.black;
-  const firstName = member.name?.split(" ")[0] || "Membro";
 
+  // LEFT: Wallet (functional) + decorative diamond beside it
   const HeaderLeft = () => (
     <TouchableOpacity
-      style={styles.headerLeft}
-      onPress={() => router.push("/(tabs)/member")}
-      testID="header-member"
+      style={styles.walletBtn}
+      onPress={() => router.push("/wallet")}
+      testID="header-wallet-button"
+      activeOpacity={0.85}
     >
-      <Ionicons name="diamond" size={12} color={tier.color} />
-      <Text style={styles.memberName} numberOfLines={1}>{firstName}</Text>
+      <Ionicons name="wallet" size={16} color={theme.colors.white} />
+      <Text style={styles.walletBalance}>0 BC</Text>
+      <View style={[styles.deco, { borderColor: tier.color }]}>
+        <Ionicons name="diamond" size={10} color={tier.color} />
+      </View>
     </TouchableOpacity>
   );
 
   const HeaderTitle = () => <BrandLogo size="sm" />;
 
+  // RIGHT: Member icon — goes to /member tab
   const HeaderRight = () => (
     <TouchableOpacity
-      style={styles.walletBtn}
-      onPress={() => router.push("/wallet")}
-      testID="header-wallet-button"
+      style={[styles.memberBtn, { borderColor: tier.color }]}
+      onPress={() => router.push("/(tabs)/member")}
+      testID="header-member"
+      activeOpacity={0.85}
     >
-      <Ionicons name="wallet" size={16} color={theme.colors.white} />
-      <Text style={styles.walletBalance}>0 BC</Text>
+      <Ionicons name="person" size={16} color={tier.color} />
     </TouchableOpacity>
   );
 
@@ -102,6 +107,28 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  walletBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    marginLeft: 14,
+    paddingHorizontal: 10, paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1, borderColor: theme.colors.border,
+  },
+  walletBalance: { color: theme.colors.white, fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
+  deco: {
+    width: 22, height: 22, borderRadius: 11,
+    borderWidth: 1,
+    alignItems: "center", justifyContent: "center",
+    marginLeft: 2,
+  },
+  memberBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    borderWidth: 1.5,
+    backgroundColor: theme.colors.surface,
+    alignItems: "center", justifyContent: "center",
+    marginRight: 14,
+  },
   tierPill: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 8, paddingVertical: 4,

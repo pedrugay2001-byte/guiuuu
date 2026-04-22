@@ -121,13 +121,13 @@ export const api = {
       id: string; name: string; title: string; tagline: string;
       description: string; color: string; avatar: string; starters: string[];
     }[]>("/ai/specialists"),
-  aiChat: (member_id: string, text: string, specialist_id?: string) =>
+  aiChat: (member_id: string, text: string, specialist_id?: string, image_base64?: string) =>
     request<{ reply: string; specialist_id: string }>("/ai/chat", {
       method: "POST",
-      body: JSON.stringify({ member_id, text, specialist_id }),
+      body: JSON.stringify({ member_id, text, specialist_id, image_base64 }),
     }),
   aiHistory: (member_id: string, specialist_id?: string) =>
-    request<{ sender: "member" | "ai"; text: string; created_at: string }[]>(
+    request<{ sender: "member" | "ai"; text: string; created_at: string; has_image?: boolean }[]>(
       `/ai/history/${member_id}${specialist_id ? `?specialist_id=${specialist_id}` : ""}`
     ),
   aiClear: (member_id: string, specialist_id?: string) =>

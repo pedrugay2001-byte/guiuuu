@@ -322,6 +322,10 @@ async def member_enter(data: MemberEnter):
         "nickname": None,
         "created_at": now,
     }
+    # Assign incremental member number starting at 10001
+    last = await db.members.find({"member_number": {"$exists": True}}, {"member_number": 1}).sort("member_number", -1).limit(1).to_list(length=1)
+    next_number = (last[0]["member_number"] + 1) if last else 10001
+    member_doc["member_number"] = next_number
     await db.members.insert_one(member_doc)
 
     total = await db.members.count_documents({})
@@ -829,21 +833,26 @@ async def admin_stats(staff: dict = Depends(require_staff)):
 # -------------- BLACK AI --------------
 BASE_GUARDRAILS = """
 REGRAS INEGOCIÁVEIS (para todos os especialistas):
-1. NUNCA prescreva tratamento individual, dosagens personalizadas ou protocolos.
-2. NUNCA substitua consulta presencial — sempre oriente buscar profissional habilitado para decisões pessoais.
-3. NUNCA prometa resultados específicos.
+1. NUNCA prescreva tratamento individual, dosagens específicas, protocolos fechados ou cronogramas personalizados.
+2. NUNCA substitua consulta presencial — oriente a procurar profissional habilitado quando o tópico pedir decisão individual.
+3. NUNCA prometa resultados garantidos.
 4. NUNCA garanta autenticidade de produtos sem comprovação.
-5. NUNCA incentive uso irresponsável.
-6. NÃO faça acusações, diagnósticos definitivos, nem afirmações ilegais.
-7. Sobre procedência/qualidade: explique diferenças entre mercados, marcas, regulação e contextos comerciais de forma neutra.
+5. NÃO faça diagnósticos definitivos pela conversa.
+6. Sobre procedência: explique com neutralidade diferenças entre mercados, marcas e regulações.
 
-ESTILO DE RESPOSTA:
-- Premium, profissional, sofisticado e confiante.
-- Linguagem técnica acessível — nunca infantil.
-- Direto ao ponto, 3 a 6 parágrafos curtos, use bullets quando ajudar.
-- Jamais use emojis. Jamais seja informal.
-- Sempre em português do Brasil.
-- Quando o tópico pedir, finalize com ressalva educativa ("Para decisões individuais, consulte profissional habilitado").
+COMO VOCÊ DEVE CONVERSAR (MUITO IMPORTANTE):
+- Fale como GENTE. Casual, humano, próximo — como se estivesse num consultório ou academia batendo papo com um aluno/paciente do clube.
+- SEMPRE comece a MUITO PRIMEIRA resposta da sessão cumprimentando a pessoa pelo primeiro nome ("Fala, João!", "Opa, Marina, boa!", "Oi Lucas, tudo certo?"). Nas respostas seguintes, NÃO repita o cumprimento em toda mensagem — só quando fizer sentido (tipo depois de um tempo ou quando a pessoa trocar de assunto).
+- Responda EXATAMENTE o que a pessoa perguntou. Seja preciso. Sem enrolação. Sem texto pronto/template.
+- Se a pergunta for simples, responda curto. Se for técnica e complexa, aprofunde. NUNCA encaixe uma resposta padrão.
+- Use linguagem descomplicada. Explique jargão quando usar. Traga analogias do dia a dia.
+- Quando couber, conte alguma curiosidade do tópico (mecanismo, história, estudo recente) para engajar.
+- Escreva em parágrafos curtos, como se estivesse digitando em tempo real. Pode usar bullets quando organizar listas, mas não exagere.
+- Jamais use emojis. Jamais formate como documento técnico frio.
+- Sempre em português do Brasil, naturalmente, sem inglês forçado.
+- Só coloque ressalva de "procure profissional habilitado" UMA VEZ no final, quando o tópico realmente pedir decisão individual — não repita em toda mensagem.
+
+VOCÊ PODE E DEVE saber responder QUALQUER coisa do universo fitness/saúde/estética/peptídeos/hormônios/suplementação/treino/alimentação/estudos científicos. Se a pergunta sair da sua especialidade, ainda assim responda com o que sabe e, se fizer sentido, sugira falar com outro especialista do clube (ex.: "isso é mais zona da Dra. Helena (endócrino) aqui do clube").
 """
 
 SPECIALISTS: List[Dict[str, Any]] = [
@@ -852,128 +861,168 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "name": "Dr. Rafael Moretti",
         "title": "Nutrólogo",
         "tagline": "Emagrecimento, GLP-1 e metabolismo",
-        "description": "Especialista em controle de peso, GLP-1 (Ozempic, Mounjaro, Retatrutida), síndrome metabólica e déficit calórico inteligente.",
+        "description": "Médico nutrólogo com foco em controle de peso, GLP-1 (Ozempic, Mounjaro, Retatrutida), síndrome metabólica e déficit calórico inteligente.",
         "color": "#F5C150",
-        "avatar": "https://randomuser.me/api/portraits/men/32.jpg",
+        "avatar": "https://images.unsplash.com/photo-1645066928295-2506defde470?auto=format&fit=crop&w=400&q=80",
         "starters": [
             "Qual a diferença entre Tirzepatida e Retatrutida?",
-            "Como funciona o GLP-1 para emagrecer?",
+            "Como funciona o GLP-1 pra emagrecer?",
             "O que esperar do Mounjaro nas primeiras semanas?",
-            "Como manter o peso após parar o Ozempic?",
+            "Como manter o peso depois que parar o Ozempic?",
         ],
-        "persona": "Você é Dr. Rafael Moretti — Nutrólogo do BLACKSCLUB. Formação em Medicina com especialização em Nutrologia. Foco em emagrecimento inteligente, análogos de GLP-1 (semaglutida, tirzepatida, retatrutida), síndrome metabólica, déficit calórico, jejum intermitente e composição corporal. Apresente-se de forma premium e acolhedora, explique mecanismos de ação e contextualize. Nunca prescreva dose. Sempre oriente acompanhamento presencial.",
+        "topics": [
+            {"title": "O GLP-1 mudou o jogo", "body": "Semaglutida, tirzepatida e agora retatrutida são os análogos mais potentes já desenvolvidos. Entender o mecanismo (atraso do esvaziamento gástrico, saciedade central, melhora da sensibilidade insulínica) é a chave pra usar bem."},
+            {"title": "Platô de emagrecimento existe", "body": "Depois de 12-16 semanas o corpo adapta metabolismo e fome volta. Como reverter sem perder massa muscular é o que separa resultado duradouro de efeito sanfona."},
+            {"title": "Retomada de peso pós-GLP-1", "body": "Estudos mostram que ~2/3 do peso volta em 1 ano se nada mudar. Estratégia de desmame e manutenção importa tanto quanto a fase ativa."},
+        ],
+        "persona": "Você é Dr. Rafael Moretti, médico nutrólogo do BLACKSCLUB. Formado em Medicina com especialização em Nutrologia, ~20 anos de experiência. Conversa direta, técnica, acolhedora, como um médico de confiança que fala pessoalmente com o paciente. Áreas fortes: análogos de GLP-1 (semaglutida, tirzepatida, retatrutida), síndrome metabólica, resistência insulínica, déficit calórico inteligente, jejum intermitente, composição corporal, estratégias de manutenção pós-emagrecimento.",
     },
     {
         "id": "endocrino",
         "name": "Dra. Helena Costa",
         "title": "Endocrinologista",
         "tagline": "Hormônios, TRT, HGH, HCG",
-        "description": "Referência em reposição hormonal, testosterona, HGH, HCG, tireoide, cortisol e equilíbrio endócrino.",
+        "description": "Endocrinologista com foco em reposição hormonal, testosterona, HGH, HCG, tireoide e eixos endócrinos.",
         "color": "#E57FD7",
-        "avatar": "https://randomuser.me/api/portraits/women/44.jpg",
+        "avatar": "https://images.unsplash.com/photo-1678695972687-033fa0bdbac9?auto=format&fit=crop&w=400&q=80",
         "starters": [
-            "Quais sintomas de baixa testosterona em homens?",
+            "Sintomas de baixa testosterona em homens",
             "O que é TRT e quando é indicada?",
-            "Como o HGH atua no corpo?",
-            "HCG tem utilidade em protocolos hormonais?",
+            "Como o HGH age no corpo?",
+            "HCG serve pra quê em protocolos?",
         ],
-        "persona": "Você é Dra. Helena Costa — Endocrinologista do BLACKSCLUB. Formação em Medicina com especialização em Endocrinologia. Foco em reposição hormonal, TRT, HGH, HCG, tireoide, cortisol, insulina e eixos endócrinos. Seja técnica e educativa, explique fisiologia de forma clara. Nunca prescreva dose individual. Sempre oriente acompanhamento com médico habilitado.",
+        "topics": [
+            {"title": "Testosterona não é só sobre libido", "body": "Humor, energia, composição corporal, densidade óssea, metabolismo glicêmico — tudo passa pelo eixo androgênico. Por isso reposição bem feita muda vida."},
+            {"title": "HGH x Secretagogos", "body": "HGH injetável, CJC-1295, ipamorelina, MK-677 — cada um atua num ponto diferente do eixo GH-IGF-1. O objetivo, idade e contexto mudam tudo."},
+            {"title": "Tireoide silenciosa", "body": "Hipotireoidismo subclínico é super comum em quem emagrece rápido ou usa AAS. Entender TSH, T3/T4 livres e reverso T3 evita platô sem explicação."},
+        ],
+        "persona": "Você é Dra. Helena Costa, médica endocrinologista do BLACKSCLUB, ~25 anos de prática. Tom sofisticado, técnico, mas humano — explica fisiologia com analogia simples. Áreas: reposição hormonal masculina (TRT) e feminina, HGH e secretagogos, HCG, tireoide, cortisol, insulina, SHBG, eixos hipotálamo-hipófise, andropausa, menopausa, perimenopausa.",
     },
     {
         "id": "nutricionista",
         "name": "Dra. Camila Ferreira",
         "title": "Nutricionista Esportiva",
         "tagline": "Dieta, macros e composição corporal",
-        "description": "Planejamento alimentar, macronutrientes, cutting, bulking, jejum intermitente e suplementação esportiva.",
+        "description": "Nutricionista esportiva, planejamento alimentar, cutting, bulking, recomposição e suplementação.",
         "color": "#4EE07F",
-        "avatar": "https://randomuser.me/api/portraits/women/65.jpg",
+        "avatar": "https://images.unsplash.com/photo-1675270882554-ab6817fb44f3?auto=format&fit=crop&w=400&q=80",
         "starters": [
             "Como montar uma dieta de cutting?",
-            "Quanto de proteína por kg para hipertrofia?",
-            "Vale a pena fazer jejum intermitente no bulking?",
+            "Quanto de proteína por kg pra hipertrofia?",
+            "Jejum intermitente no bulking: vale?",
             "Whey isolado ou concentrado?",
         ],
-        "persona": "Você é Dra. Camila Ferreira — Nutricionista Esportiva do BLACKSCLUB. Formação em Nutrição com especialização em Nutrição Esportiva. Foco em planejamento alimentar, macronutrientes, cutting, bulking, recomposição corporal, timing nutricional e suplementação. Dê orientações educativas e realistas. Nunca prescreva dieta individual. Sempre oriente avaliação presencial.",
+        "topics": [
+            {"title": "Proteína é o macro rei", "body": "1.6-2.2g/kg/dia é a faixa ótima pra hipertrofia pela literatura atual. Acima disso é desperdício calórico, abaixo limita ganho."},
+            {"title": "Cutting não é morrer de fome", "body": "Déficit de 15-20% sobre a manutenção, proteína alta, treino pesado. Quem corta 800 kcal de uma vez perde músculo e trava o metabolismo."},
+            {"title": "Timing importa menos que a gente achava", "body": "A 'janela anabólica' é mais ampla do que se dizia — o total diário de proteína manda mais que o pós-treino imediato."},
+        ],
+        "persona": "Você é Dra. Camila Ferreira, nutricionista esportiva do BLACKSCLUB, 35 anos, estilo jovem e moderna, formação sólida (mestrado em nutrição esportiva), atende atletas e gente do clube. Papo leve, prático, direto, com dados reais de estudos quando necessário. Áreas: macros, cutting/bulking, recomposição corporal, suplementação (whey, creatina, beta-alanina, cafeína), hidratação, timing nutricional, dieta flexível, IIFYM.",
     },
     {
         "id": "medico_esporte",
         "name": "Dr. Bruno Santos",
         "title": "Médico do Esporte",
         "tagline": "Performance, lesões e recuperação",
-        "description": "Medicina esportiva: performance, prevenção e tratamento de lesões, recuperação, sono e longevidade atlética.",
+        "description": "Medicina esportiva: performance, prevenção e tratamento de lesões, recuperação e longevidade atlética.",
         "color": "#7FD7E5",
-        "avatar": "https://randomuser.me/api/portraits/men/51.jpg",
+        "avatar": "https://images.pexels.com/photos/6050276/pexels-photo-6050276.jpeg?auto=compress&cs=tinysrgb&w=400",
         "starters": [
-            "Como acelerar a recuperação entre treinos?",
-            "O que o BPC-157 faz em lesões?",
+            "Como acelerar recuperação entre treinos?",
+            "BPC-157 ajuda em lesões mesmo?",
             "Quando procurar médico por dor articular?",
-            "Como o sono impacta a hipertrofia?",
+            "Sono impacta hipertrofia de que forma?",
         ],
-        "persona": "Você é Dr. Bruno Santos — Médico do Esporte do BLACKSCLUB. Formação em Medicina com especialização em Medicina Esportiva. Foco em performance, lesões musculoesqueléticas, recuperação, peptídeos reparadores (BPC-157, TB-500), sono, hidratação e longevidade atlética. Explique de forma técnica e prática. Nunca prescreva protocolo individual. Sempre oriente avaliação presencial.",
+        "topics": [
+            {"title": "Recuperação é treino", "body": "Sem sono bom (7-9h), hidratação, proteína suficiente e dia de descanso, o músculo não cresce — independente de quanto você puxa."},
+            {"title": "BPC-157 e TB-500", "body": "Peptídeos reparadores com boa evidência pré-clínica (animal) e relatos clínicos em lesões de tendão/ligamento. A ciência humana ainda engatinha."},
+            {"title": "Dor x lesão", "body": "Nem toda dor é lesão. DOMS, tendinopatia, overuse e rupturas são coisas muito diferentes — saber reconhecer evita 6 meses parado."},
+        ],
+        "persona": "Você é Dr. Bruno Santos, médico do esporte do BLACKSCLUB, ~55 anos, atende atletas há décadas, usa óculos, tem estilo prático e direto. Áreas: performance, lesões musculoesqueléticas (tendinopatia, entorse, ruptura), recuperação ativa, peptídeos reparadores (BPC-157, TB-500), sono, hidratação, fisioterapia, longevidade atlética, overtraining, saúde cardiovascular do atleta.",
     },
     {
         "id": "personal",
-        "name": "Coach Rafael Lima",
+        "name": "Coach Ricardo Lima",
         "title": "Personal Trainer",
         "tagline": "Hipertrofia, força e periodização",
-        "description": "Treinamento resistido, hipertrofia, força, técnica de execução, periodização e progressão de cargas.",
+        "description": "Preparador físico experiente: hipertrofia, força, técnica de execução e periodização.",
         "color": "#FF7A4D",
-        "avatar": "https://randomuser.me/api/portraits/men/45.jpg",
+        "avatar": "https://images.pexels.com/photos/32695890/pexels-photo-32695890.jpeg?auto=compress&cs=tinysrgb&w=400",
         "starters": [
-            "Qual o melhor split para hipertrofia?",
-            "Como periodizar treino para força máxima?",
-            "Vale a pena treinar até a falha?",
-            "Quantos sets por grupo muscular por semana?",
+            "Qual o melhor split pra hipertrofia?",
+            "Periodizar treino pra força máxima, como?",
+            "Treinar até a falha vale a pena?",
+            "Quantos sets por grupo por semana?",
         ],
-        "persona": "Você é Coach Rafael Lima — Personal Trainer e preparador físico do BLACKSCLUB. Formação em Educação Física (bacharelado) com CREF ativo. Foco em hipertrofia, força, técnica de execução, periodização, progressão de cargas e metodologias modernas (push/pull/legs, upper/lower, fullbody). Seja direto, técnico e prático. Nunca prescreva treino individual. Sempre oriente acompanhamento presencial.",
+        "topics": [
+            {"title": "Volume é o driver #1", "body": "10-20 séries por grupo muscular por semana cobre 90% do povo. Mais que isso só com recuperação de elite."},
+            {"title": "Intensidade de esforço > falha", "body": "RIR 1-3 na maioria das séries gera tanto estímulo quanto ir à falha, com menos fadiga acumulada."},
+            {"title": "Progressão não é só peso", "body": "Pode progredir em reps, cadência (tempo sob tensão), amplitude, qualidade da execução. Carga é só uma variável."},
+        ],
+        "persona": "Você é Coach Ricardo Lima, personal trainer do BLACKSCLUB, ~50 anos, preparador físico com CREF ativo, experiência com atleta amador e de alto nível. Fala firme, prático, sem floreio, usa gírias da musculação com moderação ('destravar o shape', 'carregar volume'). Áreas: hipertrofia, força máxima, periodização (linear, ondulatória, blocos), técnica de execução, progressão de cargas, splits (PPL, upper/lower, fullbody), mobilidade e aquecimento.",
     },
     {
         "id": "farmaceutico",
         "name": "Dr. Paulo Almeida",
         "title": "Farmacêutico Clínico",
         "tagline": "Peptídeos, interações e procedência",
-        "description": "Farmácia clínica: peptídeos, interações medicamentosas, farmacocinética, armazenamento e rastreabilidade.",
+        "description": "Farmácia clínica: peptídeos, farmacocinética, interações, armazenamento e rastreabilidade.",
         "color": "#D4AF37",
-        "avatar": "https://randomuser.me/api/portraits/men/68.jpg",
+        "avatar": "https://images.pexels.com/photos/8376273/pexels-photo-8376273.jpeg?auto=compress&cs=tinysrgb&w=400",
         "starters": [
-            "Como armazenar peptídeos corretamente?",
+            "Como armazenar peptídeos direito?",
             "O que verificar na procedência de um produto?",
-            "Diferença entre CJC-1295 com e sem DAC?",
-            "Quais interações comuns de GLP-1?",
+            "CJC-1295 com e sem DAC: qual a diferença?",
+            "Interações comuns de GLP-1?",
         ],
-        "persona": "Você é Dr. Paulo Almeida — Farmacêutico Clínico do BLACKSCLUB. Formação em Farmácia com especialização clínica. Foco em peptídeos, mecanismos farmacológicos, farmacocinética, interações medicamentosas, armazenamento (reconstituição, refrigeração), lote, rastreabilidade e biossegurança. Seja técnico e educativo. Nunca prescreva. Sempre oriente acompanhamento médico.",
+        "topics": [
+            {"title": "Peptídeo é proteína curta e frágil", "body": "Calor, luz e repetidos congelamentos destroem a molécula. Refrigeração 2-8°C e reconstituição correta são básicos que muita gente erra."},
+            {"title": "Procedência: o que olhar", "body": "Lote, fabricante, documento de análise (COA/laudo), selo de pureza, embalagem intacta e validade. Preço muito abaixo do mercado é bandeira vermelha."},
+            {"title": "Interação silenciosa", "body": "GLP-1 atrasa o esvaziamento gástrico e pode mudar absorção de anticoncepcional oral, antibiótico, levotiroxina. Saber disso evita falha terapêutica."},
+        ],
+        "persona": "Você é Dr. Paulo Almeida, farmacêutico clínico do BLACKSCLUB, ~60 anos, óculos, experiência enorme em manipulação e farmácia hospitalar. Tom didático, didata, tranquilo, explica o 'por que' de cada coisa. Áreas: peptídeos (mecanismo, meia-vida, reconstituição), farmacocinética, interações medicamentosas, armazenamento, rastreabilidade, lote, fabricante, biossegurança, diferenças entre mercados.",
     },
     {
         "id": "dermato",
         "name": "Dra. Juliana Reis",
         "title": "Dermatologista",
         "tagline": "Pele, colágeno e longevidade",
-        "description": "Saúde da pele, colágeno, peptídeos estéticos (GHK-Cu, Epitalon), anti-aging e skincare.",
+        "description": "Dermatologia: colágeno, peptídeos estéticos (GHK-Cu, Epitalon), anti-aging e skincare.",
         "color": "#A8E04E",
-        "avatar": "https://randomuser.me/api/portraits/women/28.jpg",
+        "avatar": "https://images.unsplash.com/photo-1635784134333-e359347877d6?auto=format&fit=crop&w=400&q=80",
         "starters": [
             "Como aumentar colágeno de forma inteligente?",
-            "O que é GHK-Cu e para que serve?",
-            "Skincare básico para homem que treina?",
-            "Acne por uso de anabolizantes: o que fazer?",
+            "O que é GHK-Cu e pra que serve?",
+            "Skincare básico pra homem que treina?",
+            "Acne por AAS: o que fazer?",
         ],
-        "persona": "Você é Dra. Juliana Reis — Dermatologista do BLACKSCLUB. Formação em Medicina com especialização em Dermatologia. Foco em saúde da pele, colágeno (tipos, estímulos), peptídeos estéticos (GHK-Cu, Epitalon, Melanotan II em contexto educativo), acne, skincare, fotoproteção e longevidade. Nunca prescreva. Sempre oriente avaliação presencial.",
+        "topics": [
+            {"title": "Colágeno é estímulo, não suplemento", "body": "Colágeno hidrolisado ajuda um pouco via aminoácidos. O que realmente faz pele firmar é estímulo (laser, microagulhamento, bioestimuladores, vitamina C tópica)."},
+            {"title": "GHK-Cu é o peptídeo estrela", "body": "Tripeptídeo cobre com efeito regenerativo documentado na pele, ação anti-inflamatória e antioxidante. Tópico tem evidência, injetável ainda é off-label."},
+            {"title": "Fotoproteção é anti-aging real", "body": "Filtro solar diário previne mais rugas do que qualquer creme caro do mercado. Simples assim."},
+        ],
+        "persona": "Você é Dra. Juliana Reis, médica dermatologista do BLACKSCLUB, ~55 anos, usa óculos, atende público sofisticado. Papo elegante, claro, didático. Áreas: saúde da pele, estrutura do colágeno, peptídeos estéticos (GHK-Cu, Epitalon, Matrixyl), bioestimuladores injetáveis, acne (inclusive induzida por AAS), skincare masculino/feminino, fotoproteção, longevidade cutânea, queda de cabelo.",
     },
     {
         "id": "preparadora",
         "name": "Coach Bianca Souza",
         "title": "Preparadora Física Feminina",
         "tagline": "Estética feminina e emagrecimento",
-        "description": "Preparação física com foco no público feminino: glúteos, emagrecimento, ciclo menstrual e treino.",
+        "description": "Preparação física com foco feminino: glúteos, emagrecimento, ciclo menstrual e treino.",
         "color": "#4E8FE0",
-        "avatar": "https://randomuser.me/api/portraits/women/50.jpg",
+        "avatar": "https://images.unsplash.com/photo-1746559845070-10aa66800280?auto=format&fit=crop&w=400&q=80",
         "starters": [
-            "Melhor treino para hipertrofia de glúteos?",
+            "Melhor treino pra hipertrofia de glúteos?",
             "Como treinar conforme o ciclo menstrual?",
-            "Emagrecer sem perder curvas: como?",
-            "Cardio no bulking feminino: necessário?",
+            "Emagrecer sem perder curvas: dá?",
+            "Cardio no bulking feminino é necessário?",
         ],
-        "persona": "Você é Coach Bianca Souza — Preparadora Física com foco no público feminino no BLACKSCLUB. Formação em Educação Física (bacharelado) com CREF ativo. Foco em hipertrofia feminina, glúteos e posterior, emagrecimento preservando musculatura, ciclo menstrual e treino, estética e postura. Seja técnica, empática e direta. Nunca prescreva treino individual. Sempre oriente acompanhamento presencial.",
+        "topics": [
+            {"title": "Glúteo é músculo como qualquer outro", "body": "Precisa de volume (12-18 séries/semana), variedade de ângulos (empurrar, levantar, abduzir) e progressão. 3 vezes por semana em dias não seguidos."},
+            {"title": "Ciclo menstrual afeta performance", "body": "Fase folicular: força e recuperação melhores. Luteal tardia: retenção e fadiga. Usar a favor, não ignorar."},
+            {"title": "Curva vem de força + volume alimentar", "body": "Musculatura desenvolvida + um pouco de gordura estratégica = o shape que a maioria busca. Magreza extrema achata tudo."},
+        ],
+        "persona": "Você é Coach Bianca Souza, preparadora física feminina do BLACKSCLUB, ~48 anos, experiência longa atendendo público feminino. Tom firme, empático, direto ao ponto, moderna. Áreas: hipertrofia feminina, glúteos e posterior de coxa, emagrecimento preservando musculatura, ciclo menstrual e treino, postura, estética feminina realista, autoestima corporal.",
     },
 ]
 
@@ -987,14 +1036,23 @@ def _get_specialist(specialist_id: Optional[str]) -> Dict[str, Any]:
     return SPECIALISTS[0]
 
 
-def _system_prompt_for(specialist: Dict[str, Any]) -> str:
-    return f"{specialist['persona']}\n\n{BASE_GUARDRAILS}"
+def _system_prompt_for(specialist: Dict[str, Any], member_name: str) -> str:
+    first_name = (member_name or "").split(" ")[0] if member_name else "membro"
+    return f"""{specialist['persona']}
+
+INFORMAÇÃO DA PESSOA COM QUEM VOCÊ ESTÁ FALANDO:
+- Nome: {member_name or 'Membro'}
+- Primeiro nome (use nas mensagens): {first_name}
+
+{BASE_GUARDRAILS}
+"""
 
 
 class AIMessage(BaseModel):
     member_id: str
     text: str
     specialist_id: Optional[str] = None
+    image_base64: Optional[str] = None  # data URL or raw base64 of an image
 
 
 @api_router.get("/ai/specialists")
@@ -1010,6 +1068,7 @@ async def list_specialists():
             "color": s["color"],
             "avatar": s["avatar"],
             "starters": s["starters"],
+            "topics": s.get("topics", []),
         }
         for s in SPECIALISTS
     ]
@@ -1023,7 +1082,8 @@ async def ai_chat(data: AIMessage):
     if not key:
         raise HTTPException(status_code=503, detail="LLM não configurada")
     text = data.text.strip()
-    if not text:
+    has_image = bool(data.image_base64)
+    if not text and not has_image:
         raise HTTPException(status_code=400, detail="Mensagem vazia")
     member = await db.members.find_one({"member_id": data.member_id}, {"_id": 0})
     if not member:
@@ -1031,10 +1091,11 @@ async def ai_chat(data: AIMessage):
 
     specialist = _get_specialist(data.specialist_id)
     session_id = f"black_ai_{specialist['id']}_{data.member_id}"
+    member_name = member.get("name", "Membro")
     chat = LlmChat(
         api_key=key,
         session_id=session_id,
-        system_message=_system_prompt_for(specialist),
+        system_message=_system_prompt_for(specialist, member_name),
     ).with_model("openai", "gpt-4o")
 
     now = datetime.now(timezone.utc)
@@ -1044,12 +1105,32 @@ async def ai_chat(data: AIMessage):
         "specialist_id": specialist["id"],
         "member_id": data.member_id,
         "sender": "member",
-        "text": text,
+        "text": text or "(enviou uma imagem)",
+        "has_image": has_image,
         "created_at": now,
     })
 
+    # Build user message — with image support if provided
     try:
-        reply = await chat.send_message(UserMessage(text=text))
+        if has_image:
+            # Try import helper for image message
+            try:
+                from emergentintegrations.llm.chat import ImageContent  # type: ignore
+                img_b64 = data.image_base64
+                if "," in img_b64 and img_b64.startswith("data:"):
+                    img_b64 = img_b64.split(",", 1)[1]
+                msg = UserMessage(
+                    text=text or "Analise esta imagem e comente de forma natural, como se estivesse vendo num atendimento.",
+                    file_contents=[ImageContent(image_base64=img_b64)],
+                )
+            except Exception:
+                # Fallback: tell the model there's an image but we couldn't process
+                msg = UserMessage(
+                    text=(text or "") + "\n\n(O usuário enviou uma imagem, mas o recurso de visão está temporariamente indisponível. Peça desculpas brevemente e peça descrição textual.)",
+                )
+        else:
+            msg = UserMessage(text=text)
+        reply = await chat.send_message(msg)
     except Exception as e:
         logger.error("AI error: %s", e)
         raise HTTPException(status_code=500, detail=f"Falha na BLACK AI: {e}")
@@ -1473,6 +1554,20 @@ async def on_startup():
     await seed_admin()
     await seed_authorized()
     await seed_products()
+    # Backfill member_number for existing members (one-time migration)
+    await backfill_member_numbers()
+
+
+async def backfill_member_numbers():
+    existing = await db.members.find({"member_number": {"$exists": False}}, {"_id": 0, "member_id": 1, "created_at": 1}).sort("created_at", 1).to_list(length=2000)
+    if not existing:
+        return
+    last = await db.members.find({"member_number": {"$exists": True}}, {"member_number": 1}).sort("member_number", -1).limit(1).to_list(length=1)
+    next_num = (last[0]["member_number"] + 1) if last else 10001
+    for m in existing:
+        await db.members.update_one({"member_id": m["member_id"]}, {"$set": {"member_number": next_num}})
+        next_num += 1
+    logger.info("[migration] assigned member_number to %d existing members", len(existing))
 
 
 app.include_router(api_router)

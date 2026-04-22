@@ -146,7 +146,7 @@ export default function Welcome() {
 
 const styles = StyleSheet.create({
   slide: { flex: 1, height: "100%" },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.48)" },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.65)" },
   vignetteBottom: {
     position: "absolute", bottom: 0, left: 0, right: 0, height: 520,
     backgroundColor: "rgba(0,0,0,0.88)",

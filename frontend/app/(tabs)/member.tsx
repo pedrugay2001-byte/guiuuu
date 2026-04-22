@@ -54,6 +54,7 @@ export default function Member() {
       });
     } catch {}
   };
+  const shareInvite = shareGeneric;
 
   const contactSupport = () => router.push("/chat");
 
@@ -92,12 +93,37 @@ export default function Member() {
           <View style={{ flex: 1 }}>
             <Text style={styles.name} numberOfLines={1}>{member?.name}</Text>
             <Text style={styles.email}>{member?.phone}</Text>
-            <View style={[styles.tierBadge, { borderColor: tier.color }]}>
-              <Ionicons name={tier.icon as any} size={11} color={tier.color} />
-              <Text style={[styles.tierText, { color: tier.color }]}>{tier.label.toUpperCase()}</Text>
+            <View style={styles.pillRow}>
+              <View style={[styles.tierBadge, { borderColor: tier.color }]}>
+                <Ionicons name={tier.icon as any} size={11} color={tier.color} />
+                <Text style={[styles.tierText, { color: tier.color }]}>{tier.label.toUpperCase()}</Text>
+              </View>
+              {(member as any)?.member_number && (
+                <View style={styles.numberPill}>
+                  <Text style={styles.numberTxt}>#{(member as any).member_number}</Text>
+                </View>
+              )}
             </View>
           </View>
         </View>
+
+        {/* INVITE CODE — visible, shareable */}
+        {member?.invite_code ? (
+          <View style={styles.inviteCard}>
+            <View style={styles.inviteHead}>
+              <Ionicons name="key" size={14} color="#F5C150" />
+              <Text style={styles.inviteKicker}>SEU CÓDIGO DE ACESSO</Text>
+            </View>
+            <Text style={styles.inviteCode}>{member.invite_code}</Text>
+            <Text style={styles.inviteHint}>
+              Use este código para indicar outra pessoa ao clube. Cada indicação passa pela aprovação da administração.
+            </Text>
+            <TouchableOpacity style={styles.inviteShare} onPress={shareInvite} testID="member-share-invite">
+              <Ionicons name="share-social" size={14} color={theme.colors.bg} />
+              <Text style={styles.inviteShareTxt}>COMPARTILHAR CONVITE</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         {/* Nickname */}
         <View style={styles.nickCard}>
@@ -228,11 +254,41 @@ const styles = StyleSheet.create({
   name: { color: theme.colors.white, fontSize: 17, fontWeight: "800" },
   email: { color: theme.colors.textMuted, fontSize: 12, marginTop: 2 },
   tierBadge: {
-    flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8,
-    alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3,
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: 20, borderWidth: 1,
   },
   tierText: { fontSize: 9, fontWeight: "900", letterSpacing: 1.5 },
+  pillRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" },
+  numberPill: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20,
+    borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceElevated,
+  },
+  numberTxt: { color: theme.colors.text, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+
+  inviteCard: {
+    marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
+    padding: 16, borderRadius: 12,
+    backgroundColor: "#0F0F0F",
+    borderWidth: 1, borderColor: "rgba(245,193,80,0.35)",
+  },
+  inviteHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+  inviteKicker: { color: "#F5C150", fontSize: 10, fontWeight: "900", letterSpacing: 2 },
+  inviteCode: {
+    color: theme.colors.white, fontSize: 26, fontWeight: "900",
+    letterSpacing: 6, textAlign: "center",
+    paddingVertical: 10,
+    backgroundColor: "rgba(245,193,80,0.08)",
+    borderRadius: 8, borderWidth: 1, borderColor: "rgba(245,193,80,0.25)",
+    marginVertical: 4,
+  },
+  inviteHint: { color: theme.colors.textMuted, fontSize: 11, lineHeight: 15, marginTop: 8 },
+  inviteShare: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    marginTop: 12, padding: 12, borderRadius: 8,
+    backgroundColor: "#F5C150",
+  },
+  inviteShareTxt: { color: theme.colors.bg, fontSize: 11, fontWeight: "900", letterSpacing: 1.5 },
   nickCard: {
     flexDirection: "row", alignItems: "center", gap: 10,
     marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,

@@ -35,6 +35,7 @@ export default function Login() {
       } catch {}
       await saveMember({
         member_id: m.member_id,
+        member_number: (m as any).member_number,
         name: m.name,
         phone: m.phone || "",
         neighborhood: m.neighborhood || "",
