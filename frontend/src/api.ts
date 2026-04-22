@@ -173,6 +173,10 @@ export const api = {
     request<{ ok: boolean }>(`/admin/members/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   adminDeleteMember: (id: string) =>
     request<{ ok: boolean }>(`/admin/members/${id}`, { method: "DELETE" }),
+  adminResetMemberPassword: (id: string, password: string) =>
+    request<{ ok: boolean; email?: string }>(`/admin/members/${id}/password`, {
+      method: "PUT", body: JSON.stringify({ password }),
+    }),
   adminListAuthorized: () => request<AuthorizedEntry[]>("/admin/authorized"),
   adminAddAuthorized: (body: { name: string; phone: string; code: string; tier?: TierId; parent_name?: string }) =>
     request<{ ok: boolean; code: string }>("/admin/authorized", {

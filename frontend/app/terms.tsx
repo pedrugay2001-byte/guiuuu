@@ -27,7 +27,7 @@ export default function Terms() {
 
   const onContinue = () => {
     if (!canAccept) return;
-    router.push("/enter");
+    router.replace("/(tabs)/home");
   };
 
   return (

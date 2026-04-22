@@ -61,10 +61,12 @@ export default function Login() {
     >
       <Stack.Screen
         options={{
-          title: "Entrar",
+          title: "",
+          headerBackTitle: "Voltar",
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 12 }}>
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 12, flexDirection: "row", alignItems: "center", gap: 4 }}>
               <Ionicons name="chevron-back" size={24} color={theme.colors.white} />
+              <Text style={{ color: theme.colors.white, fontSize: 15, fontWeight: "600" }}>Voltar</Text>
             </TouchableOpacity>
           ),
         }}

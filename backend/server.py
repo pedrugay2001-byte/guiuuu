@@ -757,13 +757,13 @@ class MemberUpdate(BaseModel):
 
 
 @api_router.get("/admin/members")
-async def admin_members(admin: dict = Depends(require_admin)):
+async def admin_members(staff: dict = Depends(require_staff)):
     cursor = db.members.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1)
     return await cursor.to_list(length=500)
 
 
 @api_router.put("/admin/members/{member_id}")
-async def admin_update_member(member_id: str, data: MemberUpdate, admin: dict = Depends(require_admin)):
+async def admin_update_member(member_id: str, data: MemberUpdate, staff: dict = Depends(require_staff)):
     updates = {}
     if data.name and data.name.strip():
         updates["name"] = data.name.strip()
@@ -781,6 +781,23 @@ async def admin_update_member(member_id: str, data: MemberUpdate, admin: dict = 
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail="Membro não encontrado")
     return {"ok": True}
+
+
+class MemberPasswordReset(BaseModel):
+    password: str
+
+
+@api_router.put("/admin/members/{member_id}/password")
+async def admin_reset_member_password(member_id: str, data: MemberPasswordReset, staff: dict = Depends(require_staff)):
+    pwd = (data.password or "").strip()
+    if len(pwd) < 6:
+        raise HTTPException(status_code=400, detail="Senha deve ter 6+ caracteres")
+    member = await db.members.find_one({"member_id": member_id}, {"_id": 0})
+    if not member:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    ph = bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    await db.members.update_one({"member_id": member_id}, {"$set": {"password_hash": ph}})
+    return {"ok": True, "member_id": member_id, "email": member.get("email")}
 
 
 @api_router.delete("/admin/members/{member_id}")

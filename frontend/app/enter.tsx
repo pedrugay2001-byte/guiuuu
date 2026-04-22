@@ -96,7 +96,7 @@ export default function Enter() {
     }
   };
 
-  const goToApp = () => router.replace("/(tabs)/home");
+  const goToApp = () => router.replace("/terms");
 
   if (success) {
     const tier = TIERS[success.tier] || TIERS.black;
@@ -127,7 +127,7 @@ export default function Enter() {
             </View>
 
             <TouchableOpacity style={styles.primaryBtn} onPress={goToApp} testID="go-to-app">
-              <Text style={styles.primaryBtnText}>ENTRAR NO CLUBE</Text>
+              <Text style={styles.primaryBtnText}>ACEITAR TERMOS E ENTRAR</Text>
               <Ionicons name="arrow-forward" size={16} color={theme.colors.bg} />
             </TouchableOpacity>
           </ScrollView>
@@ -143,10 +143,11 @@ export default function Enter() {
     >
       <Stack.Screen
         options={{
-          title: "Acesso ao clube",
+          title: "",
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 12 }} testID="enter-back">
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 12, flexDirection: "row", alignItems: "center", gap: 4 }} testID="enter-back">
               <Ionicons name="chevron-back" size={24} color={theme.colors.white} />
+              <Text style={{ color: theme.colors.white, fontSize: 15, fontWeight: "600" }}>Voltar</Text>
             </TouchableOpacity>
           ),
         }}
@@ -186,6 +187,12 @@ export default function Enter() {
           <View style={styles.field}>
             <Text style={styles.label}>REPETIR SENHA</Text>
             <PasswordInput testID="enter-password2-input" value={password2} onChangeText={setPassword2} placeholder="Confirme a senha" />
+            {password2.length > 0 && password !== password2 && (
+              <Text style={styles.inlineErr}>As senhas não conferem.</Text>
+            )}
+            {password2.length > 0 && password === password2 && password.length >= 6 && (
+              <Text style={styles.inlineOk}>Senhas conferem.</Text>
+            )}
           </View>
 
           <View style={styles.field}>
@@ -272,6 +279,8 @@ const styles = StyleSheet.create({
   stateItem: { paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
   stateItemText: { color: theme.colors.text, fontSize: 14, fontWeight: "700", letterSpacing: 1 },
   helper: { color: theme.colors.textMuted, fontSize: 11 },
+  inlineErr: { color: theme.colors.error, fontSize: 11, marginTop: -2 },
+  inlineOk: { color: "#4EE07F", fontSize: 11, marginTop: -2 },
   error: {
     color: theme.colors.error, fontSize: 13, textAlign: "center",
     backgroundColor: "rgba(255,59,48,0.08)",
