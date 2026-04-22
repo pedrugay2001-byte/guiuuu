@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
@@ -17,6 +17,8 @@ export default function Enter() {
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [neighborhood, setNeighborhood] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
@@ -32,12 +34,17 @@ export default function Enter() {
   );
 
   const submit = async () => {
-    if (!name.trim() || !phone.trim() || !neighborhood.trim() || !city.trim() || !state.trim() || !code.trim()) {
+    if (!name.trim() || !phone.trim() || !email.trim() || !password ||
+        !neighborhood.trim() || !city.trim() || !state.trim() || !code.trim()) {
       setError("Acesso não autorizado");
       return;
     }
     if (name.trim().split(/\s+/).length < 2) {
       setError("Acesso não autorizado");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Senha deve ter 6+ caracteres");
       return;
     }
     if (!BR_STATES.includes(state.trim().toUpperCase())) {
@@ -50,6 +57,8 @@ export default function Enter() {
       const res = await api.memberEnter({
         name: name.trim(),
         phone: phone.trim(),
+        email: email.trim().toLowerCase(),
+        password,
         neighborhood: neighborhood.trim(),
         city: city.trim(),
         state: state.trim().toUpperCase(),
@@ -63,9 +72,9 @@ export default function Enter() {
         member_id: res.member_id,
         name: res.name,
         phone: phone.trim(),
-        neighborhood: res.neighborhood,
-        city: res.city,
-        state: res.state,
+        neighborhood: res.neighborhood || neighborhood,
+        city: res.city || city,
+        state: res.state || state,
         invite_code: res.invite_code,
         parent_code: res.parent_code,
         parent_name: res.parent_name,
@@ -75,8 +84,7 @@ export default function Enter() {
       await saveMember(m);
       setSuccess(m);
     } catch (e: any) {
-      // Discreet error — do not reveal which field is wrong
-      setError("Acesso não autorizado");
+      setError(e.message || "Acesso não autorizado");
     } finally {
       setLoading(false);
     }
@@ -101,14 +109,15 @@ export default function Enter() {
               BEM-VINDO,{"\n"}{success.name.split(" ")[0].toUpperCase()}.
             </Text>
             <Text style={styles.successText}>
-              Você agora integra o BLACKSCLUB. Seu plano atual é{" "}
-              <Text style={{ color: tier.color, fontWeight: "900" }}>{tier.label.toUpperCase()}</Text>.
+              Seu plano atual é{" "}
+              <Text style={{ color: tier.color, fontWeight: "900" }}>{tier.label.toUpperCase()}</Text>.{"\n"}
+              Nas próximas vezes, entre apenas com seu e-mail e senha.
             </Text>
 
-            <View style={styles.codeCard} testID="enter-success-code">
+            <View style={styles.codeCard}>
               <Text style={styles.codeLabel}>SEU CÓDIGO PESSOAL</Text>
               <Text style={styles.codeValue}>{success.invite_code}</Text>
-              <Text style={styles.codeHint}>Use apenas quando a administração autorizar.</Text>
+              <Text style={styles.codeHint}>Use para recuperar senha se necessário.</Text>
             </View>
 
             <TouchableOpacity style={styles.primaryBtn} onPress={goToApp} testID="go-to-app">
@@ -138,69 +147,52 @@ export default function Enter() {
       />
       <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-          <Text style={styles.kicker}>IDENTIFICAÇÃO</Text>
-          <Text style={styles.title}>SEUS DADOS{"\n"}DE ACESSO.</Text>
+          <Text style={styles.kicker}>PRIMEIRO ACESSO</Text>
+          <Text style={styles.title}>CRIAR{"\n"}SUA CONTA.</Text>
           <Text style={styles.sub}>
-            Informações confidenciais. O acesso só é liberado para membros pré-autorizados pela administração.
+            Seu acesso só é liberado se você foi pré-autorizado. Nas próximas vezes, você usa apenas e-mail e senha.
           </Text>
 
           <View style={styles.field}>
             <Text style={styles.label}>NOME COMPLETO</Text>
-            <TextInput
-              testID="enter-name-input"
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
-              placeholder="Como consta no cadastro"
-              placeholderTextColor={theme.colors.textMuted}
-              autoCapitalize="words"
-            />
+            <TextInput testID="enter-name-input" style={styles.input} value={name} onChangeText={setName}
+              placeholder="Como consta no cadastro" placeholderTextColor={theme.colors.textMuted} autoCapitalize="words" />
           </View>
 
           <View style={styles.field}>
             <Text style={styles.label}>TELEFONE / WHATSAPP</Text>
-            <TextInput
-              testID="enter-phone-input"
-              style={styles.input}
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="(11) 99999-9999"
-              placeholderTextColor={theme.colors.textMuted}
-              keyboardType="phone-pad"
-            />
+            <TextInput testID="enter-phone-input" style={styles.input} value={phone} onChangeText={setPhone}
+              placeholder="(11) 99999-9999" placeholderTextColor={theme.colors.textMuted} keyboardType="phone-pad" />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>E-MAIL</Text>
+            <TextInput testID="enter-email-input" style={styles.input} value={email} onChangeText={setEmail}
+              placeholder="seu@email.com" placeholderTextColor={theme.colors.textMuted}
+              keyboardType="email-address" autoCapitalize="none" />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>SENHA (6+ CARACTERES)</Text>
+            <TextInput testID="enter-password-input" style={styles.input} value={password} onChangeText={setPassword}
+              placeholder="Defina uma senha forte" placeholderTextColor={theme.colors.textMuted} secureTextEntry />
           </View>
 
           <View style={styles.field}>
             <Text style={styles.label}>BAIRRO</Text>
-            <TextInput
-              testID="enter-neighborhood-input"
-              style={styles.input}
-              value={neighborhood}
-              onChangeText={setNeighborhood}
-              placeholder="Nome do bairro"
-              placeholderTextColor={theme.colors.textMuted}
-            />
+            <TextInput testID="enter-neighborhood-input" style={styles.input} value={neighborhood} onChangeText={setNeighborhood}
+              placeholder="Nome do bairro" placeholderTextColor={theme.colors.textMuted} />
           </View>
 
           <View style={styles.rowFields}>
             <View style={[styles.field, { flex: 2 }]}>
               <Text style={styles.label}>CIDADE</Text>
-              <TextInput
-                testID="enter-city-input"
-                style={styles.input}
-                value={city}
-                onChangeText={setCity}
-                placeholder="Nome da cidade"
-                placeholderTextColor={theme.colors.textMuted}
-              />
+              <TextInput testID="enter-city-input" style={styles.input} value={city} onChangeText={setCity}
+                placeholder="Nome da cidade" placeholderTextColor={theme.colors.textMuted} />
             </View>
             <View style={[styles.field, { flex: 1 }]}>
               <Text style={styles.label}>ESTADO</Text>
-              <TouchableOpacity
-                style={styles.input}
-                onPress={() => setShowStates((v) => !v)}
-                testID="enter-state-trigger"
-              >
+              <TouchableOpacity style={styles.input} onPress={() => setShowStates((v) => !v)} testID="enter-state-trigger">
                 <Text style={{ color: state ? theme.colors.text : theme.colors.textMuted, fontSize: 15 }}>
                   {state || "UF"}
                 </Text>
@@ -211,12 +203,8 @@ export default function Enter() {
             <View style={styles.stateDropdown}>
               <ScrollView style={{ maxHeight: 180 }}>
                 {filteredStates.map((s) => (
-                  <TouchableOpacity
-                    key={s}
-                    style={styles.stateItem}
-                    onPress={() => { setState(s); setShowStates(false); }}
-                    testID={`enter-state-${s}`}
-                  >
+                  <TouchableOpacity key={s} style={styles.stateItem}
+                    onPress={() => { setState(s); setShowStates(false); }} testID={`enter-state-${s}`}>
                     <Text style={styles.stateItemText}>{s}</Text>
                   </TouchableOpacity>
                 ))}
@@ -226,34 +214,24 @@ export default function Enter() {
 
           <View style={styles.field}>
             <Text style={styles.label}>CÓDIGO DE ACESSO</Text>
-            <TextInput
-              testID="enter-code-input"
-              style={styles.input}
-              value={code}
-              onChangeText={setCode}
-              placeholder=""
-              autoCapitalize="characters"
-              autoCorrect={false}
-            />
+            <TextInput testID="enter-code-input" style={styles.input} value={code} onChangeText={setCode}
+              placeholder="" autoCapitalize="characters" autoCorrect={false} />
             <Text style={styles.helper}>Utilize o código fornecido pelo clube.</Text>
           </View>
 
           {error && <Text style={styles.error} testID="enter-error">{error}</Text>}
 
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            onPress={submit}
-            disabled={loading}
-            testID="enter-submit-button"
-          >
-            {loading ? (
-              <ActivityIndicator color={theme.colors.bg} />
-            ) : (
+          <TouchableOpacity style={styles.primaryBtn} onPress={submit} disabled={loading} testID="enter-submit-button">
+            {loading ? <ActivityIndicator color={theme.colors.bg} /> : (
               <>
                 <Text style={styles.primaryBtnText}>VALIDAR E ENTRAR NO CLUBE</Text>
                 <Ionicons name="arrow-forward" size={16} color={theme.colors.bg} />
               </>
             )}
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.linkBtn} onPress={() => router.replace("/login")}>
+            <Text style={styles.linkText}>JÁ TENHO CONTA — ENTRAR</Text>
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
@@ -266,8 +244,7 @@ const styles = StyleSheet.create({
   kicker: { color: theme.colors.silver, fontSize: 11, fontWeight: "800", letterSpacing: 3 },
   title: {
     color: theme.colors.white, fontSize: 34, fontWeight: "900",
-    letterSpacing: -1.2, lineHeight: 36, marginTop: 6,
-    textTransform: "uppercase",
+    letterSpacing: -1.2, lineHeight: 36, marginTop: 6, textTransform: "uppercase",
   },
   sub: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: theme.spacing.md },
   rowFields: { flexDirection: "row", gap: 10 },
@@ -297,6 +274,8 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.md,
   },
   primaryBtnText: { color: theme.colors.bg, fontWeight: "900", fontSize: 13, letterSpacing: 1.5 },
+  linkBtn: { alignItems: "center", paddingVertical: 12 },
+  linkText: { color: theme.colors.textMuted, fontSize: 11, fontWeight: "800", letterSpacing: 2 },
   successContainer: { padding: theme.spacing.lg, paddingBottom: 40, alignItems: "flex-start" },
   successIcon: {
     width: 64, height: 64, borderRadius: 32,

@@ -141,10 +141,27 @@ async def me(user: dict = Depends(get_current_user)):
 class MemberEnter(BaseModel):
     name: str
     phone: str
+    email: EmailStr
+    password: str
     neighborhood: str
     city: str
     state: str
     code: str
+
+
+class MemberLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class ForgotRequest(BaseModel):
+    email: EmailStr
+    code: str
+
+
+class ResetRequest(BaseModel):
+    token: str
+    new_password: str
 
 
 class MemberPublic(BaseModel):
@@ -213,14 +230,16 @@ async def _send_new_member_email(member: dict, total_members: int) -> None:
 async def member_enter(data: MemberEnter):
     name = data.name.strip()
     phone = data.phone.strip()
+    email = data.email.strip().lower()
     code = data.code.strip().upper()
 
     if not name or not phone or not data.neighborhood.strip() or not data.city.strip() or not data.state.strip():
         raise HTTPException(status_code=400, detail="Acesso não autorizado")
     if len(name.split()) < 2:
         raise HTTPException(status_code=400, detail="Acesso não autorizado")
+    if len(data.password) < 6:
+        raise HTTPException(status_code=400, detail="Senha muito curta")
 
-    # Security: member must be pre-authorized by admin (name + phone + code triple)
     nname = normalize_name(name)
     nphone = normalize_phone(phone)
 
@@ -230,7 +249,6 @@ async def member_enter(data: MemberEnter):
         "code": code,
     }, {"_id": 0})
 
-    root_code = os.environ.get("GATE_ROOT_CODE", "BLACK-SEED").upper()
     tier = "black"
     parent_name: Optional[str] = None
 
@@ -238,15 +256,23 @@ async def member_enter(data: MemberEnter):
         tier = auth_doc.get("tier", "black")
         parent_name = auth_doc.get("parent_name")
     else:
-        # Discreet error — do not leak which field is wrong
         raise HTTPException(status_code=401, detail="Acesso não autorizado")
 
-    # Reuse member if already exists (idempotent re-entry)
+    # Idempotent: if already registered, update password (user may be re-signing up)
     existing = await db.members.find_one({"phone_norm": nphone, "name_norm": nname}, {"_id": 0})
+    email_taken = await db.members.find_one({"email": email, "phone_norm": {"$ne": nphone}})
+    if email_taken:
+        raise HTTPException(status_code=400, detail="E-mail já cadastrado por outro membro")
+
     if existing:
+        await db.members.update_one(
+            {"member_id": existing["member_id"]},
+            {"$set": {"email": email, "password_hash": hash_password(data.password)}},
+        )
         return {
             "member_id": existing["member_id"],
             "name": existing["name"],
+            "email": email,
             "invite_code": existing["invite_code"],
             "parent_code": existing.get("parent_code", code),
             "parent_name": existing.get("parent_name"),
@@ -259,7 +285,6 @@ async def member_enter(data: MemberEnter):
             "created_at": existing["created_at"],
         }
 
-    # Generate unique invite code (kept for future referrals)
     base_prefix = code[:3] if len(code) >= 3 else code
     invite_code = ""
     for _ in range(30):
@@ -279,6 +304,8 @@ async def member_enter(data: MemberEnter):
         "name_norm": nname,
         "phone": phone,
         "phone_norm": nphone,
+        "email": email,
+        "password_hash": hash_password(data.password),
         "neighborhood": data.neighborhood.strip(),
         "city": data.city.strip(),
         "state": data.state.strip().upper(),
@@ -301,6 +328,7 @@ async def member_enter(data: MemberEnter):
     return {
         "member_id": member_id,
         "name": name,
+        "email": email,
         "invite_code": invite_code,
         "parent_code": code,
         "parent_name": parent_name,
@@ -312,6 +340,87 @@ async def member_enter(data: MemberEnter):
         "total_members": total,
         "created_at": now,
     }
+
+
+@api_router.post("/members/login")
+async def member_login(data: MemberLogin):
+    email = data.email.strip().lower()
+    member = await db.members.find_one({"email": email}, {"_id": 0})
+    if not member or not member.get("password_hash"):
+        raise HTTPException(status_code=401, detail="E-mail ou senha inválidos")
+    if not verify_password(data.password, member["password_hash"]):
+        raise HTTPException(status_code=401, detail="E-mail ou senha inválidos")
+    member.pop("password_hash", None)
+    member.pop("name_norm", None)
+    member.pop("phone_norm", None)
+    return member
+
+
+@api_router.post("/members/forgot")
+async def member_forgot(data: ForgotRequest):
+    email = data.email.strip().lower()
+    code = data.code.strip().upper()
+    member = await db.members.find_one({"email": email, "invite_code": code}, {"_id": 0})
+    if not member:
+        # Generic response to avoid leaking which field is wrong
+        return {"ok": True}
+    token = uuid.uuid4().hex
+    expires = datetime.now(timezone.utc) + timedelta(hours=2)
+    await db.members.update_one(
+        {"member_id": member["member_id"]},
+        {"$set": {"reset_token": token, "reset_expires": expires}},
+    )
+    # Try to send email (mocked if no RESEND_API_KEY)
+    notify_to = email
+    api_key = os.environ.get("RESEND_API_KEY", "")
+    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+    html = f"""
+    <div style="font-family: Arial, sans-serif; background:#050505; color:#F5F5F5; padding:24px;">
+      <div style="max-width:500px; margin:0 auto; background:#0B0B0B; border:1px solid #1F1F1F; border-radius:8px; padding:24px;">
+        <p style="color:#C0C0C0; letter-spacing:3px; font-size:11px; font-weight:800; margin:0 0 8px;">BLACKSCLUB</p>
+        <h1 style="color:#FFFFFF; font-size:22px; margin:0 0 12px;">Redefinir sua senha</h1>
+        <p style="color:#A3A3A3;">Use o código abaixo no app para criar uma nova senha:</p>
+        <p style="font-family:monospace; font-size:22px; color:#FFFFFF; padding:14px; background:#141414; border-radius:6px;">{token[:12].upper()}</p>
+        <p style="color:#666; font-size:11px; margin-top:20px;">Esse código expira em 2 horas.</p>
+      </div>
+    </div>
+    """
+    if not api_key or resend is None:
+        logger.info("[RESET MOCKED] email=%s token=%s short=%s", email, token, token[:12].upper())
+    else:
+        try:
+            resend.api_key = api_key
+            await asyncio.to_thread(resend.Emails.send, {
+                "from": sender, "to": [notify_to],
+                "subject": "BLACKSCLUB — redefinição de senha",
+                "html": html,
+            })
+        except Exception as e:
+            logger.error("forgot email failed: %s", e)
+    return {"ok": True, "short_token": token[:12].upper()}  # short_token exposed only in mock
+
+
+@api_router.post("/members/reset")
+async def member_reset(data: ResetRequest):
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Senha muito curta")
+    token_up = data.token.strip().upper()
+    now = datetime.now(timezone.utc)
+    # Match either full hex or short (12 chars upper)
+    cursor = db.members.find({"reset_token": {"$exists": True}}, {"_id": 0})
+    async for m in cursor:
+        rt = m.get("reset_token", "")
+        if rt[:12].upper() == token_up or rt == data.token.strip():
+            exp = m.get("reset_expires")
+            if exp and exp < now:
+                raise HTTPException(status_code=400, detail="Código expirado")
+            await db.members.update_one(
+                {"member_id": m["member_id"]},
+                {"$set": {"password_hash": hash_password(data.new_password)},
+                 "$unset": {"reset_token": "", "reset_expires": ""}},
+            )
+            return {"ok": True}
+    raise HTTPException(status_code=400, detail="Código inválido")
 
 
 @api_router.get("/members/stats")

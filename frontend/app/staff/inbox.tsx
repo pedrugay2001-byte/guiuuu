@@ -65,9 +65,14 @@ export default function StaffInbox() {
         options={{
           title: "Caixa de Mensagens",
           headerRight: () => (
-            <TouchableOpacity onPress={logout} style={{ marginRight: 12 }} testID="staff-logout">
-              <Ionicons name="log-out-outline" size={22} color={theme.colors.white} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", gap: 14, marginRight: 12, alignItems: "center" }}>
+              <TouchableOpacity onPress={() => router.push("/admin/members")} testID="admin-members-link">
+                <Ionicons name="people-outline" size={22} color={theme.colors.white} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={logout} testID="staff-logout">
+                <Ionicons name="log-out-outline" size={22} color={theme.colors.white} />
+              </TouchableOpacity>
+            </View>
           ),
         }}
       />

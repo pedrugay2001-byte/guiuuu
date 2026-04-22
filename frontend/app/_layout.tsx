@@ -22,11 +22,14 @@ export default function RootLayout() {
             <Stack.Screen name="welcome" options={{ headerShown: false }} />
             <Stack.Screen name="terms" options={{ title: "Código de Conduta" }} />
             <Stack.Screen name="enter" options={{ title: "Acesso ao Clube" }} />
+            <Stack.Screen name="login" options={{ title: "Entrar" }} />
+            <Stack.Screen name="forgot" options={{ title: "Recuperar senha" }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="product/[id]" options={{ title: "Produto" }} />
             <Stack.Screen name="chat" options={{ title: "Suporte BLACKSCLUB" }} />
             <Stack.Screen name="quote" options={{ title: "Solicitar orçamento" }} />
             <Stack.Screen name="admin/edit" options={{ title: "Gerenciar Produto", presentation: "modal" }} />
+            <Stack.Screen name="admin/members" options={{ title: "Membros autorizados" }} />
             <Stack.Screen name="staff/login" options={{ title: "Área da Equipe" }} />
             <Stack.Screen name="staff/inbox" options={{ title: "Caixa de Mensagens" }} />
             <Stack.Screen name="staff/chat/[member_id]" options={{ title: "Conversa" }} />

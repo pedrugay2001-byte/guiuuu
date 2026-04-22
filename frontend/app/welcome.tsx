@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import {
   View, Text, StyleSheet, ImageBackground, TouchableOpacity, FlatList,
-  useWindowDimensions,
+  useWindowDimensions, Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -23,9 +23,9 @@ const SLIDES = [
     image: "https://images.unsplash.com/photo-1709315957145-a4bad1feef28?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwzfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
   },
   {
-    kicker: "AMBIENTE SELECIONADO",
-    title: "UMA COMUNIDADE\nDE CONFIANÇA.",
-    subtitle: "Você passa a fazer parte de um ambiente restrito, onde discrição e padrão caminham juntos.",
+    kicker: "COMUNIDADE DE CONFIANÇA",
+    title: "UMA IRMANDADE\nSELECIONADA.",
+    subtitle: "Você passa a integrar um ambiente privado, onde discrição e padrão caminham juntos.",
     image: "https://images.pexels.com/photos/29611432/pexels-photo-29611432.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
   },
 ];
@@ -35,6 +35,11 @@ export default function Welcome() {
   const { width } = useWindowDimensions();
   const [index, setIndex] = useState(0);
   const listRef = useRef<FlatList>(null);
+
+  const handleScroll = (e: any) => {
+    const i = Math.round(e.nativeEvent.contentOffset.x / width);
+    if (i !== index && i >= 0 && i < SLIDES.length) setIndex(i);
+  };
 
   const next = () => {
     if (index < SLIDES.length - 1) {
@@ -55,18 +60,16 @@ export default function Welcome() {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={(e) => {
-          const i = Math.round(e.nativeEvent.contentOffset.x / width);
-          setIndex(i);
-        }}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={handleScroll}
         renderItem={({ item }) => (
           <ImageBackground source={{ uri: item.image }} style={[styles.slide, { width }]} resizeMode="cover">
             <View style={styles.overlay} />
             <View style={styles.vignetteBottom} />
             <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
               <View style={styles.topArea}>
-                <BrandLogo size="sm" />
-                <Text style={styles.topTag}>MEMBERS ONLY</Text>
+                <BrandLogo size="md" />
               </View>
               <View style={styles.bottomArea}>
                 <View style={styles.kickerRow}>
@@ -93,14 +96,23 @@ export default function Welcome() {
           </Text>
           <Ionicons name="arrow-forward" size={16} color={theme.colors.bg} />
         </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => router.push("/staff/login")}
-          testID="welcome-staff-link"
-          style={styles.staffLink}
-        >
-          <Ionicons name="shield-checkmark-outline" size={11} color={theme.colors.textMuted} />
-          <Text style={styles.staffLinkText}>ÁREA DA EQUIPE</Text>
-        </TouchableOpacity>
+        <View style={styles.bottomLinks}>
+          <TouchableOpacity
+            onPress={() => router.push("/login")}
+            testID="welcome-login-link"
+            style={styles.bottomLink}
+          >
+            <Text style={styles.bottomLinkText}>JÁ SOU MEMBRO</Text>
+          </TouchableOpacity>
+          <View style={styles.sep} />
+          <TouchableOpacity
+            onPress={() => router.push("/staff/login")}
+            testID="welcome-staff-link"
+            style={styles.bottomLink}
+          >
+            <Text style={styles.bottomLinkText}>ÁREA DA EQUIPE</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -108,52 +120,47 @@ export default function Welcome() {
 
 const styles = StyleSheet.create({
   slide: { flex: 1, height: "100%" },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.48)" },
   vignetteBottom: {
-    position: "absolute", bottom: 0, left: 0, right: 0, height: 420,
-    backgroundColor: "rgba(0,0,0,0.82)",
+    position: "absolute", bottom: 0, left: 0, right: 0, height: 460,
+    backgroundColor: "rgba(0,0,0,0.85)",
   },
   safe: {
     flex: 1, paddingHorizontal: theme.spacing.lg,
-    paddingBottom: 170, justifyContent: "space-between",
+    paddingBottom: 190, justifyContent: "space-between",
   },
   topArea: {
-    flexDirection: "row", alignItems: "center", gap: 14,
     paddingTop: theme.spacing.md,
+    paddingBottom: 60, // Extra distance from logo to title area
   },
-  topTag: { color: theme.colors.textMuted, fontSize: 9, fontWeight: "700", letterSpacing: 2.5 },
-  bottomArea: { gap: 14 },
+  bottomArea: { gap: 16 },
   kickerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   kickerBar: { width: 32, height: 2, backgroundColor: theme.colors.silver },
-  kicker: {
-    color: theme.colors.silver, fontSize: 11,
-    fontWeight: "800", letterSpacing: 3.5,
-  },
+  kicker: { color: theme.colors.silver, fontSize: 11, fontWeight: "800", letterSpacing: 3.5 },
   title: {
-    color: theme.colors.white, fontSize: 44,
-    fontWeight: "900", letterSpacing: -1.5, lineHeight: 46,
+    color: theme.colors.white, fontSize: 50,
+    fontWeight: "900", letterSpacing: -1.5, lineHeight: 52,
     textTransform: "uppercase",
   },
-  subtitle: {
-    color: "#D4D4D4", fontSize: 15,
-    lineHeight: 23, maxWidth: 420, marginTop: 6,
-  },
+  subtitle: { color: "#DADADA", fontSize: 16, lineHeight: 24, maxWidth: 440, marginTop: 10 },
   controls: {
     position: "absolute", left: 0, right: 0, bottom: 0,
     padding: theme.spacing.lg, gap: theme.spacing.md,
   },
   dots: { flexDirection: "row", gap: 6, justifyContent: "center" },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.22)" },
-  dotActive: { backgroundColor: theme.colors.white, width: 30 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.25)" },
+  dotActive: { backgroundColor: theme.colors.white, width: 32 },
   cta: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
     backgroundColor: theme.colors.white,
     paddingVertical: 17, borderRadius: 8,
   },
   ctaText: { color: theme.colors.bg, fontWeight: "900", fontSize: 13, letterSpacing: 2 },
-  staffLink: {
+  bottomLinks: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, paddingVertical: 6, marginTop: 2,
+    gap: 10, paddingVertical: 6, marginTop: 2,
   },
-  staffLinkText: { color: theme.colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 2.5 },
+  bottomLink: { paddingHorizontal: 4, paddingVertical: 4 },
+  bottomLinkText: { color: theme.colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 2.5 },
+  sep: { width: 3, height: 3, borderRadius: 2, backgroundColor: theme.colors.textMuted },
 });

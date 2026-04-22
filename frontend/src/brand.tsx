@@ -1,7 +1,8 @@
-import { View, Text, StyleSheet, ViewStyle, TextStyle } from "react-native";
+import { View, Text, StyleSheet, ViewStyle } from "react-native";
 import { theme } from "./theme";
 
-// BLACK · S · CLUB logo. The central S is accented.
+// Brand rendered as individual letters to prevent OS translation
+// (e.g. 'BLACKSCLUB' being auto-translated into 'PRETOSCLUBE').
 export function BrandLogo({
   size = "md",
   style,
@@ -10,37 +11,67 @@ export function BrandLogo({
   style?: ViewStyle;
 }) {
   const map = {
-    sm: { fs: 13, gap: 3 },
-    md: { fs: 18, gap: 4 },
-    lg: { fs: 28, gap: 6 },
-    xl: { fs: 44, gap: 10 },
+    sm: { fs: 13, sRadius: 9, gap: 3, spacing: 1 },
+    md: { fs: 18, sRadius: 12, gap: 5, spacing: 1.5 },
+    lg: { fs: 26, sRadius: 16, gap: 7, spacing: 2 },
+    xl: { fs: 40, sRadius: 24, gap: 10, spacing: 2.5 },
   } as const;
-  const { fs, gap } = map[size];
-  const baseText: TextStyle = {
-    color: theme.colors.white,
-    fontSize: fs,
-    fontWeight: "900",
-    letterSpacing: fs > 24 ? 2 : 3,
-  };
+  const { fs, sRadius, gap, spacing } = map[size];
+
+  const blackLetters = ["B", "L", "A", "C", "K"];
+  const clubLetters = ["C", "L", "U", "B"];
+
   return (
-    <View style={[styles.row, { gap }, style]}>
-      <Text style={baseText}>BLACK</Text>
-      <View style={[styles.sWrap, { width: fs + 4, height: fs + 4, borderRadius: (fs + 4) / 2 }]}>
-        <Text style={[baseText, { color: theme.colors.bg, fontSize: fs - 2, letterSpacing: 0 }]}>S</Text>
+    <View
+      style={[styles.row, { height: Math.max(fs, sRadius * 2) + 2 }, style]}
+      accessibilityLabel="Black S Club"
+    >
+      {blackLetters.map((l, i) => (
+        <Text
+          key={`b-${i}`}
+          style={[styles.letter, { fontSize: fs, marginRight: i < blackLetters.length - 1 ? spacing : 0 }]}
+          allowFontScaling={false}
+        >
+          {l}
+        </Text>
+      ))}
+      <View
+        style={{
+          width: sRadius * 2,
+          height: sRadius * 2,
+          borderRadius: sRadius,
+          backgroundColor: theme.colors.white,
+          alignItems: "center",
+          justifyContent: "center",
+          marginHorizontal: gap,
+        }}
+      >
+        <Text
+          style={{
+            color: theme.colors.bg,
+            fontSize: fs - 2,
+            fontWeight: "900",
+            lineHeight: fs + 2,
+          }}
+          allowFontScaling={false}
+        >
+          S
+        </Text>
       </View>
-      <Text style={baseText}>CLUB</Text>
+      {clubLetters.map((l, i) => (
+        <Text
+          key={`c-${i}`}
+          style={[styles.letter, { fontSize: fs, marginRight: i < clubLetters.length - 1 ? spacing : 0 }]}
+          allowFontScaling={false}
+        >
+          {l}
+        </Text>
+      ))}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center" },
-  sWrap: {
-    backgroundColor: theme.colors.white,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#FFF",
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-  },
+  letter: { color: theme.colors.white, fontWeight: "900" },
 });
