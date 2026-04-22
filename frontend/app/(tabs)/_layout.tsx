@@ -45,7 +45,8 @@ export default function TabsLayout() {
       <Tabs.Screen name="home" options={{ title: "Início", headerTransparent: true, headerStyle: { backgroundColor: "transparent", borderBottomWidth: 0, elevation: 0, shadowOpacity: 0 }, headerTitle: () => null, tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} /> }} />
       <Tabs.Screen name="catalog" options={{ title: "Catálogo", headerStyle: { backgroundColor: theme.colors.bg, borderBottomWidth: 1, borderBottomColor: theme.colors.border }, headerTitle: () => <BrandLogo size="sm" />, tabBarIcon: ({ color, size }) => <Ionicons name="grid" color={color} size={size} /> }} />
       <Tabs.Screen name="community" options={{ title: "Comunidade", headerShown: false, tabBarIcon: ({ color, size }) => <Ionicons name="people" color={color} size={size} /> }} />
-      <Tabs.Screen name="negocios" options={{ title: "Negócios", tabBarIcon: ({ color, size }) => <Ionicons name="storefront" color={color} size={size} /> }} />
+      <Tabs.Screen name="negocios" options={{ href: null }} />
+      <Tabs.Screen name="notifications" options={{ title: "Alertas", headerStyle: { backgroundColor: theme.colors.bg, borderBottomWidth: 1, borderBottomColor: theme.colors.border }, headerTitle: () => <Text style={{ color: "#FFF", fontWeight: "900", letterSpacing: 2, fontSize: 14 }}>NOTIFICAÇÕES</Text>, tabBarIcon: ({ color, size }) => <Ionicons name="notifications" color={color} size={size} /> }} />
       <Tabs.Screen name="wallet" options={{ title: "Banco", tabBarIcon: ({ color, size }) => <Ionicons name="wallet" color={color} size={size} /> }} />
       <Tabs.Screen name="member" options={{ href: null }} />
       <Tabs.Screen name="cart" options={{ href: null }} />

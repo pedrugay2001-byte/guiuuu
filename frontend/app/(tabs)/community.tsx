@@ -29,7 +29,7 @@ export default function Community() {
         api.listStories(),
         api.listPosts(),
         api.communityMembers(member.member_id),
-        api.groupsList(),
+        api.groupsList(member.member_id),
       ]);
       setStories(ss); setPosts(pp); setMembers(mm); setGroups(gg);
     } finally { setLoading(false); setRefreshing(false); }
@@ -91,7 +91,7 @@ export default function Community() {
               const s: StoryGroup = item.data;
               const tier = TIERS[s.tier] || TIERS.silver;
               return (
-                <TouchableOpacity style={styles.storyItem} onPress={() => router.push(`/community/member/${s.member_id}`)}>
+                <TouchableOpacity style={styles.storyItem} onPress={() => router.push(`/community/story/${s.member_id}`)}>
                   <View style={[styles.storyRing, { borderColor: tier.color }]}>
                     {s.avatar_base64 ? (
                       <Image source={{ uri: s.avatar_base64 }} style={styles.storyAvatar} />

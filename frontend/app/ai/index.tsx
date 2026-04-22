@@ -13,12 +13,20 @@ type Specialist = {
   id: string;
   name: string;
   title: string;
+  category?: string;
   tagline: string;
   description: string;
   color: string;
   avatar: string;
   starters: string[];
 };
+
+const CATEGORIES: { id: string; label: string; icon: string }[] = [
+  { id: "fisico", label: "FÍSICO & SAÚDE", icon: "fitness" },
+  { id: "mental", label: "MENTE & CIÊNCIA", icon: "bulb" },
+  { id: "vida", label: "VIDA & EMERGÊNCIA", icon: "shield" },
+  { id: "espiritual", label: "ESPIRITUAL", icon: "sparkles" },
+];
 
 export default function AISpecialists() {
   const router = useRouter();
@@ -79,38 +87,49 @@ export default function AISpecialists() {
 
             <Text style={styles.sectionLabel}>SELECIONE O ESPECIALISTA</Text>
 
-            {/* Specialist cards */}
-            <View style={styles.list}>
-              {specialists.map((s) => (
-                <TouchableOpacity
-                  key={s.id}
-                  style={styles.card}
-                  onPress={() => router.push({ pathname: "/ai/[specialist]", params: { specialist: s.id } })}
-                  testID={`specialist-${s.id}`}
-                  activeOpacity={0.9}
-                >
-                  <View style={[styles.cardAccent, { backgroundColor: s.color }]} />
-                  <View style={styles.cardRow}>
-                    <View style={styles.avatarWrap}>
-                      <Image source={{ uri: s.avatar }} style={styles.avatar} />
-                      <View style={[styles.avatarRing, { borderColor: s.color }]} />
-                      <View style={[styles.onlineDot, { backgroundColor: s.color }]} />
-                    </View>
-                    <View style={{ flex: 1, marginLeft: 14 }}>
-                      <View style={styles.titleRow}>
-                        <Text style={[styles.cardTitle, { color: s.color }]}>{s.title.toUpperCase()}</Text>
-                      </View>
-                      <Text style={styles.cardName}>{s.name}</Text>
-                      <Text numberOfLines={2} style={styles.cardDesc}>{s.description}</Text>
-                      <View style={styles.ctaRow}>
-                        <Text style={[styles.ctaText, { color: s.color }]}>Conversar</Text>
-                        <Ionicons name="arrow-forward" size={13} color={s.color} />
-                      </View>
-                    </View>
+            {/* Grouped by category */}
+            {CATEGORIES.map((cat) => {
+              const list = specialists.filter(s => (s.category || "fisico") === cat.id);
+              if (!list.length) return null;
+              return (
+                <View key={cat.id} style={{ marginBottom: 6 }}>
+                  <View style={styles.catHeader}>
+                    <Ionicons name={cat.icon as any} size={14} color="#D4AF37" />
+                    <Text style={styles.catLbl}>{cat.label}</Text>
+                    <View style={styles.catLine} />
                   </View>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  <View style={styles.list}>
+                    {list.map((s) => (
+                      <TouchableOpacity
+                        key={s.id}
+                        style={styles.card}
+                        onPress={() => router.push({ pathname: "/ai/[specialist]", params: { specialist: s.id } })}
+                        testID={`specialist-${s.id}`}
+                        activeOpacity={0.9}
+                      >
+                        <View style={[styles.cardAccent, { backgroundColor: s.color }]} />
+                        <View style={styles.cardRow}>
+                          <View style={styles.avatarWrap}>
+                            <Image source={{ uri: s.avatar }} style={styles.avatar} />
+                            <View style={[styles.avatarRing, { borderColor: s.color }]} />
+                            <View style={[styles.onlineDot, { backgroundColor: s.color }]} />
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 14 }}>
+                            <Text style={[styles.cardTitle, { color: s.color }]}>{s.title.toUpperCase()}</Text>
+                            <Text style={styles.cardName}>{s.name}</Text>
+                            <Text style={styles.cardTagline}>{s.tagline}</Text>
+                            <View style={styles.ctaRow}>
+                              <Text style={styles.ctaText}>Conversar</Text>
+                              <Ionicons name="arrow-forward" size={13} color="#888" />
+                            </View>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              );
+            })}
 
             <View style={styles.disclaimer}>
               <Ionicons name="shield-checkmark" size={14} color={theme.colors.textMuted} />
@@ -188,10 +207,14 @@ const styles = StyleSheet.create({
   },
   titleRow: { flexDirection: "row", alignItems: "center", marginBottom: 2 },
   cardTitle: { fontSize: 10, fontWeight: "900", letterSpacing: 2 },
-  cardName: { color: theme.colors.white, fontSize: 15, fontWeight: "800", marginTop: 2 },
+  cardName: { color: theme.colors.white, fontSize: 16, fontWeight: "800", marginTop: 2 },
+  cardTagline: { color: "#CCC", fontSize: 13, lineHeight: 18, marginTop: 4, fontWeight: "500" },
   cardDesc: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17, marginTop: 4 },
-  ctaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 },
-  ctaText: { fontSize: 11, fontWeight: "900", letterSpacing: 1.5 },
+  ctaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 10 },
+  ctaText: { fontSize: 11, fontWeight: "900", letterSpacing: 1.5, color: "#888" },
+  catHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: theme.spacing.lg, marginTop: 18, marginBottom: 10 },
+  catLbl: { color: "#D4AF37", fontSize: 10, fontWeight: "900", letterSpacing: 2.5 },
+  catLine: { flex: 1, height: 1, backgroundColor: "#1A1A1A" },
   disclaimer: {
     flexDirection: "row", gap: 8,
     marginHorizontal: theme.spacing.lg, marginTop: theme.spacing.lg,

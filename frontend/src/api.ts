@@ -202,7 +202,8 @@ export const api = {
     request<DMMessage>(`/community/dms/${me}/${other}`, { method: "POST", body: JSON.stringify({ text }) }),
   dmThreads: (me: string) =>
     request<DMThread[]>(`/community/dms/${me}`),
-  groupsList: () => request<Group[]>("/community/groups"),
+  groupsList: (member_id?: string) =>
+    request<Group[]>(`/community/groups${member_id ? `?member_id=${member_id}` : ""}`),
   groupJoin: (group_id: string, member_id: string) =>
     request<{ ok: boolean }>(`/community/groups/${group_id}/join/${member_id}`, { method: "POST" }),
   groupLeave: (group_id: string, member_id: string) =>
@@ -269,6 +270,22 @@ export const api = {
   // ----- Custom groups -----
   createCustomGroup: (body: { owner_id: string; name: string; description?: string; color?: string; icon?: string; invite_ids?: string[] }) =>
     request<Group>("/community/groups/custom", { method: "POST", body: JSON.stringify(body) }),
+
+  // ----- Notifications -----
+  notifications: (member_id: string) => request<NotificationItem[]>(`/notifications/${member_id}`),
+  notificationsCount: (member_id: string) => request<{ count: number }>(`/notifications/${member_id}/count`),
+};
+
+export type NotificationItem = {
+  id: string;
+  type: "dm" | "wallet" | "order" | "sale" | "group";
+  title: string;
+  body?: string;
+  avatar?: string | null;
+  route: string;
+  icon: string;
+  color: string;
+  created_at: string;
 };
 
 export type Plan = {

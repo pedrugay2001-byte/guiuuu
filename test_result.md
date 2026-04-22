@@ -211,7 +211,30 @@ frontend:
             - /community/group/[id] com header colorido, estado vazio e envio de mensagens (validado via testID group-send).
             - Bug fixed: _public_member comparava datetime naive vs tz-aware quando heartbeat populava online_at (causava 500 em /community/members/{id} e na listagem quando havia membros online). Agora normaliza para UTC.
 
-  - task: "BLACKSCLUB Marketplace V2 + Community V2 (full overhaul)"
+  - task: "Bug fixes + Permissões + BLACK AI expansão + Notificações"
+    implemented: true
+    working: true
+    file: "backend/server.py + multiple frontend files"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: |
+            Segunda rodada de ajustes e expansões:
+            1) **Stories viewer fullscreen** criado em /community/story/[memberId] — agora toca no story e abre em tela cheia com barras de progresso animadas, tap nas laterais para ir/voltar, duração 5s por story.
+            2) **Grupos privados**: /api/community/groups aceita member_id — filtra custom groups só para membros convidados/owner. Grupos oficiais (sem is_custom) visíveis para todos.
+            3) **Catálogo protegido**: endpoints POST/PUT/DELETE /products agora exigem require_staff (admin + suporte).
+            4) **Tab Bar atualizada**: Negócios removida, adicionada aba ALERTAS (sino 🔔) com tela /notifications. Rota /negocios ainda acessível via card do Home.
+            5) **Notificações**: /api/notifications/{id} agrega DMs recebidas, transações de carteira (recarga, saque, compras em escrow, vendas), convites de grupo. Endpoint /count pra badge.
+            6) **BLACK AI expandida** de 8 para 15 especialistas agrupados em 4 categorias:
+               - FÍSICO & SAÚDE (8): Nutrólogo, Endocrino, Nutri Esportiva, Médico do Esporte, Personal, Farmacêutico, Dermato, Preparadora Feminina
+               - MENTE & CIÊNCIA (3 novos): Psiquiatra (Dr. Marcos Vilela), Psicólogo (Léo Figueiredo), Cientista (Prof. André Tavares)
+               - VIDA & EMERGÊNCIA (4 novos): Advogada (Dra. Renata), Policial PM (Sgto. Carlos), Bombeiro (Ten. Diego), Socorrista (Enf. Marina)
+               - ESPIRITUAL (1 novo): Pastor Eliseu Batista
+            7) **AI UI**: Lista agrupada por categoria com headers dourados, tagline em destaque, CTA "Conversar" em cinza (antes colorido), tipografia maior pras especialidades.
+            8) **Prompts naturais**: Cada especialista fala como amigo, sem termos técnicos desnecessários. Guardrails já incluem "se sair da sua especialidade, responda o que sabe e sugira outro especialista do clube".
     implemented: true
     working: true
     file: "backend/server.py + frontend/app/**"

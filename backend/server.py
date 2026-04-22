@@ -873,10 +873,12 @@ VOCÊ PODE E DEVE saber responder QUALQUER coisa do universo fitness/saúde/est�
 """
 
 SPECIALISTS: List[Dict[str, Any]] = [
+    # ========== FÍSICO / SAÚDE ==========
     {
         "id": "nutrologo",
         "name": "Dr. Rafael Moretti",
         "title": "Nutrólogo",
+        "category": "fisico",
         "tagline": "Emagrecimento, GLP-1 e metabolismo",
         "description": "Médico nutrólogo com foco em controle de peso, GLP-1 (Ozempic, Mounjaro, Retatrutida), síndrome metabólica e déficit calórico inteligente.",
         "color": "#F5C150",
@@ -1041,6 +1043,140 @@ SPECIALISTS: List[Dict[str, Any]] = [
         ],
         "persona": "Você é Coach Bianca Souza, preparadora física feminina do BLACKSCLUB, ~48 anos, experiência longa atendendo público feminino. Tom firme, empático, direto ao ponto, moderna. Áreas: hipertrofia feminina, glúteos e posterior de coxa, emagrecimento preservando musculatura, ciclo menstrual e treino, postura, estética feminina realista, autoestima corporal.",
     },
+
+    # ========== MENTE / PSICOLÓGICO ==========
+    {
+        "id": "psiquiatra",
+        "name": "Dr. Marcos Vilela",
+        "title": "Psiquiatra",
+        "category": "mental",
+        "tagline": "Ansiedade, depressão, TDAH e sono",
+        "description": "Psiquiatra do BLACKSCLUB. Fala sobre ansiedade, depressão, TDAH, insônia, transtornos de humor e uso consciente de medicação.",
+        "color": "#B287FF",
+        "avatar": "https://images.pexels.com/photos/5234490/pexels-photo-5234490.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "starters": ["Como saber se é ansiedade ou só estresse?", "Insônia já virou problema, o que fazer?", "TDAH em adulto, como é?", "Quando procurar psiquiatra?"],
+        "topics": [
+            {"title": "Ansiedade não é frescura", "body": "É real, tem base neuroquímica (serotonina, GABA, noradrenalina). Dá pra tratar com terapia, hábito e, quando precisa, remédio certo."},
+            {"title": "Sono é remédio", "body": "Insônia crônica piora ansiedade, humor, peso e até imunidade. Higiene do sono resolve muita coisa antes de qualquer comprimido."},
+        ],
+        "persona": "Você é Dr. Marcos Vilela, psiquiatra do BLACKSCLUB. Conversa de igual pra igual, sem aquele papo frio de médico. Fala simples, acolhedor, como um amigo médico que te recebe no escritório. Áreas: ansiedade, depressão, transtorno bipolar, TDAH adulto, pânico, insônia, uso responsável de psicotrópicos, dependência química leve.",
+    },
+    {
+        "id": "psicologo",
+        "name": "Léo Figueiredo",
+        "title": "Psicólogo",
+        "category": "mental",
+        "tagline": "Relacionamentos, autoestima e propósito",
+        "description": "Psicólogo do BLACKSCLUB. Escuta aberta sobre relacionamentos, autoestima, propósito, carreira e emoções do dia a dia.",
+        "color": "#7FD7E5",
+        "avatar": "https://images.pexels.com/photos/8410096/pexels-photo-8410096.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "starters": ["Brigo com minha esposa toda semana, como mudar isso?", "Autoestima baixa, por onde começar?", "Tô perdido com carreira, me ajuda?", "Como lidar com medo de falhar?"],
+        "topics": [
+            {"title": "A gente não nasce sabendo sentir", "body": "Emoção se aprende a nomear e a regular. Quem consegue colocar em palavras o que sente, sofre menos — literalmente."},
+            {"title": "Relacionamento não é intuição", "body": "Comunicação não-violenta, escuta ativa, fronteiras. Isso se treina. Não existe relação saudável sem trabalho de dois."},
+        ],
+        "persona": "Você é Léo Figueiredo, psicólogo do BLACKSCLUB. Fala manso, sem julgamento, curioso pela história da pessoa. Evita jargão de terapia (tipo 'projeção', 'gatilho', 'resiliente') — usa palavra do dia a dia. Áreas: terapia cognitivo-comportamental, relacionamento, autoestima, carreira, propósito, luto, paternidade/maternidade.",
+    },
+    {
+        "id": "cientista",
+        "name": "Prof. André Tavares",
+        "title": "Cientista / Pesquisador",
+        "category": "mental",
+        "tagline": "Ciência do dia a dia, estudos e verdade",
+        "description": "Doutor em biologia molecular. Desmonta fake news, explica estudos recentes e traz ciência pro dia a dia sem complicar.",
+        "color": "#4EE07F",
+        "avatar": "https://images.pexels.com/photos/2280547/pexels-photo-2280547.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "starters": ["Esse estudo que saiu é verdade?", "Como saber se uma notícia de saúde é confiável?", "Genética influencia quanto no shape?", "IA vai dominar mesmo?"],
+        "topics": [
+            {"title": "Correlação não é causa", "body": "Só porque duas coisas andam juntas, não quer dizer que uma causa a outra. Saber essa diferença muda como você lê o mundo."},
+            {"title": "Método científico é chato de propósito", "body": "Pra descobrir o que funciona de verdade, precisa repetir teste, ter grupo controle, cegar estudo. Parece burocracia — na real é proteção contra a gente mesmo se enganar."},
+        ],
+        "persona": "Você é Prof. André Tavares, pesquisador do BLACKSCLUB, PhD em biologia molecular. Explica ciência com analogia de mercado, cozinha, esporte — tudo menos com palavrão de artigo. Áreas: metodologia científica, estudos clínicos, genética básica, epidemiologia, biotecnologia, IA aplicada à saúde, filosofia da ciência, como pensar com dados.",
+    },
+
+    # ========== VIDA / EMERGÊNCIA / DIREITO ==========
+    {
+        "id": "advogado",
+        "name": "Dra. Renata Dias",
+        "title": "Advogada",
+        "category": "vida",
+        "tagline": "Direito do dia a dia: trabalho, família, contratos",
+        "description": "Advogada com ~20 anos de OAB. Explica direitos de forma simples: trabalho, consumidor, família, contratos, imóveis.",
+        "color": "#D4AF37",
+        "avatar": "https://images.pexels.com/photos/5668473/pexels-photo-5668473.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "starters": ["Fui demitido, o que tenho direito?", "Compra em loja online que não entregou, e agora?", "Separei, como funciona divisão de bens?", "Fui multado injusto, posso contestar?"],
+        "topics": [
+            {"title": "O brasileiro não sabe seus direitos", "body": "Isso faz muita gente aceitar muita coisa errada por medo ou falta de info. Saber o básico da CLT, CDC e Constituição resolve 80% das brigas."},
+            {"title": "Contrato verbal vale — às vezes", "body": "Dependendo do caso, sim. Mas sempre o escrito protege mais. Se for coisa séria, põe no papel."},
+        ],
+        "persona": "Você é Dra. Renata Dias, advogada do BLACKSCLUB. Fala direto, sem juridiquês, como uma amiga que te explica o que fazer. Sempre deixa claro quando o caso precisa de advogado presencial de verdade. Áreas: direito do trabalho, direito do consumidor, família, contratos, imóveis, trânsito, LGPD básico.",
+    },
+    {
+        "id": "policial",
+        "name": "Carlos 'Sargento' Mendes",
+        "title": "Policial Militar (reserva)",
+        "category": "vida",
+        "tagline": "Segurança pessoal, o que fazer em situações de risco",
+        "description": "Sargento da PM na reserva, instrutor de defesa pessoal. Orienta sobre segurança pessoal, residencial e do dia a dia.",
+        "color": "#4E8FE0",
+        "avatar": "https://images.pexels.com/photos/8065590/pexels-photo-8065590.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "starters": ["Fui abordado na rua, o que devo fazer?", "Como deixar minha casa mais segura?", "Vale a pena ter arma em casa?", "Me seguindo no carro, e agora?"],
+        "topics": [
+            {"title": "Atitude > arma", "body": "A maioria dos assaltos é por oportunidade. Quem anda atento, evita. Arma sem treino e cabeça fria cria mais problema que resolve."},
+            {"title": "Em assalto, bens não valem a vida", "body": "Entregue celular, carteira, tudo. Foco é sair vivo. Polícia depois."},
+        ],
+        "persona": "Você é Carlos Mendes, sargento PM reserva do BLACKSCLUB. Fala firme, curto, prático, como um instrutor de curso de segurança. Sem papo furado. Áreas: segurança pessoal, residencial e veicular, prevenção de assaltos e sequestros, abordagem policial, legítima defesa, posse/porte de arma.",
+    },
+    {
+        "id": "bombeiro",
+        "name": "Ten. Diego Prado",
+        "title": "Bombeiro",
+        "category": "vida",
+        "tagline": "Emergências, incêndio e resgate",
+        "description": "Tenente do Corpo de Bombeiros. Ensina o que fazer em incêndio, acidente, afogamento, choque e outras emergências do dia a dia.",
+        "color": "#FF7A4D",
+        "avatar": "https://images.pexels.com/photos/8942879/pexels-photo-8942879.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "starters": ["Tem fumaça em casa, o que faço?", "Como agir em acidente de carro?", "Alguém engasgou, e agora?", "Extintor em casa precisa mesmo?"],
+        "topics": [
+            {"title": "30 segundos fazem diferença", "body": "Em incêndio residencial, os 30 primeiros segundos definem se você sai a tempo. Ter plano de fuga e detector de fumaça muda o jogo."},
+            {"title": "Fogo na cozinha com óleo: NUNCA água", "body": "Óleo quente + água = explosão. Abafa com tampa ou pano molhado e desliga o gás. Água em óleo é receita de UTI."},
+        ],
+        "persona": "Você é Ten. Diego Prado, bombeiro do BLACKSCLUB. Fala claro e rápido, como um instrutor de APH. Explica passos numerados quando é emergência (1, 2, 3). Áreas: incêndio residencial/veicular, acidente de trânsito, engasgo, afogamento, choque elétrico, acidente doméstico, plano de fuga.",
+    },
+    {
+        "id": "socorrista",
+        "name": "Enf. Marina Albuquerque",
+        "title": "Socorrista / Enfermeira",
+        "category": "vida",
+        "tagline": "Primeiros socorros e o básico que salva",
+        "description": "Enfermeira de UTI e resgate. Ensina primeiros socorros reais pra quem não tem noção: parada, convulsão, queimadura, corte, febre em criança.",
+        "color": "#FF6BD5",
+        "avatar": "https://images.pexels.com/photos/7407784/pexels-photo-7407784.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "starters": ["Bebê com febre alta, o que fazer?", "Como fazer massagem cardíaca?", "Queimadura de óleo, passo o quê?", "Convulsão na família, ajudo como?"],
+        "topics": [
+            {"title": "Massagem cardíaca salva vida de verdade", "body": "30 compressões fortes no meio do peito, ritmo de 'Stayin' Alive'. Qualquer um pode fazer. Não precisa ter medo de quebrar costela — desmaio sem massagem mata em 4 minutos."},
+            {"title": "Queimadura: água corrente, sempre", "body": "10 minutos de água corrente fria. Nada de pasta de dente, manteiga, gelo direto. Simples, funciona, evita infecção."},
+        ],
+        "persona": "Você é Marina Albuquerque, enfermeira do BLACKSCLUB. Fala calma, firme, como quem já viu muita gente em emergência. Ensina passo a passo, sem assustar. Áreas: primeiros socorros, PCR, engasgo, convulsão, queimadura, corte, febre (adulto e criança), desidratação, reação alérgica.",
+    },
+
+    # ========== ESPIRITUAL ==========
+    {
+        "id": "pastor",
+        "name": "Pastor Eliseu Batista",
+        "title": "Pastor / Bíblia",
+        "category": "espiritual",
+        "tagline": "Bíblia, fé e vida prática",
+        "description": "Pastor com décadas estudando as Escrituras. Ajuda a entender passagens, aplicar a Bíblia na vida real e responder dúvidas de fé sem julgar.",
+        "color": "#F5C150",
+        "avatar": "https://images.pexels.com/photos/8107967/pexels-photo-8107967.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "starters": ["O que a Bíblia diz sobre perdão?", "Tô passando por tempo difícil, como orar?", "Qual é o significado de Romanos 8?", "Fé e ciência se batem mesmo?"],
+        "topics": [
+            {"title": "A Bíblia é prática, não só ritual", "body": "Provérbios, Eclesiastes, Cartas de Paulo — tem conselho pra trabalho, dinheiro, casamento, ansiedade. Ler com calma muda como você enxerga o dia."},
+            {"title": "Oração é conversa, não fórmula", "body": "Não precisa palavra bonita nem voz de culto. Abrir o coração, agradecer, pedir, ouvir. Simples assim."},
+        ],
+        "persona": "Você é Pastor Eliseu Batista, pastor do BLACKSCLUB, ~60 anos, décadas estudando a Bíblia (Antigo e Novo Testamento, grego e hebraico básico). Fala com amor, sem julgamento, sem 'cara de igreja'. Conhece profundamente as Escrituras e cita versículo só quando agrega. Respeita quem não tem fé. Áreas: exegese bíblica, teologia, vida cristã, oração, dúvidas de fé, ética, família, relação fé x ciência.",
+    },
 ]
 
 
@@ -1080,6 +1216,7 @@ async def list_specialists():
             "id": s["id"],
             "name": s["name"],
             "title": s["title"],
+            "category": s.get("category", "fisico"),
             "tagline": s["tagline"],
             "description": s["description"],
             "color": s["color"],
@@ -1269,7 +1406,7 @@ async def get_product(product_id: str):
 
 
 @api_router.post("/products", response_model=Product)
-async def create_product(data: ProductCreate, admin: dict = Depends(require_admin)):
+async def create_product(data: ProductCreate, admin: dict = Depends(require_staff)):
     product_id = f"prod_{uuid.uuid4().hex[:12]}"
     doc = {
         "product_id": product_id,
@@ -1282,7 +1419,7 @@ async def create_product(data: ProductCreate, admin: dict = Depends(require_admi
 
 
 @api_router.put("/products/{product_id}", response_model=Product)
-async def update_product(product_id: str, data: ProductUpdate, admin: dict = Depends(require_admin)):
+async def update_product(product_id: str, data: ProductUpdate, admin: dict = Depends(require_staff)):
     updates = {k: v for k, v in data.dict().items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="Nada para atualizar")
@@ -1298,7 +1435,7 @@ async def update_product(product_id: str, data: ProductUpdate, admin: dict = Dep
 
 
 @api_router.delete("/products/{product_id}")
-async def delete_product(product_id: str, admin: dict = Depends(require_admin)):
+async def delete_product(product_id: str, admin: dict = Depends(require_staff)):
     result = await db.products.delete_one({"product_id": product_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Produto não encontrado")
@@ -1767,10 +1904,21 @@ async def seed_groups():
 
 
 @api_router.get("/community/groups")
-async def list_groups():
-    cur = db.groups.find({}, {"_id": 0}).sort("name", 1)
-    groups = await cur.to_list(length=100)
-    # Attach member count
+async def list_groups(member_id: Optional[str] = None):
+    # Show all official groups + only custom groups where member_id is invited (or owner)
+    query: Dict[str, Any] = {
+        "$or": [
+            {"is_custom": {"$ne": True}},  # official groups visible to everyone
+        ]
+    }
+    if member_id:
+        query["$or"].append({"is_custom": True, "invited_ids": member_id})
+        query["$or"].append({"is_custom": True, "owner_id": member_id})
+    else:
+        # Without member_id, show only official groups
+        query = {"is_custom": {"$ne": True}}
+    cur = db.groups.find(query, {"_id": 0}).sort("name", 1)
+    groups = await cur.to_list(length=200)
     for g in groups:
         g["members_count"] = await db.group_members.count_documents({"group_id": g["group_id"]})
     return groups
@@ -2368,6 +2516,72 @@ async def create_custom_group(data: CustomGroupCreate):
             upsert=True,
         )
     return g
+
+
+app.include_router(api_router)
+
+
+# ---------- NOTIFICATIONS (aggregated, virtual feed) ----------
+
+@api_router.get("/notifications/{member_id}")
+async def get_notifications(member_id: str):
+    """Aggregated notifications feed: new DMs, purchases, escrow updates, group invites, ads activity."""
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(days=30)
+    items: List[Dict[str, Any]] = []
+
+    # New DMs received (last 30d)
+    dm_cur = db.dms.find({"to_id": member_id, "created_at": {"$gte": since}}, {"_id": 0}).sort("created_at", -1).limit(30)
+    async for dm in dm_cur:
+        sender = await db.members.find_one({"member_id": dm.get("from_id")}, {"_id": 0, "nickname": 1, "name": 1, "avatar_base64": 1})
+        items.append({
+            "id": f"dm_{dm.get('dm_id')}",
+            "type": "dm",
+            "title": f"Nova mensagem de {(sender or {}).get('nickname') or 'Membro'}",
+            "body": (dm.get("text") or "")[:80],
+            "avatar": (sender or {}).get("avatar_base64"),
+            "route": f"/community/dm/{dm.get('from_id')}",
+            "created_at": dm.get("created_at"),
+            "icon": "chatbubble",
+            "color": "#D4AF37",
+        })
+
+    # Wallet transactions (escrow & settled)
+    wx_cur = db.wallet_txs.find({"$or": [{"from_id": member_id}, {"to_id": member_id}], "created_at": {"$gte": since}}, {"_id": 0}).sort("created_at", -1).limit(30)
+    async for tx in wx_cur:
+        iAmBuyer = tx.get("from_id") == member_id
+        iAmSeller = tx.get("to_id") == member_id
+        typ = tx.get("type")
+        if typ == "topup":
+            items.append({"id": f"tx_{tx.get('tx_id')}", "type": "wallet", "title": "Recarga confirmada", "body": f"R$ {tx.get('amount',0):.2f} adicionadas à sua carteira", "route": "/(tabs)/wallet", "created_at": tx.get("created_at"), "icon": "add-circle", "color": "#4EE07F"})
+        elif typ == "withdraw":
+            items.append({"id": f"tx_{tx.get('tx_id')}", "type": "wallet", "title": "Saque solicitado", "body": f"R$ {tx.get('amount',0):.2f} para sua chave Pix", "route": "/(tabs)/wallet", "created_at": tx.get("created_at"), "icon": "arrow-down-circle", "color": "#F5C150"})
+        elif typ == "escrow":
+            if iAmBuyer:
+                items.append({"id": f"tx_{tx.get('tx_id')}", "type": "order", "title": f"Compra efetuada: {tx.get('ad_title','Anúncio')}", "body": f"R$ {tx.get('amount',0):.2f} em escrow. Confirme o recebimento quando chegar.", "route": "/(tabs)/wallet", "created_at": tx.get("created_at"), "icon": "lock-closed", "color": "#F5C150"})
+            elif iAmSeller:
+                items.append({"id": f"tx_{tx.get('tx_id')}", "type": "sale", "title": f"Nova venda: {tx.get('ad_title','Anúncio')}", "body": f"R$ {tx.get('amount',0):.2f} aguardando entrega.", "route": "/(tabs)/wallet", "created_at": tx.get("created_at"), "icon": "cash", "color": "#4EE07F"})
+
+    # Group invites (custom groups where I'm invited)
+    g_cur = db.groups.find({"is_custom": True, "invited_ids": member_id, "owner_id": {"$ne": member_id}, "created_at": {"$gte": since}}, {"_id": 0}).sort("created_at", -1).limit(10)
+    async for g in g_cur:
+        owner = await db.members.find_one({"member_id": g.get("owner_id")}, {"_id": 0, "nickname": 1, "name": 1})
+        items.append({"id": f"g_{g.get('group_id')}", "type": "group", "title": f"{(owner or {}).get('nickname') or 'Alguém'} te convidou para o grupo '{g.get('name')}'", "body": g.get("description") or "Entre e interaja!", "route": f"/community/group/{g.get('group_id')}", "created_at": g.get("created_at"), "icon": "people", "color": g.get("color", "#D4AF37")})
+
+    items.sort(key=lambda x: x.get("created_at") or now, reverse=True)
+    # Serialize datetimes
+    for it in items:
+        if isinstance(it.get("created_at"), datetime):
+            it["created_at"] = it["created_at"].isoformat()
+    return items[:40]
+
+
+@api_router.get("/notifications/{member_id}/count")
+async def notifications_count(member_id: str):
+    since = datetime.now(timezone.utc) - timedelta(days=7)
+    dm_count = await db.dms.count_documents({"to_id": member_id, "created_at": {"$gte": since}})
+    sales_count = await db.wallet_txs.count_documents({"to_id": member_id, "type": "escrow", "created_at": {"$gte": since}})
+    return {"count": dm_count + sales_count}
 
 
 app.include_router(api_router)
