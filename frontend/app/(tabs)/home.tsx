@@ -2,31 +2,21 @@ import { useEffect, useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, RefreshControl, FlatList,
-  useWindowDimensions,
+  ImageBackground, useWindowDimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api, Category } from "../../src/api";
 import { theme } from "../../src/theme";
-import { BrandSerifHero } from "../../src/brand";
 
-// Color palette per reference
-const BG = "#1A1A1A";            // dark charcoal / chumbo background
-const CARD_BG = "#2A2A2A";       // lighter charcoal for the cards
-const ICON_GREY = "#C8C8C8";     // light grey icons (interior of cards)
-const LABEL = "#E8E8E8";         // whiteish label
+const CARD_BG = "#2A2A2A";
+const ICON_GREY = "#C8C8C8";
+const LABEL = "#E8E8E8";
 const GOLD = "#D4AF37";
 
-const CATEGORY_COLORS: Record<string, string> = {
-  emagrecedores: "#F5C150",
-  peptideos: "#7FD7E5",
-  landerlan: "#D4AF37",
-  hormonios: "#E57FD7",
-  pre_treinos: "#FF7A4D",
-  suplementos: "#4EE07F",
-  tecnologia: "#4E8FE0",
-  bem_estar: "#A8E04E",
-};
+// Dark, low-light gym background image
+const BG_IMAGE = "https://images.unsplash.com/photo-1599058945522-28d584b6f0ff?auto=format&fit=crop&w=1200&q=80";
+
 const CATEGORY_ICONS: Record<string, any> = {
   emagrecedores: "flash",
   peptideos: "flask",
@@ -60,9 +50,7 @@ const AREAS: Area[] = [
 ];
 
 function AreaIcon({ icon, size, color }: { icon: Area["icon"]; size: number; color: string }) {
-  if (icon.lib === "mci") {
-    return <MaterialCommunityIcons name={icon.name as any} size={size} color={color} />;
-  }
+  if (icon.lib === "mci") return <MaterialCommunityIcons name={icon.name as any} size={size} color={color} />;
   return <Ionicons name={icon.name as any} size={size} color={color} />;
 }
 
@@ -83,13 +71,12 @@ export default function Home() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: BG, justifyContent: "center" }}>
+      <View style={{ flex: 1, backgroundColor: "#0A0A0A", justifyContent: "center" }}>
         <ActivityIndicator color={theme.colors.white} />
       </View>
     );
   }
 
-  // Card sizing: 4 visible + small peek of 5th
   const H_PAD = 16;
   const GAP = 10;
   const visible = 4;
@@ -98,20 +85,22 @@ export default function Home() {
   const cardH = cardW * 1.15;
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }} testID="home-screen">
+    <ImageBackground
+      source={{ uri: BG_IMAGE }}
+      style={{ flex: 1, backgroundColor: "#0A0A0A" }}
+      imageStyle={{ opacity: 0.22 }}
+      testID="home-screen"
+    >
+      {/* Strong vignette to keep gym photo nearly black */}
+      <View style={styles.vignette} />
+
       <ScrollView
         refreshControl={<RefreshControl tintColor={theme.colors.white} refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: 110, paddingBottom: 30 }}
+        contentContainerStyle={{ paddingTop: 150, paddingBottom: 30 }}
       >
-        {/* Just the brand, centered, premium */}
-        <View style={styles.brandWrap}>
-          <BrandSerifHero fontSize={width < 380 ? 34 : 40} />
-        </View>
-
         {/* Areas carousel */}
         <FlatList
-          style={{ marginTop: 40 }}
           data={AREAS}
           keyExtractor={(a) => a.id}
           horizontal
@@ -140,7 +129,7 @@ export default function Home() {
           )}
         />
 
-        {/* Product Categories */}
+        {/* Product Categories — pushed further down, no colors on the home screen */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>CATEGORIAS DE PRODUTOS</Text>
           <FlatList
@@ -150,16 +139,15 @@ export default function Home() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, gap: 10 }}
             renderItem={({ item }) => {
-              const color = CATEGORY_COLORS[item.id] || theme.colors.silver;
               const icon = CATEGORY_ICONS[item.id] || item.icon;
               return (
                 <TouchableOpacity
-                  style={[styles.catChip, { borderLeftColor: color, borderLeftWidth: 3 }]}
+                  style={styles.catChip}
                   onPress={() => router.push(`/category/${item.id}`)}
                   testID={`home-category-${item.id}`}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name={icon as any} size={17} color={color} />
+                  <Ionicons name={icon as any} size={17} color={ICON_GREY} />
                   <Text style={styles.catChipText}>{item.name}</Text>
                 </TouchableOpacity>
               );
@@ -167,12 +155,15 @@ export default function Home() {
           />
         </View>
       </ScrollView>
-    </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  brandWrap: { alignItems: "center", marginTop: 40 },
+  vignette: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.78)",
+  },
 
   areaCard: {
     backgroundColor: CARD_BG,
@@ -199,19 +190,20 @@ const styles = StyleSheet.create({
   soonDot: {
     position: "absolute", top: 6, right: 6,
     width: 5, height: 5, borderRadius: 3,
-    backgroundColor: GOLD, opacity: 0.65,
+    backgroundColor: GOLD, opacity: 0.6,
   },
 
-  section: { marginTop: 36, marginBottom: theme.spacing.sm },
+  section: { marginTop: 60, marginBottom: theme.spacing.sm },
   sectionTitle: {
     color: "#999", fontSize: 10, fontWeight: "800",
-    letterSpacing: 3, paddingHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
+    letterSpacing: 3, paddingHorizontal: theme.spacing.lg, marginBottom: 14,
   },
+  // Neutral chip — colors only appear inside the category page
   catChip: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8,
     backgroundColor: CARD_BG,
     borderWidth: 1, borderColor: "rgba(255,255,255,0.06)",
   },
-  catChipText: { color: theme.colors.text, fontSize: 12, fontWeight: "700" },
+  catChipText: { color: LABEL, fontSize: 12, fontWeight: "700" },
 });

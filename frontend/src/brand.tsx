@@ -78,6 +78,27 @@ const styles = StyleSheet.create({
 
 // Premium serif hero logo — "BLACK CLUB" with gold K, elegant serif look.
 // Used on the Home hero area.
+// Compact single-word logo "BLACKSCLUB" — for header use, top-left corner.
+export function BrandMark({ fontSize = 16 }: { fontSize?: number }) {
+  const serifFamily = Platform.select({ ios: "Times New Roman", android: "serif", default: "serif" });
+  const base = {
+    fontFamily: serifFamily,
+    fontSize,
+    color: "#EFEFEF",
+    fontWeight: "600" as const,
+    letterSpacing: fontSize * 0.08,
+    includeFontPadding: false,
+  };
+  const gold = { ...base, color: "#D4AF37" };
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center" }}>
+      <Text allowFontScaling={false} style={base}>BLAC</Text>
+      <Text allowFontScaling={false} style={gold}>KS</Text>
+      <Text allowFontScaling={false} style={base}>CLUB</Text>
+    </View>
+  );
+}
+
 export function BrandSerifHero({ fontSize = 38 }: { fontSize?: number }) {
   const serifFamily = Platform.select({ ios: "Times New Roman", android: "serif", default: "serif" });
   const baseLetter = {

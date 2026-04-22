@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { useGate } from "../../src/gate";
 import { useCart } from "../../src/cart";
 import { theme, TIERS } from "../../src/theme";
-import { BrandLogo } from "../../src/brand";
+import { BrandLogo, BrandMark } from "../../src/brand";
 
 export default function TabsLayout() {
   const router = useRouter();
@@ -26,20 +26,11 @@ export default function TabsLayout() {
 
   const tier = TIERS[member.tier] || TIERS.black;
 
-  // LEFT: Wallet (functional) + decorative diamond beside it
+  // LEFT: Just the brand mark (no wallet here — wallet is at the bottom tab)
   const HeaderLeft = () => (
-    <TouchableOpacity
-      style={styles.walletBtn}
-      onPress={() => router.push("/wallet")}
-      testID="header-wallet-button"
-      activeOpacity={0.85}
-    >
-      <Ionicons name="wallet" size={16} color={theme.colors.white} />
-      <Text style={styles.walletBalance}>0 BC</Text>
-      <View style={[styles.deco, { borderColor: tier.color }]}>
-        <Ionicons name="diamond" size={10} color={tier.color} />
-      </View>
-    </TouchableOpacity>
+    <View style={{ marginLeft: 14 }}>
+      <BrandMark fontSize={15} />
+    </View>
   );
 
   const HeaderTitle = () => <BrandLogo size="sm" />;
@@ -67,7 +58,7 @@ export default function TabsLayout() {
           borderBottomColor: theme.colors.border,
         },
         headerTintColor: theme.colors.text,
-        headerTitle: () => <BrandLogo size="sm" />,
+        headerTitle: () => null,
         headerTitleAlign: "center",
         headerLeft: () => <HeaderLeft />,
         headerRight: () => <HeaderRight />,
