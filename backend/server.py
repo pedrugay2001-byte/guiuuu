@@ -1605,6 +1605,9 @@ class ProfileUpdate(BaseModel):
 
 def _public_member(m: Dict[str, Any], online_cutoff: datetime) -> Dict[str, Any]:
     online_at = m.get("online_at")
+    # Normalize: MongoDB may return naive datetimes even when stored with tz
+    if online_at is not None and getattr(online_at, "tzinfo", None) is None:
+        online_at = online_at.replace(tzinfo=timezone.utc)
     is_online = bool(online_at and online_at > online_cutoff)
     return {
         "member_id": m.get("member_id"),

@@ -190,15 +190,36 @@ frontend:
             Staff login/inbox/chat verificados visualmente (screenshots OK).
             Testes de frontend serão executados somente após confirmação do usuário.
 
+  - task: "Community (MSN-style) — endpoints + UI fully working"
+    implemented: true
+    working: true
+    file: "backend/server.py, frontend/app/(tabs)/community.tsx, frontend/app/community/*"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: |
+            Comunidade estilo MSN validada visualmente no viewport 390x844 (iPhone):
+            - Aba MEMBROS: lista de 5 membros seed + filtro online/offline, ordenação online-first.
+            - Aba GRUPOS: 6 grupos (Cutting, GLP-1, Hipertrofia, Hormônios, Mulheres, Negócios) com ícone colorido e contador.
+            - Aba EVENTOS: 3 eventos (Encontro SP, Workout, Palestra) com data, local e descrição.
+            - Card "Tocar para editar seu perfil público" leva para /community/edit-profile (apelido, bio, idade, profissão, ginásio, cidade, foto).
+            - Tocar em membro → /community/member/[id] com avatar com tier ring, pills BLACK/#10001/OFFLINE, CTA "PUXAR CONVERSA".
+            - /community/dm/[id] com polling de 5s, input com SafeArea, bolhas douradas (eu) e cinza (outro). Envio funcionando (validado via testID dm-send).
+            - /community/group/[id] com header colorido, estado vazio e envio de mensagens (validado via testID group-send).
+            - Bug fixed: _public_member comparava datetime naive vs tz-aware quando heartbeat populava online_at (causava 500 em /community/members/{id} e na listagem quando havia membros online). Agora normaliza para UTC.
+
 metadata:
   created_by: "main_agent"
-  version: "1.1"
-  test_sequence: 2
+  version: "1.2"
+  test_sequence: 3
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Orders + In-App Chat endpoints"
+    - "Community (MSN-style) — endpoints + UI fully working"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
