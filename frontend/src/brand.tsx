@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ViewStyle } from "react-native";
+import { View, Text, StyleSheet, ViewStyle, Platform } from "react-native";
 import { theme } from "./theme";
 
 // Brand rendered as individual letters to prevent OS translation
@@ -75,3 +75,26 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center" },
   letter: { color: theme.colors.white, fontWeight: "900" },
 });
+
+// Premium serif hero logo — "BLACK CLUB" with gold K, elegant serif look.
+// Used on the Home hero area.
+export function BrandSerifHero({ fontSize = 38 }: { fontSize?: number }) {
+  const serifFamily = Platform.select({ ios: "Times New Roman", android: "serif", default: "serif" });
+  const baseLetter = {
+    fontFamily: serifFamily,
+    fontSize,
+    color: "#F4F4F4",
+    fontWeight: "500" as const,
+    letterSpacing: fontSize * 0.08,
+    includeFontPadding: false,
+  };
+  const goldLetter = { ...baseLetter, color: "#D4AF37" };
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+      <Text allowFontScaling={false} style={baseLetter}>BLAC</Text>
+      <Text allowFontScaling={false} style={goldLetter}>K</Text>
+      <Text allowFontScaling={false} style={[baseLetter, { marginLeft: fontSize * 0.25 }]}>CLUB</Text>
+    </View>
+  );
+}

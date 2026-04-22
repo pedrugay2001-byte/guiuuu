@@ -44,15 +44,17 @@ export default function TabsLayout() {
 
   const HeaderTitle = () => <BrandLogo size="sm" />;
 
-  // RIGHT: Member icon — goes to /member tab
+  // RIGHT: Member icon — goes to /member tab — gold halo like the reference
   const HeaderRight = () => (
     <TouchableOpacity
-      style={[styles.memberBtn, { borderColor: tier.color }]}
+      style={styles.memberBtn}
       onPress={() => router.push("/(tabs)/member")}
       testID="header-member"
       activeOpacity={0.85}
     >
-      <Ionicons name="person" size={16} color={tier.color} />
+      <View style={styles.memberInner}>
+        <Ionicons name="person" size={18} color="#E8C96B" />
+      </View>
     </TouchableOpacity>
   );
 
@@ -65,7 +67,7 @@ export default function TabsLayout() {
           borderBottomColor: theme.colors.border,
         },
         headerTintColor: theme.colors.text,
-        headerTitle: () => <HeaderTitle />,
+        headerTitle: () => <BrandLogo size="sm" />,
         headerTitleAlign: "center",
         headerLeft: () => <HeaderLeft />,
         headerRight: () => <HeaderRight />,
@@ -82,8 +84,8 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
       }}
     >
-      <Tabs.Screen name="home" options={{ title: "Início", tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} /> }} />
-      <Tabs.Screen name="catalog" options={{ title: "Catálogo", tabBarIcon: ({ color, size }) => <Ionicons name="grid" color={color} size={size} /> }} />
+      <Tabs.Screen name="home" options={{ title: "Início", headerTransparent: true, headerStyle: { backgroundColor: "transparent", borderBottomWidth: 0, elevation: 0, shadowOpacity: 0 }, headerTitle: () => null, tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} /> }} />
+      <Tabs.Screen name="catalog" options={{ title: "Catálogo", headerTransparent: false, headerStyle: { backgroundColor: theme.colors.bg, borderBottomWidth: 1, borderBottomColor: theme.colors.border }, headerTitle: () => <BrandLogo size="sm" />, tabBarIcon: ({ color, size }) => <Ionicons name="grid" color={color} size={size} /> }} />
       <Tabs.Screen name="community" options={{ title: "Comunidade", tabBarIcon: ({ color, size }) => <Ionicons name="people" color={color} size={size} /> }} />
       <Tabs.Screen
         name="cart"
@@ -123,11 +125,22 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
   memberBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    borderWidth: 1.5,
-    backgroundColor: theme.colors.surface,
+    width: 40, height: 40, borderRadius: 20,
     alignItems: "center", justifyContent: "center",
     marginRight: 14,
+    backgroundColor: "#0A0A0A",
+    borderWidth: 2,
+    borderColor: "#D4AF37",
+    shadowColor: "#D4AF37",
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  memberInner: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#0F0F0F",
   },
   tierPill: {
     flexDirection: "row", alignItems: "center", gap: 4,
