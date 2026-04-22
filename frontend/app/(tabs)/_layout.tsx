@@ -26,12 +26,8 @@ export default function TabsLayout() {
 
   const tier = TIERS[member.tier] || TIERS.black;
 
-  // LEFT: Just the brand mark (no wallet here — wallet is at the bottom tab)
-  const HeaderLeft = () => (
-    <View style={{ marginLeft: 14 }}>
-      <BrandMark fontSize={15} />
-    </View>
-  );
+  // LEFT: empty spacer — the logo is centered in the header title
+  const HeaderLeft = () => <View style={{ width: 14 }} />;
 
   const HeaderTitle = () => <BrandLogo size="sm" />;
 
@@ -58,7 +54,7 @@ export default function TabsLayout() {
           borderBottomColor: theme.colors.border,
         },
         headerTintColor: theme.colors.text,
-        headerTitle: () => null,
+        headerTitle: () => <BrandLogo size="md" />,
         headerTitleAlign: "center",
         headerLeft: () => <HeaderLeft />,
         headerRight: () => <HeaderRight />,
@@ -95,7 +91,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen name="member" options={{ href: null }} />
-      <Tabs.Screen name="wallet" options={{ title: "Carteira", tabBarIcon: ({ color, size }) => <Ionicons name="wallet" color={color} size={size} /> }} />
+      <Tabs.Screen name="wallet" options={{ title: "Banco", tabBarIcon: ({ color, size }) => <Ionicons name="wallet" color={color} size={size} /> }} />
     </Tabs>
   );
 }

@@ -14,8 +14,8 @@ const ICON_GREY = "#C8C8C8";
 const LABEL = "#E8E8E8";
 const GOLD = "#D4AF37";
 
-// Dark, low-light gym background image
-const BG_IMAGE = "https://images.unsplash.com/photo-1599058945522-28d584b6f0ff?auto=format&fit=crop&w=1200&q=80";
+// Dark low-light gym photo — strong but still visible as background
+const BG_IMAGE = "https://images.unsplash.com/photo-1546483875-ad9014c88eba?auto=format&fit=crop&w=1200&q=60";
 
 const CATEGORY_ICONS: Record<string, any> = {
   emagrecedores: "flash",
@@ -88,10 +88,10 @@ export default function Home() {
     <ImageBackground
       source={{ uri: BG_IMAGE }}
       style={{ flex: 1, backgroundColor: "#0A0A0A" }}
-      imageStyle={{ opacity: 0.22 }}
+      imageStyle={{ opacity: 0.55 }}
       testID="home-screen"
     >
-      {/* Strong vignette to keep gym photo nearly black */}
+      {/* Soft vignette — keeps image visible but mood remains dark */}
       <View style={styles.vignette} />
 
       <ScrollView
@@ -162,7 +162,7 @@ export default function Home() {
 const styles = StyleSheet.create({
   vignette: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.78)",
+    backgroundColor: "rgba(0,0,0,0.55)",
   },
 
   areaCard: {

@@ -232,6 +232,23 @@ async def _send_new_member_email(member: dict, total_members: int) -> None:
         logger.error("[EMAIL FAILED] %s", e)
 
 
+@api_router.get("/gate/check")
+async def gate_check(code: str = ""):
+    """Lightweight check if an access code is authorized (without committing any data)."""
+    c = (code or "").strip().upper()
+    if len(c) < 3:
+        raise HTTPException(status_code=400, detail="Código inválido")
+    # Check authorized pre-registrations
+    doc = await db.authorized.find_one({"code": c}, {"_id": 0})
+    if doc:
+        return {"ok": True, "name": doc.get("name"), "tier": doc.get("tier", "black")}
+    # Also accept existing member's invite code so they can re-enter
+    member = await db.members.find_one({"invite_code": c}, {"_id": 0})
+    if member:
+        return {"ok": True, "name": member.get("name"), "tier": member.get("tier", "black")}
+    raise HTTPException(status_code=404, detail="Código não autorizado")
+
+
 @api_router.post("/members/enter", response_model=dict)
 async def member_enter(data: MemberEnter):
     name = data.name.strip()

@@ -143,16 +143,16 @@ export default function CategoryPage() {
 const styles = StyleSheet.create({
   wrap: { flex: 1, flexDirection: "row" },
   sidebar: {
-    width: 88,
+    width: 64,
     borderRightWidth: 1, borderRightColor: theme.colors.border,
     backgroundColor: theme.colors.bg2,
   },
   sideItem: {
-    paddingVertical: 14, paddingHorizontal: 8,
-    alignItems: "center", gap: 5,
+    paddingVertical: 14, paddingHorizontal: 4,
+    alignItems: "center", gap: 4,
     borderLeftWidth: 3, borderLeftColor: "transparent",
   },
-  sideText: { color: theme.colors.textMuted, fontSize: 10, fontWeight: "700", textAlign: "center" },
+  sideText: { color: theme.colors.textMuted, fontSize: 8, fontWeight: "800", textAlign: "center", letterSpacing: 0.5 },
   subChipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 },
   subChip: {
     paddingHorizontal: 11, paddingVertical: 6, borderRadius: 16,
