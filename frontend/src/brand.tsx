@@ -94,7 +94,8 @@ export function BrandSerifHero({ fontSize = 38 }: { fontSize?: number }) {
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
       <Text allowFontScaling={false} style={baseLetter}>BLAC</Text>
       <Text allowFontScaling={false} style={goldLetter}>K</Text>
-      <Text allowFontScaling={false} style={[baseLetter, { marginLeft: fontSize * 0.25 }]}>CLUB</Text>
+      <Text allowFontScaling={false} style={goldLetter}>S</Text>
+      <Text allowFontScaling={false} style={[baseLetter, { marginLeft: fontSize * 0.2 }]}>CLUB</Text>
     </View>
   );
 }

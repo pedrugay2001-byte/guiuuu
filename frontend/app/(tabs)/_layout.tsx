@@ -103,7 +103,8 @@ export default function TabsLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="member" options={{ title: "Membro", tabBarIcon: ({ color, size }) => <Ionicons name="person" color={color} size={size} /> }} />
+      <Tabs.Screen name="member" options={{ href: null }} />
+      <Tabs.Screen name="wallet" options={{ title: "Carteira", tabBarIcon: ({ color, size }) => <Ionicons name="wallet" color={color} size={size} /> }} />
     </Tabs>
   );
 }
