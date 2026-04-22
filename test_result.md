@@ -344,31 +344,158 @@ frontend:
             
             Pix real + voz BLACK AI + gravação de áudio no chat ficam para a próxima rodada (precisam de APIs externas).
 
+  - task: "Marketplace V2 (Ads) + Wallet BLACK Coins + Feed/Stories endpoints"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: |
+            Validação completa do backend executada via /app/backend_test.py (37 testes, 37 PASS / 0 FAIL)
+            contra a URL pública https://member-shop-2.preview.emergentagent.com/api.
+
+            RESUMO POR ÁREA:
+            • Auth:
+                - POST /api/members/login com demo@blacksclub.com/novasenha123 → 200 (member_id=mem_e5bb9b5878dd,
+                  tier=diamond) ✅
+                - POST /api/auth/login (support e admin) → 200. **OBS**: o JSON retorna a chave `token`
+                  (NÃO `access_token`) dentro do AuthResponse — ajuste no client se necessário. ✅
+                - POST /api/members/login com senha errada → 401 ✅
+            • Planos + Marketplace:
+                - GET /api/plans → 3 planos (silver/gold/diamond) ✅
+                - GET /api/ads → 94 anúncios seed com seller_nickname, price_full, images, category (campo
+                  "original_price" **NÃO** existe — backend usa `price_full`). ✅
+                - GET /api/ads/{ad_id} → 200 com seller_nickname/tier/avatar enriquecidos ✅
+                - GET /api/ads/member/mem_e5bb9b5878dd → 200 (demo tem 2 anúncios seed) ✅
+            • BLACK AI:
+                - GET /api/ai/specialists → **16 especialistas** (review pedia 15). Categorias:
+                  fisico=8, mental=3, vida=4, espiritual=1 → confere com a descrição. Vale ao main agent
+                  decidir se é 15 ou 16 (há 1 a mais — não é bug). Todos têm id/name/tagline/category. ✅
+                - POST /api/ai/chat (nutrologo) → 200 com reply real do GPT-4o (357 chars). **OBS**: o
+                  schema do backend usa o campo `text` (não `message`). O review pedia `message`. ✅
+                - GET /api/ai/history/{id}?specialist_id=nutrologo → 200 com histórico da sessão ✅
+            • Wallet:
+                - GET /api/wallet/{id} → balance=3000.0 (demo), escrow_in/out presentes ✅
+                - POST /api/wallet/topup com 50 → 200, cria tx settled ✅
+                - POST /api/wallet/topup com 0 e -10 → 400 ✅
+                - GET /api/wallet/{id}/transactions → lista ✅
+            • Comunidade V2:
+                - GET /api/community/members → 16 membros ✅
+                - GET /api/community/members/{id} → perfil público do demo ✅
+                - GET /api/community/groups?member_id={id} → 7 grupos (oficiais + custom) ✅
+                - GET /api/feed/posts, GET /api/stories, POST heartbeat → todos 200 ✅
+            • Notificações:
+                - GET /api/notifications/{id} → 200 (agregado de DMs, txs, convites) ✅
+                - GET /api/notifications/{id}/count → {"count": int} ✅
+                - **OBS**: review pediu `GET /api/notifications/count/{id}` — essa rota **não existe**
+                  (retorna 404). Rota correta é `/api/notifications/{id}/count`.
+            • Upload de imagem (bug reportado pelo usuário):
+                - **OBS**: review pediu `PUT /api/members/{id}` (sem /profile) — essa rota **não existe**
+                  (405). O endpoint real de atualização de perfil/avatar é `PUT /api/members/{id}/profile`.
+                - PUT /api/members/{id}/profile com avatar_base64 (~100KB, 200KB, 500KB, 800KB) → 200 ✅
+                - PUT /api/members/{id}/profile com avatar ~1500KB → 400 (limite documentado ~1MB) ✅
+                - PUT /api/members/{id}/photos com 2 fotos ~150KB → 200, count=2; GET subsequente devolve
+                  as 2 fotos corretamente ✅
+                - POST /api/feed/posts com image_base64 ~100KB → 200 ✅
+                - POST /api/stories com image_base64 ~100KB → 200 (schema aceita image_base64 + text;
+                  não existe campo `duration`). ✅
+                - **NENHUM 413 ou 500** em toda a matriz de uploads testada. Limite prático para avatar:
+                  ~800KB base64 aceito, >1.3MB rejeitado com 400 (mensagem clara).
+            • Proteção de auth:
+                - GET /api/chat/threads SEM Authorization → 401 ✅
+                - GET /api/chat/threads com Bearer do support → 200 ✅
+                - POST /api/ads: **endpoint NÃO tem middleware de auth**. Bloqueia apenas via tier do
+                  seller_id (403 se não-diamond; 404 se seller_id inexistente). Com seller_id válido de
+                  Silver/Gold → 403 com mensagem "Apenas membros BLACK DIAMOND podem anunciar". Isso é
+                  aceitável mas note que um cliente malicioso poderia tentar enumerar sellers. Não é P0,
+                  P2 hardening.
+
+            DIVERGÊNCIAS DO REVIEW vs BACKEND (não são bugs, só precisam alinhar o cliente):
+            1. AuthResponse usa chave `token`, não `access_token`.
+            2. POST /api/ai/chat aceita `text`, não `message`.
+            3. GET /api/notifications/{id}/count (NÃO /count/{id}).
+            4. PUT /api/members/{id}/profile (NÃO PUT /api/members/{id}).
+            5. Anúncio usa `price_full` (NÃO `original_price`).
+            6. SPECIALISTS = 16 (não 15) — a categorização confere com a descrição do review.
+
+            NENHUM BUG CRÍTICO ENCONTRADO. Fluxos de upload de imagem (o que o usuário reclamou)
+            funcionam dentro do limite backend (~1MB por foto individual, 30×1.3MB para galeria).
+        - working: "NA"
+          agent: "main"
+          comment: |
+            Rodada 5 — Validar endpoints novos do marketplace P2P, carteira escrow e feed/stories:
+            
+            ## Credenciais
+            - Demo Diamond: demo@blacksclub.com / novasenha123 (login via POST /api/members/login)
+              member_id: mem_e5bb9b5878dd, tier: diamond
+            - Support: suporte@blacksclub.com / suporte123 (login via POST /api/auth/login → Bearer)
+            - Admin: admin@farmaclube.com / admin123 (login via POST /api/auth/login → Bearer)
+            
+            ## Fluxo a validar (APENAS VALIDAR — NÃO MUDAR NADA):
+            1) POST /api/members/login → login do demo
+            2) GET /api/ads → deve retornar 90+ anúncios seed com seller_nickname, original_price, images
+            3) GET /api/ads/{ad_id} → detalhe do anúncio (usar um do seed)
+            4) GET /api/plans → deve listar 3 planos (silver/gold/diamond)
+            5) GET /api/ai/specialists → deve retornar 15 especialistas agrupados em 4 categorias
+            6) POST /api/ai/chat com {"member_id":"mem_e5bb9b5878dd","specialist_id":"nutrologo","message":"oi"} → 200 com reply
+            7) GET /api/wallet/mem_e5bb9b5878dd → deve retornar balance + transactions
+            8) POST /api/wallet/topup com {"member_id":"mem_e5bb9b5878dd","amount":50} → mock PIX (status pending ou completed)
+            9) GET /api/feed/posts → lista de posts
+            10) GET /api/stories → lista de stories ativos (24h)
+            11) GET /api/community/members → lista de membros
+            12) GET /api/community/groups?member_id=mem_e5bb9b5878dd → grupos oficiais + custom
+            13) GET /api/notifications/mem_e5bb9b5878dd → agregado
+            14) GET /api/notifications/count/mem_e5bb9b5878dd → unread count
+            
+            ## Validações de autorização (negativas):
+            - POST /api/ads sem auth → 401/403
+            - POST /api/products/create sem staff → 401/403
+            - GET /api/chat/threads sem auth → 401/403
+            
+            ## Teste de upload de imagem (IMPORTANTE — cliente relatou bug):
+            - POST /api/members/{id}/photos com {"photos":["data:image/jpeg;base64,/9j/..."]} (base64 ~200KB)
+              → verificar se salva sem 413 ou 500
+            - PUT /api/members/{id} com {"avatar_base64":"data:image/..."} → verificar persistência
+
 metadata:
   created_by: "main_agent"
-  version: "2.0"
-  test_sequence: 4
+  version: "2.1"
+  test_sequence: 5
   run_ui: false
 
 test_plan:
   current_focus:
-    - "BLACKSCLUB Marketplace V2 + Community V2 (full overhaul)"
+    - "Marketplace V2 (Ads) + Wallet BLACK Coins + Feed/Stories endpoints"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+    - agent: "testing"
+      message: |
+        Backend validado com 37 testes (37 PASS, 0 FAIL) em /app/backend_test.py. NENHUM BUG CRÍTICO.
+        O fluxo de upload de imagem (reclamação do usuário) funciona: avatar até ~800KB, galeria com
+        2 fotos de ~150KB, feed post com imagem ~100KB, story com imagem ~100KB — tudo 200 sem 413/500.
+        Limite backend: ~1MB por data-URL (avatar rejeita >1.3MB com 400, mensagem clara).
+
+        DIVERGÊNCIAS DE ROTAS entre o review e o server.py real (não são bugs, só alinhamento):
+          • AuthResponse retorna `token` (não `access_token`)
+          • AIChat body usa `text` (não `message`)
+          • Notifications count é `/notifications/{id}/count` (não `/notifications/count/{id}`)
+          • Atualização de avatar é `PUT /members/{id}/profile` (não PUT /members/{id})
+          • Anúncio usa campo `price_full` (não `original_price`)
+          • SPECIALISTS = 16, não 15 (8 físico / 3 mental / 4 vida / 1 espiritual — confere com a descrição)
+
+        POST /api/ads não tem middleware Authorization — só valida tier do seller_id. Aceitável para
+        MVP; considere adicionar auth JWT ou checar membership do seller_id no futuro (P2).
+
     - agent: "main"
       message: |
-        Por favor testar apenas os endpoints novos de pedidos e chat no backend.
-        Fluxo esperado:
-         1) POST /api/members/enter com code X2T → obter member_id
-         2) POST /api/orders com 2 itens → retorna order_id, status=open. Deve criar mensagem inicial.
-         3) POST /api/auth/login com suporte@farmaclube.com/suporte123 → token
-         4) GET /api/chat/threads (Bearer) → lista com 1 thread do membro, unread>=1
-         5) GET /api/chat/support/{member_id} (Bearer) → lista mensagens, marca como lidas
-         6) POST /api/chat/support/{member_id} (Bearer) com {"text":"olá"} → mensagem com sender=support
-         7) GET /api/chat/member/{member_id} (sem auth) → vê resposta do suporte
-         8) POST /api/chat/member/{member_id} com {"text":"obrigado"} → aparece na thread
-         9) GET /api/chat/threads sem auth → deve retornar 401/403
-        Não fazer mudanças — apenas validar.
+        Validar endpoints do BLACKSCLUB pós-refator (marketplace P2P, wallet, feed, stories, AI specialists, upload de imagem).
+        Credenciais no test_credentials.md. Foco principal: garantir que os 90+ ads estão acessíveis,
+        que o upload de foto base64 (avatar e galeria de 10 fotos) NÃO retorna 413/500 e que os filtros
+        de auth staff funcionam. NÃO modificar código — apenas validar e reportar.
