@@ -36,6 +36,10 @@ export default function RootLayout() {
             <Stack.Screen name="admin/members" options={{ title: "Membros autorizados" }} />
             <Stack.Screen name="staff/login" options={{ title: "Área da Equipe" }} />
             <Stack.Screen name="staff/choose" options={{ title: "" }} />
+            <Stack.Screen name="community/member/[id]" options={{ title: "" }} />
+            <Stack.Screen name="community/dm/[id]" options={{ title: "" }} />
+            <Stack.Screen name="community/group/[id]" options={{ title: "" }} />
+            <Stack.Screen name="community/edit-profile" options={{ title: "Editar perfil" }} />
             <Stack.Screen name="staff/dashboard" options={{ title: "Painel" }} />
             <Stack.Screen name="staff/inbox" options={{ title: "Caixa de Mensagens" }} />
             <Stack.Screen name="staff/chat/[member_id]" options={{ title: "Conversa" }} />

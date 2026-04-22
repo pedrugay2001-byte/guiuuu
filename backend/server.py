@@ -1571,6 +1571,8 @@ async def on_startup():
     await seed_admin()
     await seed_authorized()
     await seed_products()
+    await seed_groups()
+    await seed_events()
     # Backfill member_number for existing members (one-time migration)
     await backfill_member_numbers()
 
@@ -1585,6 +1587,296 @@ async def backfill_member_numbers():
         await db.members.update_one({"member_id": m["member_id"]}, {"$set": {"member_number": next_num}})
         next_num += 1
     logger.info("[migration] assigned member_number to %d existing members", len(existing))
+
+
+# ============================================
+# COMMUNITY (MSN-style)
+# ============================================
+
+class ProfileUpdate(BaseModel):
+    nickname: Optional[str] = None
+    bio: Optional[str] = None
+    age: Optional[int] = None
+    profession: Optional[str] = None
+    gym: Optional[str] = None
+    city: Optional[str] = None
+    avatar_base64: Optional[str] = None  # data URL
+
+
+def _public_member(m: Dict[str, Any], online_cutoff: datetime) -> Dict[str, Any]:
+    online_at = m.get("online_at")
+    is_online = bool(online_at and online_at > online_cutoff)
+    return {
+        "member_id": m.get("member_id"),
+        "member_number": m.get("member_number"),
+        "nickname": m.get("nickname") or m.get("name", "Membro").split(" ")[0],
+        "tier": m.get("tier", "black"),
+        "avatar_base64": m.get("avatar_base64"),
+        "age": m.get("age"),
+        "profession": m.get("profession"),
+        "gym": m.get("gym"),
+        "city": m.get("city"),
+        "bio": m.get("bio"),
+        "is_online": is_online,
+    }
+
+
+@api_router.put("/members/{member_id}/profile")
+async def update_member_profile(member_id: str, data: ProfileUpdate):
+    updates: Dict[str, Any] = {}
+    if data.nickname is not None:
+        nick = data.nickname.strip()
+        if len(nick) > 24:
+            nick = nick[:24]
+        updates["nickname"] = nick or None
+    if data.bio is not None:
+        updates["bio"] = data.bio.strip()[:240] or None
+    if data.age is not None:
+        try:
+            updates["age"] = int(data.age) if 10 <= int(data.age) <= 110 else None
+        except Exception:
+            pass
+    if data.profession is not None:
+        updates["profession"] = data.profession.strip()[:60] or None
+    if data.gym is not None:
+        updates["gym"] = data.gym.strip()[:60] or None
+    if data.city is not None:
+        updates["city"] = data.city.strip()[:60] or None
+    if data.avatar_base64 is not None:
+        v = data.avatar_base64.strip()
+        # Only accept data URLs up to ~1MB to avoid DB bloat
+        if len(v) > 1_300_000:
+            raise HTTPException(status_code=400, detail="Avatar muito grande (máx 1MB)")
+        updates["avatar_base64"] = v or None
+    if not updates:
+        raise HTTPException(status_code=400, detail="Nada para atualizar")
+    r = await db.members.update_one({"member_id": member_id}, {"$set": updates})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    return {"ok": True}
+
+
+@api_router.post("/members/{member_id}/heartbeat")
+async def heartbeat(member_id: str):
+    now = datetime.now(timezone.utc)
+    await db.members.update_one({"member_id": member_id}, {"$set": {"online_at": now}})
+    return {"ok": True, "now": now.isoformat()}
+
+
+@api_router.get("/community/members")
+async def community_members(exclude: Optional[str] = None):
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(minutes=5)
+    q: Dict[str, Any] = {"active": {"$ne": False}}
+    if exclude:
+        q["member_id"] = {"$ne": exclude}
+    cur = db.members.find(q, {"_id": 0, "password_hash": 0}).limit(500)
+    members = await cur.to_list(length=500)
+    items = [_public_member(m, cutoff) for m in members]
+    # Online first, then by member_number
+    items.sort(key=lambda x: (not x["is_online"], x.get("member_number") or 0))
+    return items
+
+
+@api_router.get("/community/members/{member_id}")
+async def community_member_detail(member_id: str):
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(minutes=5)
+    m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "password_hash": 0})
+    if not m:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    return _public_member(m, cutoff)
+
+
+# ---- DMs ----
+
+class DMSend(BaseModel):
+    text: str
+
+
+def _dm_thread(a: str, b: str) -> str:
+    return "dm_" + "_".join(sorted([a, b]))
+
+
+@api_router.get("/community/dms/{me_id}/{other_id}")
+async def dm_list(me_id: str, other_id: str):
+    tid = _dm_thread(me_id, other_id)
+    cur = db.dm_messages.find({"thread_id": tid}, {"_id": 0}).sort("created_at", 1).limit(400)
+    return await cur.to_list(length=400)
+
+
+@api_router.post("/community/dms/{me_id}/{other_id}")
+async def dm_send(me_id: str, other_id: str, data: DMSend):
+    text = data.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Mensagem vazia")
+    tid = _dm_thread(me_id, other_id)
+    doc = {
+        "dm_id": f"dm_{uuid.uuid4().hex[:12]}",
+        "thread_id": tid,
+        "from_id": me_id,
+        "to_id": other_id,
+        "text": text,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.dm_messages.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/community/dms/{me_id}")
+async def dm_threads(me_id: str):
+    """List all DM partners with last message + unread-ish info"""
+    cur = db.dm_messages.find(
+        {"$or": [{"from_id": me_id}, {"to_id": me_id}]},
+        {"_id": 0},
+    ).sort("created_at", -1).limit(500)
+    msgs = await cur.to_list(length=500)
+    by_partner: Dict[str, Dict[str, Any]] = {}
+    for m in msgs:
+        partner = m["to_id"] if m["from_id"] == me_id else m["from_id"]
+        if partner not in by_partner:
+            by_partner[partner] = {"partner_id": partner, "last_text": m["text"], "last_at": m["created_at"]}
+    return list(by_partner.values())
+
+
+# ---- Groups ----
+
+class GroupMessage(BaseModel):
+    member_id: str
+    text: str
+
+
+DEFAULT_GROUPS = [
+    {"group_id": "g_glp1", "name": "GLP-1 e Emagrecimento", "description": "Ozempic, Mounjaro, Retatrutida, experiências e dúvidas.", "icon": "flash", "color": "#F5C150"},
+    {"group_id": "g_hipert", "name": "Hipertrofia & Força", "description": "Treino, volume, periodização, PRs.", "icon": "barbell", "color": "#FF7A4D"},
+    {"group_id": "g_cut", "name": "Cutting & Dieta", "description": "Estratégias, macros, rotinas alimentares.", "icon": "nutrition", "color": "#4EE07F"},
+    {"group_id": "g_pept", "name": "Peptídeos", "description": "BPC-157, TB-500, CJC-1295, Ipamorelina.", "icon": "flask", "color": "#7FD7E5"},
+    {"group_id": "g_hormon", "name": "Hormônios & TRT", "description": "Testosterona, HGH, HCG, reposição.", "icon": "sparkles", "color": "#E57FD7"},
+    {"group_id": "g_mulheres", "name": "Mulheres do Clube", "description": "Grupo privado feminino do BLACKSCLUB.", "icon": "female", "color": "#E57FD7"},
+    {"group_id": "g_negocios", "name": "Negócios & Parcerias", "description": "Networking entre membros.", "icon": "trending-up", "color": "#4E8FE0"},
+]
+
+
+async def seed_groups():
+    for g in DEFAULT_GROUPS:
+        await db.groups.update_one({"group_id": g["group_id"]}, {"$setOnInsert": g}, upsert=True)
+
+
+@api_router.get("/community/groups")
+async def list_groups():
+    cur = db.groups.find({}, {"_id": 0}).sort("name", 1)
+    groups = await cur.to_list(length=100)
+    # Attach member count
+    for g in groups:
+        g["members_count"] = await db.group_members.count_documents({"group_id": g["group_id"]})
+    return groups
+
+
+@api_router.post("/community/groups/{group_id}/join/{member_id}")
+async def group_join(group_id: str, member_id: str):
+    await db.group_members.update_one(
+        {"group_id": group_id, "member_id": member_id},
+        {"$setOnInsert": {"joined_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api_router.post("/community/groups/{group_id}/leave/{member_id}")
+async def group_leave(group_id: str, member_id: str):
+    await db.group_members.delete_one({"group_id": group_id, "member_id": member_id})
+    return {"ok": True}
+
+
+@api_router.get("/community/groups/{group_id}/is-member/{member_id}")
+async def group_is_member(group_id: str, member_id: str):
+    m = await db.group_members.find_one({"group_id": group_id, "member_id": member_id})
+    return {"is_member": bool(m)}
+
+
+@api_router.get("/community/groups/{group_id}/messages")
+async def group_messages(group_id: str):
+    cur = db.group_messages.find({"group_id": group_id}, {"_id": 0}).sort("created_at", 1).limit(300)
+    msgs = await cur.to_list(length=300)
+    # Attach nickname/avatar
+    ids = list({m["member_id"] for m in msgs})
+    mem_map = {}
+    if ids:
+        async for mem in db.members.find({"member_id": {"$in": ids}}, {"_id": 0, "member_id": 1, "nickname": 1, "name": 1, "avatar_base64": 1, "tier": 1}):
+            mem_map[mem["member_id"]] = {
+                "nickname": mem.get("nickname") or mem.get("name", "Membro").split(" ")[0],
+                "avatar_base64": mem.get("avatar_base64"),
+                "tier": mem.get("tier", "black"),
+            }
+    for m in msgs:
+        info = mem_map.get(m["member_id"], {})
+        m["nickname"] = info.get("nickname", "Membro")
+        m["avatar_base64"] = info.get("avatar_base64")
+        m["tier"] = info.get("tier", "black")
+    return msgs
+
+
+@api_router.post("/community/groups/{group_id}/messages")
+async def group_message_send(group_id: str, data: GroupMessage):
+    text = data.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Mensagem vazia")
+    doc = {
+        "gm_id": f"gm_{uuid.uuid4().hex[:12]}",
+        "group_id": group_id,
+        "member_id": data.member_id,
+        "text": text,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.group_messages.insert_one(doc)
+    # Ensure the sender is a member
+    await db.group_members.update_one(
+        {"group_id": group_id, "member_id": data.member_id},
+        {"$setOnInsert": {"joined_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+    doc.pop("_id", None)
+    return doc
+
+
+# ---- Events ----
+
+DEFAULT_EVENTS = [
+    {
+        "event_id": "e_encontro_sp", "title": "Encontro BLACKSCLUB São Paulo",
+        "description": "Noite de networking e bate-papo fechado com membros da região.",
+        "city": "São Paulo - SP", "place": "Club House privado",
+        "when_label": "15 de maio · 20h",
+        "icon": "wine", "color": "#D4AF37",
+    },
+    {
+        "event_id": "e_workout", "title": "Workout Coletivo do Clube",
+        "description": "Treino conjunto dos membros com acompanhamento dos coaches parceiros.",
+        "city": "São Paulo - SP", "place": "Academia Gold Core",
+        "when_label": "22 de maio · 7h",
+        "icon": "barbell", "color": "#FF7A4D",
+    },
+    {
+        "event_id": "e_palestra", "title": "Palestra: GLP-1 sem mitos",
+        "description": "Palestra presencial com médico nutrólogo parceiro. Vagas limitadas.",
+        "city": "Online + São Paulo",
+        "place": "Auditório Privado + Zoom",
+        "when_label": "30 de maio · 19h",
+        "icon": "school", "color": "#4EE07F",
+    },
+]
+
+
+async def seed_events():
+    for e in DEFAULT_EVENTS:
+        await db.events.update_one({"event_id": e["event_id"]}, {"$setOnInsert": e}, upsert=True)
+
+
+@api_router.get("/community/events")
+async def list_events():
+    cur = db.events.find({}, {"_id": 0}).sort("when_label", 1)
+    return await cur.to_list(length=100)
 
 
 app.include_router(api_router)

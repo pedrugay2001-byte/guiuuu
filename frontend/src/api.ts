@@ -184,7 +184,56 @@ export const api = {
     }),
   adminDeleteAuthorized: (auth_id: string) =>
     request<{ ok: boolean }>(`/admin/authorized/${auth_id}`, { method: "DELETE" }),
+
+  // ----- Community (MSN-style) -----
+  updateProfile: (member_id: string, body: {
+    nickname?: string; bio?: string; age?: number; profession?: string;
+    gym?: string; city?: string; avatar_base64?: string;
+  }) => request<{ ok: boolean }>(`/members/${member_id}/profile`, { method: "PUT", body: JSON.stringify(body) }),
+  heartbeat: (member_id: string) =>
+    request<{ ok: boolean }>(`/members/${member_id}/heartbeat`, { method: "POST" }),
+  communityMembers: (exclude?: string) =>
+    request<CommunityMember[]>(`/community/members${exclude ? `?exclude=${exclude}` : ""}`),
+  communityMember: (id: string) =>
+    request<CommunityMember>(`/community/members/${id}`),
+  dmList: (me: string, other: string) =>
+    request<DMMessage[]>(`/community/dms/${me}/${other}`),
+  dmSend: (me: string, other: string, text: string) =>
+    request<DMMessage>(`/community/dms/${me}/${other}`, { method: "POST", body: JSON.stringify({ text }) }),
+  dmThreads: (me: string) =>
+    request<DMThread[]>(`/community/dms/${me}`),
+  groupsList: () => request<Group[]>("/community/groups"),
+  groupJoin: (group_id: string, member_id: string) =>
+    request<{ ok: boolean }>(`/community/groups/${group_id}/join/${member_id}`, { method: "POST" }),
+  groupLeave: (group_id: string, member_id: string) =>
+    request<{ ok: boolean }>(`/community/groups/${group_id}/leave/${member_id}`, { method: "POST" }),
+  groupIsMember: (group_id: string, member_id: string) =>
+    request<{ is_member: boolean }>(`/community/groups/${group_id}/is-member/${member_id}`),
+  groupMessages: (group_id: string) =>
+    request<GroupMsg[]>(`/community/groups/${group_id}/messages`),
+  groupSend: (group_id: string, member_id: string, text: string) =>
+    request<GroupMsg>(`/community/groups/${group_id}/messages`, { method: "POST", body: JSON.stringify({ member_id, text }) }),
+  eventsList: () => request<CommunityEvent[]>("/community/events"),
 };
+
+export type CommunityMember = {
+  member_id: string;
+  member_number?: number;
+  nickname: string;
+  tier: TierId;
+  avatar_base64?: string | null;
+  age?: number | null;
+  profession?: string | null;
+  gym?: string | null;
+  city?: string | null;
+  bio?: string | null;
+  is_online: boolean;
+};
+export type DMMessage = { dm_id?: string; from_id: string; to_id: string; text: string; created_at: string };
+export type DMThread = { partner_id: string; last_text: string; last_at: string };
+export type Group = { group_id: string; name: string; description: string; icon: string; color: string; members_count: number };
+export type GroupMsg = { gm_id?: string; group_id: string; member_id: string; text: string; created_at: string; nickname: string; avatar_base64?: string | null; tier: TierId };
+export type CommunityEvent = { event_id: string; title: string; description: string; city: string; place: string; when_label: string; icon: string; color: string };
 
 export function formatBRL(n: number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
