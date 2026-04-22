@@ -4,7 +4,8 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from "rea
 import { useEffect } from "react";
 import { useGate } from "../../src/gate";
 import { useCart } from "../../src/cart";
-import { theme } from "../../src/theme";
+import { theme, TIERS } from "../../src/theme";
+import { BrandLogo } from "../../src/brand";
 
 export default function TabsLayout() {
   const router = useRouter();
@@ -23,16 +24,24 @@ export default function TabsLayout() {
     );
   }
 
-  const HeaderChatButton = () => (
-    <TouchableOpacity
-      onPress={() => router.push("/chat")}
-      style={styles.headerChat}
-      testID="header-chat-button"
-      activeOpacity={0.7}
-    >
-      <Ionicons name="chatbubble-ellipses" size={18} color={theme.colors.white} />
-      <Text style={styles.headerChatText}>SUPORTE</Text>
-    </TouchableOpacity>
+  const tier = TIERS[member.tier] || TIERS.black;
+
+  const HeaderLeft = () => (
+    <View style={{ marginLeft: 14, flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <BrandLogo size="sm" />
+    </View>
+  );
+
+  const HeaderRight = () => (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginRight: 12 }}>
+      <View style={[styles.tierPill, { borderColor: tier.color }]}>
+        <Ionicons name={tier.icon as any} size={10} color={tier.color} />
+        <Text style={[styles.tierText, { color: tier.color }]}>{tier.label.toUpperCase()}</Text>
+      </View>
+      <TouchableOpacity onPress={() => router.push("/chat")} style={styles.chatBtn} testID="header-chat-button">
+        <Ionicons name="chatbubble-ellipses" size={16} color={theme.colors.white} />
+      </TouchableOpacity>
+    </View>
   );
 
   return (
@@ -44,37 +53,25 @@ export default function TabsLayout() {
           borderBottomColor: theme.colors.border,
         },
         headerTintColor: theme.colors.text,
-        headerTitleStyle: { fontWeight: "800", letterSpacing: 1 },
-        headerRight: () => <HeaderChatButton />,
+        headerTitle: "",
+        headerLeft: () => <HeaderLeft />,
+        headerRight: () => <HeaderRight />,
         tabBarStyle: {
           backgroundColor: theme.colors.bg,
           borderTopColor: theme.colors.border,
           borderTopWidth: 1,
-          height: 68,
+          height: 70,
           paddingTop: 6,
-          paddingBottom: 10,
+          paddingBottom: 12,
         },
         tabBarActiveTintColor: theme.colors.white,
         tabBarInactiveTintColor: theme.colors.textMuted,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "700", letterSpacing: 0.8 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
       }}
     >
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: "Início",
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} />,
-          tabBarTestID: "tab-home",
-        }}
-      />
-      <Tabs.Screen
-        name="catalog"
-        options={{
-          title: "Catálogo",
-          tabBarIcon: ({ color, size }) => <Ionicons name="grid" color={color} size={size} />,
-          tabBarTestID: "tab-catalog",
-        }}
-      />
+      <Tabs.Screen name="home" options={{ title: "Início", tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} /> }} />
+      <Tabs.Screen name="catalog" options={{ title: "Catálogo", tabBarIcon: ({ color, size }) => <Ionicons name="grid" color={color} size={size} /> }} />
+      <Tabs.Screen name="community" options={{ title: "Comunidade", tabBarIcon: ({ color, size }) => <Ionicons name="people" color={color} size={size} /> }} />
       <Tabs.Screen
         name="cart"
         options={{
@@ -89,42 +86,32 @@ export default function TabsLayout() {
               )}
             </View>
           ),
-          tabBarTestID: "tab-cart",
         }}
       />
-      <Tabs.Screen
-        name="member"
-        options={{
-          title: "Membro",
-          tabBarIcon: ({ color, size }) => <Ionicons name="person" color={color} size={size} />,
-          tabBarTestID: "tab-member",
-        }}
-      />
+      <Tabs.Screen name="member" options={{ title: "Membro", tabBarIcon: ({ color, size }) => <Ionicons name="person" color={color} size={size} /> }} />
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
-  headerChat: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    marginRight: 14, paddingHorizontal: 12, paddingVertical: 7,
-    borderWidth: 1, borderColor: theme.colors.border,
-    borderRadius: 20, backgroundColor: theme.colors.surface,
+  tierPill: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderWidth: 1, borderRadius: 20,
   },
-  headerChatText: {
-    color: theme.colors.white, fontSize: 10, fontWeight: "800", letterSpacing: 1.5,
+  tierText: { fontSize: 9, fontWeight: "900", letterSpacing: 1.5 },
+  chatBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1, borderColor: theme.colors.border,
   },
   badge: {
     position: "absolute",
-    top: -4,
-    right: -8,
+    top: -4, right: -8,
     backgroundColor: theme.colors.white,
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 4,
-    alignItems: "center",
-    justifyContent: "center",
+    borderRadius: 10, minWidth: 18, height: 18, paddingHorizontal: 4,
+    alignItems: "center", justifyContent: "center",
   },
   badgeText: { color: theme.colors.bg, fontSize: 10, fontWeight: "800" },
 });

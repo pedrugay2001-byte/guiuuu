@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import {
   View, Text, StyleSheet, Image, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, Linking,
+  ActivityIndicator, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api, Product, formatBRL } from "../../src/api";
 import { useCart } from "../../src/cart";
-import { theme, WHATSAPP_NUMBER } from "../../src/theme";
+import { theme } from "../../src/theme";
 
 export default function ProductDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -22,20 +22,13 @@ export default function ProductDetails() {
     api.product(id).then(setProduct).catch(() => setProduct(null)).finally(() => setLoading(false));
   }, [id]);
 
-  const handleWhatsapp = async () => {
-    if (!product) return;
-    const msg = `Olá! Tenho interesse no produto *${product.name}* (${formatBRL(product.member_price)}) do FarmaClube.`;
-    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
-    const ok = await Linking.canOpenURL(url);
-    if (ok) await Linking.openURL(url);
-    else Alert.alert("WhatsApp não disponível");
-  };
-
   const handleAdd = () => {
     if (!product) return;
     add(product);
     Alert.alert("Adicionado", `${product.name} foi adicionado ao carrinho.`);
   };
+
+  const talkToSupport = () => router.push("/chat");
 
   if (loading) {
     return (
@@ -109,9 +102,9 @@ export default function ProductDetails() {
           <Ionicons name="cart" size={18} color={theme.colors.bg} />
           <Text style={styles.cartBtnText}>ADICIONAR</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.waBtn} onPress={handleWhatsapp} testID="product-whatsapp">
-          <Ionicons name="logo-whatsapp" size={18} color={theme.colors.white} />
-          <Text style={styles.waBtnText}>WHATSAPP</Text>
+        <TouchableOpacity style={styles.waBtn} onPress={talkToSupport} testID="product-support">
+          <Ionicons name="chatbubbles" size={18} color={theme.colors.white} />
+          <Text style={styles.waBtnText}>FALAR COM SUPORTE</Text>
         </TouchableOpacity>
       </SafeAreaView>
     </View>
@@ -166,7 +159,8 @@ const styles = StyleSheet.create({
   cartBtnText: { color: theme.colors.bg, fontWeight: "800", fontSize: 13, letterSpacing: 1 },
   waBtn: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    backgroundColor: theme.colors.whatsapp, paddingVertical: 16, borderRadius: 4,
+    backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border,
+    paddingVertical: 16, borderRadius: 8,
   },
-  waBtnText: { color: theme.colors.white, fontWeight: "800", fontSize: 13, letterSpacing: 1 },
+  waBtnText: { color: theme.colors.white, fontWeight: "800", fontSize: 12, letterSpacing: 1 },
 });

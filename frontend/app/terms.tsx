@@ -18,51 +18,49 @@ export default function Terms() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="terms-screen">
-      <Stack.Screen options={{ title: "Termo do Clube" }} />
+      <Stack.Screen options={{ title: "Código de Conduta" }} />
       <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
         <ScrollView contentContainerStyle={styles.container}>
           <View style={styles.iconWrap}>
-            <Ionicons name="document-text" size={28} color={theme.colors.silver} />
+            <Ionicons name="document-text" size={26} color={theme.colors.silver} />
           </View>
 
-          <Text style={styles.kicker}>TERMO DE COMPROMISSO</Text>
-          <Text style={styles.title}>O QUE VOCÊ ASSUME{"\n"}AO ENTRAR.</Text>
+          <Text style={styles.kicker}>CÓDIGO DE CONDUTA</Text>
+          <Text style={styles.title}>COMPROMISSO{"\n"}DE CONFIANÇA.</Text>
           <Text style={styles.subCopy}>
-            Quatro cláusulas curtas. Aceitação obrigatória para acessar o clube.
+            Quatro cláusulas curtas. O BLACKSCLUB é sustentado pela confiança entre seus membros.
           </Text>
 
           <View style={styles.card}>
             <Clause
               n="01"
-              title="USO EXCLUSIVAMENTE PESSOAL"
-              body="Tudo que você adquire no FarmaClube é para seu próprio uso. Proibido comprar para terceiros, revender ou repassar."
+              title="USO PESSOAL E INTRANSFERÍVEL"
+              body="Todo acesso, produto ou informação do clube é de uso exclusivamente pessoal. Proibido compartilhar acesso com terceiros."
             />
             <Clause
               n="02"
-              title="SIGILO DO ACESSO"
-              body="Seu código é pessoal e intransferível. Nada de publicar em redes, grupos ou emprestar para alguém de fora."
+              title="REVENDA PROIBIDA"
+              body="Produtos do clube não podem ser revendidos, exceto por distribuidores oficialmente autorizados pela administração."
             />
             <Clause
               n="03"
-              title="INDICAÇÕES DE CONFIANÇA"
-              body="Você pode convidar pessoas que conhece. Ao gerar seu código pessoal, assume a responsabilidade pelo que eles fizerem aqui dentro."
+              title="SIGILO ABSOLUTO"
+              body="Prints, redação em redes sociais, grupos públicos ou qualquer exposição do ambiente interno são expressamente proibidos."
             />
             <Clause
               n="04"
-              title="DISCRIÇÃO ABSOLUTA"
-              body="FarmaClube é privado. Prints, stories, grupos públicos e qualquer exposição são proibidos."
+              title="INDICAÇÃO CONSCIENTE"
+              body="Somente a administração aprova novos membros. Indicar alguém não garante acesso — é apenas uma sugestão de entrada."
             />
 
             <View style={styles.warnCard} testID="terms-penalty">
               <View style={styles.warnHead}>
-                <Ionicons name="warning" size={16} color={theme.colors.error} />
-                <Text style={styles.warnTitle}>EXCLUSÃO PERMANENTE</Text>
+                <Ionicons name="warning" size={15} color={theme.colors.error} />
+                <Text style={styles.warnTitle}>DESLIGAMENTO DEFINITIVO</Text>
               </View>
               <Text style={styles.warnBody}>
-                Ao menor indício de descumprimento — revenda, compartilhamento de acesso ou
-                exposição pública — o membro é{" "}
-                <Text style={styles.warnEm}>banido de forma definitiva</Text>
-                , sem reativação, recuperação de código ou reembolso.
+                Qualquer descumprimento resulta em{" "}
+                <Text style={styles.warnEm}>banimento definitivo</Text>, sem reativação, recuperação de código ou reembolso.
               </Text>
             </View>
           </View>
@@ -79,7 +77,7 @@ export default function Terms() {
               {accepted && <Ionicons name="checkmark" size={14} color={theme.colors.bg} />}
             </View>
             <Text style={styles.checkText}>
-              Li e concordo com todas as cláusulas acima.
+              Li e aceito integralmente as cláusulas do código de conduta.
             </Text>
           </TouchableOpacity>
 
@@ -114,7 +112,7 @@ function Clause({ n, title, body }: { n: string; title: string; body: string }) 
 const styles = StyleSheet.create({
   container: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xl },
   iconWrap: {
-    width: 56, height: 56, borderRadius: 4,
+    width: 52, height: 52, borderRadius: 6,
     borderWidth: 1, borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
     alignItems: "center", justifyContent: "center",
@@ -140,15 +138,13 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5, width: 24, marginTop: 2,
   },
   clauseTitle: {
-    color: theme.colors.white, fontSize: 13,
+    color: theme.colors.white, fontSize: 12,
     fontWeight: "900", letterSpacing: 1.5, marginBottom: 6,
   },
-  clauseBody: {
-    color: theme.colors.textMuted, fontSize: 13, lineHeight: 20,
-  },
+  clauseBody: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 20 },
   warnCard: {
     borderWidth: 1, borderColor: theme.colors.error,
-    borderRadius: 6, padding: 14,
+    borderRadius: 8, padding: 14,
     backgroundColor: "rgba(255,59,48,0.05)",
     marginTop: theme.spacing.sm,
   },
@@ -158,7 +154,7 @@ const styles = StyleSheet.create({
     fontWeight: "800", letterSpacing: 2,
   },
   warnBody: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 20 },
-  warnEm: { color: theme.colors.white, fontWeight: "700" },
+  warnEm: { color: theme.colors.white, fontWeight: "800" },
   footer: {
     padding: theme.spacing.lg, gap: theme.spacing.md,
     borderTopWidth: 1, borderTopColor: theme.colors.border,
@@ -166,20 +162,17 @@ const styles = StyleSheet.create({
   },
   checkRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   checkbox: {
-    width: 22, height: 22, borderRadius: 4,
+    width: 22, height: 22, borderRadius: 5,
     borderWidth: 1.5, borderColor: theme.colors.silver,
     alignItems: "center", justifyContent: "center",
   },
   checkboxActive: { backgroundColor: theme.colors.white, borderColor: theme.colors.white },
-  checkText: { color: theme.colors.text, fontSize: 13, flex: 1 },
+  checkText: { color: theme.colors.text, fontSize: 13, flex: 1, lineHeight: 19 },
   cta: {
     backgroundColor: theme.colors.white,
-    paddingVertical: 16, borderRadius: 4, alignItems: "center",
+    paddingVertical: 16, borderRadius: 8, alignItems: "center",
   },
   ctaDisabled: { backgroundColor: theme.colors.surfaceElevated },
-  ctaText: {
-    color: theme.colors.bg, fontWeight: "800",
-    fontSize: 13, letterSpacing: 1.5,
-  },
+  ctaText: { color: theme.colors.bg, fontWeight: "900", fontSize: 13, letterSpacing: 1.5 },
   ctaTextDisabled: { color: theme.colors.textMuted },
 });

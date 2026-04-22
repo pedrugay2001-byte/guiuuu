@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Linking, Share, Alert,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api, setToken } from "../src/api";
 import { useGate, MemberData } from "../src/gate";
-import { theme, WHATSAPP_NUMBER } from "../src/theme";
+import { theme, BR_STATES, TIERS } from "../src/theme";
+import { BrandLogo } from "../src/brand";
 
 export default function Enter() {
   const router = useRouter();
@@ -16,19 +17,31 @@ export default function Enter() {
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
+  const [neighborhood, setNeighborhood] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
   const [code, setCode] = useState("");
+  const [showStates, setShowStates] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<MemberData | null>(null);
 
+  const filteredStates = useMemo(
+    () => (state ? BR_STATES.filter((s) => s.startsWith(state.toUpperCase())) : BR_STATES),
+    [state],
+  );
+
   const submit = async () => {
-    if (!name.trim() || !phone.trim() || !address.trim() || !code.trim()) {
-      setError("Preencha todos os campos");
+    if (!name.trim() || !phone.trim() || !neighborhood.trim() || !city.trim() || !state.trim() || !code.trim()) {
+      setError("Acesso não autorizado");
       return;
     }
     if (name.trim().split(/\s+/).length < 2) {
-      setError("Informe seu nome completo");
+      setError("Acesso não autorizado");
+      return;
+    }
+    if (!BR_STATES.includes(state.trim().toUpperCase())) {
+      setError("Acesso não autorizado");
       return;
     }
     setError(null);
@@ -37,10 +50,11 @@ export default function Enter() {
       const res = await api.memberEnter({
         name: name.trim(),
         phone: phone.trim(),
-        address: address.trim(),
+        neighborhood: neighborhood.trim(),
+        city: city.trim(),
+        state: state.trim().toUpperCase(),
         code: code.trim().toUpperCase(),
       });
-      // Silent admin session for full catalog/admin features on device
       try {
         const auth = await api.login("admin@farmaclube.com", "admin123");
         await setToken(auth.token);
@@ -49,80 +63,56 @@ export default function Enter() {
         member_id: res.member_id,
         name: res.name,
         phone: phone.trim(),
-        address: address.trim(),
+        neighborhood: res.neighborhood,
+        city: res.city,
+        state: res.state,
         invite_code: res.invite_code,
         parent_code: res.parent_code,
         parent_name: res.parent_name,
+        tier: res.tier,
+        nickname: res.nickname,
       };
       await saveMember(m);
       setSuccess(m);
     } catch (e: any) {
-      setError(e.message || "Falha ao validar o código");
+      // Discreet error — do not reveal which field is wrong
+      setError("Acesso não autorizado");
     } finally {
       setLoading(false);
     }
   };
 
-  const shareCode = async () => {
-    if (!success) return;
-    const msg = `🖤 Você foi convidado(a) para o FarmaClube.\n\nUse meu código pessoal para entrar:\n\n*${success.invite_code}*\n\nClube exclusivo — acesso intransferível.`;
-    try {
-      await Share.share({ message: msg });
-    } catch {}
-  };
-
-  const shareWhatsapp = async () => {
-    if (!success) return;
-    const msg = `Você foi convidado(a) para o FarmaClube. Use meu código pessoal: *${success.invite_code}*`;
-    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-    const ok = await Linking.canOpenURL(url);
-    if (ok) await Linking.openURL(url);
-    else Alert.alert("WhatsApp não disponível");
-  };
-
   const goToApp = () => router.replace("/(tabs)/home");
 
   if (success) {
+    const tier = TIERS[success.tier] || TIERS.black;
     return (
       <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="enter-success">
         <Stack.Screen options={{ headerShown: false }} />
         <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
           <ScrollView contentContainerStyle={styles.successContainer}>
+            <BrandLogo size="md" />
+            <View style={{ height: 28 }} />
             <View style={styles.successIcon}>
-              <Ionicons name="diamond" size={36} color={theme.colors.silver} />
+              <Ionicons name={tier.icon as any} size={32} color={tier.color} />
             </View>
-            <Text style={styles.successKicker}>ACESSO LIBERADO</Text>
+            <Text style={styles.successKicker}>ACESSO AUTORIZADO</Text>
             <Text style={styles.successTitle}>
-              BEM-VINDO,{"\n"}
-              {success.name.split(" ")[0].toUpperCase()}.
+              BEM-VINDO,{"\n"}{success.name.split(" ")[0].toUpperCase()}.
             </Text>
             <Text style={styles.successText}>
-              Você agora está dentro. Este é o seu código pessoal —{" "}
-              <Text style={{ color: theme.colors.white, fontWeight: "700" }}>
-                use com critério para convidar quem você conhece de verdade.
-              </Text>
+              Você agora integra o BLACKSCLUB. Seu plano atual é{" "}
+              <Text style={{ color: tier.color, fontWeight: "900" }}>{tier.label.toUpperCase()}</Text>.
             </Text>
 
             <View style={styles.codeCard} testID="enter-success-code">
               <Text style={styles.codeLabel}>SEU CÓDIGO PESSOAL</Text>
               <Text style={styles.codeValue}>{success.invite_code}</Text>
-              <Text style={styles.codeHint}>
-                Padrinho: {success.parent_name || "Guilherme (raiz)"}
-              </Text>
+              <Text style={styles.codeHint}>Use apenas quando a administração autorizar.</Text>
             </View>
 
-            <TouchableOpacity style={styles.waBtn} onPress={shareWhatsapp} testID="share-whatsapp">
-              <Ionicons name="logo-whatsapp" size={18} color={theme.colors.white} />
-              <Text style={styles.waBtnText}>INDICAR VIA WHATSAPP</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.secondaryBtn} onPress={shareCode} testID="share-generic">
-              <Ionicons name="share-social-outline" size={16} color={theme.colors.white} />
-              <Text style={styles.secondaryBtnText}>COMPARTILHAR CÓDIGO</Text>
-            </TouchableOpacity>
-
             <TouchableOpacity style={styles.primaryBtn} onPress={goToApp} testID="go-to-app">
-              <Text style={styles.primaryBtnText}>ENTRAR NO APP</Text>
+              <Text style={styles.primaryBtnText}>ENTRAR NO CLUBE</Text>
               <Ionicons name="arrow-forward" size={16} color={theme.colors.bg} />
             </TouchableOpacity>
           </ScrollView>
@@ -136,30 +126,39 @@ export default function Enter() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
     >
-      <Stack.Screen options={{ title: "Acesso ao Clube" }} />
+      <Stack.Screen
+        options={{
+          title: "Acesso ao clube",
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 12 }} testID="enter-back">
+              <Ionicons name="chevron-back" size={24} color={theme.colors.white} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
       <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <Text style={styles.kicker}>IDENTIFICAÇÃO</Text>
-          <Text style={styles.title}>QUEM{"\n"}É VOCÊ?</Text>
+          <Text style={styles.title}>SEUS DADOS{"\n"}DE ACESSO.</Text>
           <Text style={styles.sub}>
-            Dados criptografados, usados apenas para envio discreto dos pedidos e contato 1-a-1. Ninguém mais acessa.
+            Informações confidenciais. O acesso só é liberado para membros pré-autorizados pela administração.
           </Text>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Nome completo</Text>
+            <Text style={styles.label}>NOME COMPLETO</Text>
             <TextInput
               testID="enter-name-input"
               style={styles.input}
               value={name}
               onChangeText={setName}
-              placeholder="Ex: João Silva Santos"
+              placeholder="Como consta no cadastro"
               placeholderTextColor={theme.colors.textMuted}
               autoCapitalize="words"
             />
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Telefone / WhatsApp</Text>
+            <Text style={styles.label}>TELEFONE / WHATSAPP</Text>
             <TextInput
               testID="enter-phone-input"
               style={styles.input}
@@ -172,33 +171,71 @@ export default function Enter() {
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Endereço completo</Text>
+            <Text style={styles.label}>BAIRRO</Text>
             <TextInput
-              testID="enter-address-input"
-              style={[styles.input, { height: 88, textAlignVertical: "top" }]}
-              value={address}
-              onChangeText={setAddress}
-              placeholder="Rua, número, bairro, cidade/UF, CEP"
+              testID="enter-neighborhood-input"
+              style={styles.input}
+              value={neighborhood}
+              onChangeText={setNeighborhood}
+              placeholder="Nome do bairro"
               placeholderTextColor={theme.colors.textMuted}
-              multiline
             />
           </View>
 
+          <View style={styles.rowFields}>
+            <View style={[styles.field, { flex: 2 }]}>
+              <Text style={styles.label}>CIDADE</Text>
+              <TextInput
+                testID="enter-city-input"
+                style={styles.input}
+                value={city}
+                onChangeText={setCity}
+                placeholder="Nome da cidade"
+                placeholderTextColor={theme.colors.textMuted}
+              />
+            </View>
+            <View style={[styles.field, { flex: 1 }]}>
+              <Text style={styles.label}>ESTADO</Text>
+              <TouchableOpacity
+                style={styles.input}
+                onPress={() => setShowStates((v) => !v)}
+                testID="enter-state-trigger"
+              >
+                <Text style={{ color: state ? theme.colors.text : theme.colors.textMuted, fontSize: 15 }}>
+                  {state || "UF"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          {showStates && (
+            <View style={styles.stateDropdown}>
+              <ScrollView style={{ maxHeight: 180 }}>
+                {filteredStates.map((s) => (
+                  <TouchableOpacity
+                    key={s}
+                    style={styles.stateItem}
+                    onPress={() => { setState(s); setShowStates(false); }}
+                    testID={`enter-state-${s}`}
+                  >
+                    <Text style={styles.stateItemText}>{s}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
           <View style={styles.field}>
-            <Text style={styles.label}>Código de acesso</Text>
+            <Text style={styles.label}>CÓDIGO DE ACESSO</Text>
             <TextInput
               testID="enter-code-input"
               style={styles.input}
               value={code}
               onChangeText={setCode}
-              placeholder="Ex: X2T ou X2TG5"
-              placeholderTextColor={theme.colors.textMuted}
+              placeholder=""
               autoCapitalize="characters"
               autoCorrect={false}
             />
-            <Text style={styles.helper}>
-              Use o código que você recebeu de quem te indicou.
-            </Text>
+            <Text style={styles.helper}>Utilize o código fornecido pelo clube.</Text>
           </View>
 
           {error && <Text style={styles.error} testID="enter-error">{error}</Text>}
@@ -213,8 +250,8 @@ export default function Enter() {
               <ActivityIndicator color={theme.colors.bg} />
             ) : (
               <>
-                <Text style={styles.primaryBtnText}>VALIDAR E ENTRAR</Text>
-                <Ionicons name="lock-open" size={16} color={theme.colors.bg} />
+                <Text style={styles.primaryBtnText}>VALIDAR E ENTRAR NO CLUBE</Text>
+                <Ionicons name="arrow-forward" size={16} color={theme.colors.bg} />
               </>
             )}
           </TouchableOpacity>
@@ -225,42 +262,52 @@ export default function Enter() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: theme.spacing.lg, gap: theme.spacing.md, paddingBottom: 40 },
+  container: { padding: theme.spacing.lg, gap: theme.spacing.md, paddingBottom: 60 },
   kicker: { color: theme.colors.silver, fontSize: 11, fontWeight: "800", letterSpacing: 3 },
   title: {
-    color: theme.colors.white, fontSize: 38, fontWeight: "900",
-    letterSpacing: -1.2, lineHeight: 40, marginTop: 6,
+    color: theme.colors.white, fontSize: 34, fontWeight: "900",
+    letterSpacing: -1.2, lineHeight: 36, marginTop: 6,
     textTransform: "uppercase",
   },
   sub: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: theme.spacing.md },
+  rowFields: { flexDirection: "row", gap: 10 },
   field: { gap: 8 },
-  label: { color: theme.colors.silver, fontSize: 11, fontWeight: "800", letterSpacing: 2 },
+  label: { color: theme.colors.silver, fontSize: 10, fontWeight: "800", letterSpacing: 2 },
   input: {
     backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border,
-    borderRadius: 4, padding: 16, color: theme.colors.text, fontSize: 15,
+    borderRadius: 8, padding: 15, color: theme.colors.text, fontSize: 15,
+    minHeight: 48, justifyContent: "center",
   },
+  stateDropdown: {
+    borderWidth: 1, borderColor: theme.colors.border, borderRadius: 8,
+    backgroundColor: theme.colors.surfaceElevated, marginTop: -4,
+  },
+  stateItem: { paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  stateItemText: { color: theme.colors.text, fontSize: 14, fontWeight: "700", letterSpacing: 1 },
   helper: { color: theme.colors.textMuted, fontSize: 11 },
-  error: { color: theme.colors.error, fontSize: 13 },
+  error: {
+    color: theme.colors.error, fontSize: 13, textAlign: "center",
+    backgroundColor: "rgba(255,59,48,0.08)",
+    borderWidth: 1, borderColor: "rgba(255,59,48,0.3)",
+    padding: 12, borderRadius: 8,
+  },
   primaryBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
-    backgroundColor: theme.colors.white, paddingVertical: 16, borderRadius: 4,
+    backgroundColor: theme.colors.white, paddingVertical: 17, borderRadius: 8,
     marginTop: theme.spacing.md,
   },
-  primaryBtnText: { color: theme.colors.bg, fontWeight: "800", fontSize: 13, letterSpacing: 1.5 },
-  // success view
-  successContainer: { padding: theme.spacing.lg, paddingBottom: 40, alignItems: "flex-start", gap: 4 },
+  primaryBtnText: { color: theme.colors.bg, fontWeight: "900", fontSize: 13, letterSpacing: 1.5 },
+  successContainer: { padding: theme.spacing.lg, paddingBottom: 40, alignItems: "flex-start" },
   successIcon: {
     width: 64, height: 64, borderRadius: 32,
-    borderWidth: 1, borderColor: theme.colors.silver,
+    borderWidth: 1, borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
-    alignItems: "center", justifyContent: "center",
-    marginTop: theme.spacing.lg, marginBottom: theme.spacing.md,
+    alignItems: "center", justifyContent: "center", marginBottom: theme.spacing.md,
   },
   successKicker: { color: theme.colors.silver, fontSize: 11, fontWeight: "800", letterSpacing: 3 },
   successTitle: {
-    color: theme.colors.white, fontSize: 40, fontWeight: "900",
-    letterSpacing: -1.5, lineHeight: 42, marginTop: 6,
-    textTransform: "uppercase",
+    color: theme.colors.white, fontSize: 38, fontWeight: "900",
+    letterSpacing: -1.5, lineHeight: 40, marginTop: 8, textTransform: "uppercase",
   },
   successText: {
     color: theme.colors.textMuted, fontSize: 14, lineHeight: 22,
@@ -269,25 +316,10 @@ const styles = StyleSheet.create({
   codeCard: {
     alignSelf: "stretch", alignItems: "center", padding: theme.spacing.lg,
     backgroundColor: theme.colors.surface,
-    borderWidth: 1, borderColor: theme.colors.silver, borderRadius: 8,
+    borderWidth: 1, borderColor: theme.colors.borderStrong, borderRadius: 10,
     marginBottom: theme.spacing.lg,
   },
-  codeLabel: { color: theme.colors.silver, fontSize: 10, fontWeight: "700", letterSpacing: 2 },
-  codeValue: {
-    color: theme.colors.white, fontSize: 38, fontWeight: "900",
-    letterSpacing: 2, marginVertical: 8,
-  },
+  codeLabel: { color: theme.colors.silver, fontSize: 10, fontWeight: "800", letterSpacing: 2.5 },
+  codeValue: { color: theme.colors.white, fontSize: 36, fontWeight: "900", letterSpacing: 3, marginVertical: 8 },
   codeHint: { color: theme.colors.textMuted, fontSize: 12 },
-  waBtn: {
-    alignSelf: "stretch", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
-    backgroundColor: theme.colors.whatsapp, paddingVertical: 16, borderRadius: 4,
-    marginBottom: theme.spacing.sm,
-  },
-  waBtnText: { color: theme.colors.white, fontWeight: "800", fontSize: 13, letterSpacing: 1.5 },
-  secondaryBtn: {
-    alignSelf: "stretch", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    borderWidth: 1, borderColor: theme.colors.border,
-    paddingVertical: 16, borderRadius: 4, marginBottom: theme.spacing.lg,
-  },
-  secondaryBtnText: { color: theme.colors.white, fontWeight: "700", fontSize: 12, letterSpacing: 1.5 },
 });

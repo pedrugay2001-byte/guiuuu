@@ -11,7 +11,7 @@ import { theme } from "../../src/theme";
 
 export default function StaffLogin() {
   const router = useRouter();
-  const [email, setEmail] = useState("suporte@farmaclube.com");
+  const [email, setEmail] = useState("suporte@blacksclub.com");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

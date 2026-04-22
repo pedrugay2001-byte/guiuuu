@@ -19,14 +19,17 @@ export default function ChatRoom({ mode }: { mode: Mode }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [title, setTitle] = useState(mode === "support" ? "Conversa" : "Suporte FarmaClube");
+  const [title, setTitle] = useState(mode === "support" ? "Conversa" : "Suporte BLACKSCLUB");
   const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
     (async () => {
       let id: string | null = null;
       if (mode === "member") {
-        const gateRaw = await (await import("@react-native-async-storage/async-storage")).default.getItem("farmaclube_member_v2");
+        const store = (await import("@react-native-async-storage/async-storage")).default;
+        const gateRaw =
+          (await store.getItem("blacksclub_member_v1")) ||
+          (await store.getItem("farmaclube_member_v2"));
         if (gateRaw) {
           try { id = JSON.parse(gateRaw).member_id; } catch {}
         }

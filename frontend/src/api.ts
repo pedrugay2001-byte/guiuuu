@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { TierId } from "./theme";
 
 const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL as string;
 
@@ -6,7 +7,7 @@ export type User = {
   user_id: string;
   email: string;
   name: string;
-  role: "admin" | "member";
+  role: "admin" | "member" | "support";
   created_at: string;
 };
 
@@ -23,13 +24,9 @@ export type Product = {
   created_at: string;
 };
 
-export type Category = {
-  id: string;
-  name: string;
-  icon: string;
-};
+export type Category = { id: string; name: string; icon: string };
 
-const TOKEN_KEY = "farmaclube_token";
+const TOKEN_KEY = "blacksclub_token";
 
 export async function getToken(): Promise<string | null> {
   return AsyncStorage.getItem(TOKEN_KEY);
@@ -69,40 +66,59 @@ export type ChatMessage = {
   text: string;
   created_at: string;
   order_id?: string;
+  quote_id?: string;
 };
 
 export type ChatThread = {
   member_id: string;
   member_name: string;
   member_phone: string;
+  tier: TierId;
   last_message: string;
   last_sender: "member" | "support";
   last_at: string;
   unread: number;
 };
 
+export type MemberEnterPayload = {
+  name: string;
+  phone: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  code: string;
+};
+
+export type MemberEnterResponse = {
+  member_id: string;
+  name: string;
+  invite_code: string;
+  parent_code: string;
+  parent_name: string | null;
+  tier: TierId;
+  nickname: string | null;
+  neighborhood: string;
+  city: string;
+  state: string;
+  total_members: number;
+  created_at: string;
+};
+
 export const api = {
-  register: (email: string, password: string, name: string) =>
-    request<{ user: User; token: string }>("/auth/register", {
-      method: "POST",
-      body: JSON.stringify({ email, password, name }),
-    }),
   login: (email: string, password: string) =>
     request<{ user: User; token: string }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<User>("/auth/me"),
-  memberEnter: (body: { name: string; phone: string; address: string; code: string }) =>
-    request<{
-      member_id: string;
-      name: string;
-      invite_code: string;
-      parent_code: string;
-      parent_name: string | null;
-      total_members: number;
-    }>("/members/enter", { method: "POST", body: JSON.stringify(body) }),
+  memberEnter: (body: MemberEnterPayload) =>
+    request<MemberEnterResponse>("/members/enter", { method: "POST", body: JSON.stringify(body) }),
   memberStats: () => request<{ total_members: number }>("/members/stats"),
+  updateNickname: (member_id: string, nickname: string) =>
+    request<{ ok: boolean; nickname: string }>(`/members/${member_id}/nickname`, {
+      method: "PUT",
+      body: JSON.stringify({ nickname }),
+    }),
   listProducts: (params?: { category?: string; q?: string }) => {
     const qs = new URLSearchParams();
     if (params?.category && params.category !== "all") qs.set("category", params.category);
@@ -119,7 +135,6 @@ export const api = {
     request<Product>(`/products/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteProduct: (id: string) =>
     request<{ ok: boolean }>(`/products/${id}`, { method: "DELETE" }),
-  // Orders + Chat
   createOrder: (body: { member_id: string; items: any[]; total: number }) =>
     request<{ order_id: string; status: string }>("/orders", {
       method: "POST",
@@ -139,6 +154,11 @@ export const api = {
     request<ChatMessage>(`/chat/support/${member_id}`, {
       method: "POST",
       body: JSON.stringify({ text }),
+    }),
+  requestQuote: (body: { member_id: string; description: string; budget?: string }) =>
+    request<{ quote_id: string; status: string }>("/quotes/request", {
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 };
 

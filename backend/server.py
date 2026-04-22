@@ -17,6 +17,7 @@ import bcrypt
 import jwt
 import random
 import string
+import re
 import asyncio
 
 try:
@@ -32,7 +33,7 @@ db = client[os.environ["DB_NAME"]]
 JWT_ALGORITHM = "HS256"
 JWT_SECRET = os.environ["JWT_SECRET"]
 
-app = FastAPI(title="FarmaClube API")
+app = FastAPI(title="BLACKSCLUB API")
 api_router = APIRouter(prefix="/api")
 
 
@@ -54,6 +55,14 @@ def create_access_token(user_id: str, email: str) -> str:
         "type": "access",
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def normalize_phone(phone: str) -> str:
+    return re.sub(r"\D+", "", phone or "")
+
+
+def normalize_name(name: str) -> str:
+    return re.sub(r"\s+", " ", (name or "").strip().lower())
 
 
 async def get_current_user(request: Request) -> dict:
@@ -79,13 +88,13 @@ async def require_admin(user: dict = Depends(get_current_user)) -> dict:
     return user
 
 
-# -------------- Models --------------
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str
-    name: str
+async def require_staff(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") not in ("admin", "support"):
+        raise HTTPException(status_code=403, detail="Staff access required")
+    return user
 
 
+# -------------- Auth models --------------
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
@@ -102,71 +111,6 @@ class UserPublic(BaseModel):
 class AuthResponse(BaseModel):
     user: UserPublic
     token: str
-
-
-class ProductCreate(BaseModel):
-    name: str
-    category: str
-    description: str
-    price: float
-    member_price: float
-    image_url: str
-    stock: int = 10
-    featured: bool = False
-
-
-class ProductUpdate(BaseModel):
-    name: Optional[str] = None
-    category: Optional[str] = None
-    description: Optional[str] = None
-    price: Optional[float] = None
-    member_price: Optional[float] = None
-    image_url: Optional[str] = None
-    stock: Optional[int] = None
-    featured: Optional[bool] = None
-
-
-class Product(BaseModel):
-    product_id: str
-    name: str
-    category: str
-    description: str
-    price: float
-    member_price: float
-    image_url: str
-    stock: int
-    featured: bool
-    created_at: datetime
-
-
-# -------------- Auth Routes --------------
-@api_router.post("/auth/register", response_model=AuthResponse)
-async def register(data: RegisterRequest):
-    email = data.email.lower()
-    existing = await db.users.find_one({"email": email})
-    if existing:
-        raise HTTPException(status_code=400, detail="Email já cadastrado")
-    user_id = f"user_{uuid.uuid4().hex[:12]}"
-    doc = {
-        "user_id": user_id,
-        "email": email,
-        "name": data.name,
-        "password_hash": hash_password(data.password),
-        "role": "member",
-        "created_at": datetime.now(timezone.utc),
-    }
-    await db.users.insert_one(doc)
-    token = create_access_token(user_id, email)
-    return AuthResponse(
-        user=UserPublic(
-            user_id=user_id,
-            email=email,
-            name=data.name,
-            role="member",
-            created_at=doc["created_at"],
-        ),
-        token=token,
-    )
 
 
 @api_router.post("/auth/login", response_model=AuthResponse)
@@ -193,10 +137,257 @@ async def me(user: dict = Depends(get_current_user)):
     return UserPublic(**user)
 
 
-async def require_staff(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") not in ("admin", "support"):
-        raise HTTPException(status_code=403, detail="Staff access required")
-    return user
+# -------------- Member Gate (authorized-only) --------------
+class MemberEnter(BaseModel):
+    name: str
+    phone: str
+    neighborhood: str
+    city: str
+    state: str
+    code: str
+
+
+class MemberPublic(BaseModel):
+    member_id: str
+    name: str
+    phone: str
+    neighborhood: str
+    city: str
+    state: str
+    invite_code: str
+    parent_code: str
+    parent_name: Optional[str] = None
+    tier: str = "black"
+    nickname: Optional[str] = None
+    created_at: datetime
+
+
+def _gen_suffix() -> str:
+    return random.choice(string.ascii_uppercase) + random.choice(string.digits)
+
+
+async def _send_new_member_email(member: dict, total_members: int) -> None:
+    notify = os.environ.get("NOTIFY_EMAIL", "")
+    api_key = os.environ.get("RESEND_API_KEY", "")
+    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+
+    subject = f"Novo membro BLACKSCLUB — {member['name']}"
+    addr = f"{member.get('neighborhood','')}, {member.get('city','')}/{member.get('state','')}"
+    html = f"""
+    <div style="font-family: Arial, sans-serif; background:#050505; color:#F5F5F5; padding:24px;">
+      <div style="max-width:560px; margin:0 auto; background:#0B0B0B; border:1px solid #1F1F1F; border-radius:8px; padding:24px;">
+        <p style="color:#C0C0C0; letter-spacing:3px; font-size:11px; font-weight:800; margin:0 0 8px;">BLACKSCLUB</p>
+        <h1 style="color:#FFFFFF; font-size:22px; margin:0 0 16px;">Novo membro autenticado</h1>
+        <table cellpadding="8" cellspacing="0" style="width:100%; border-collapse:collapse; color:#F5F5F5; font-size:14px;">
+          <tr><td style="color:#A3A3A3; width:40%;">Nome</td><td><strong>{member['name']}</strong></td></tr>
+          <tr><td style="color:#A3A3A3;">Telefone</td><td>{member['phone']}</td></tr>
+          <tr><td style="color:#A3A3A3;">Localização</td><td>{addr}</td></tr>
+          <tr><td style="color:#A3A3A3;">Plano</td><td style="color:#FFFFFF; font-weight:700;">{member.get('tier','black').upper()}</td></tr>
+          <tr><td style="color:#A3A3A3;">Código usado</td><td style="font-family:monospace; color:#C0C0C0;">{member['parent_code']}</td></tr>
+        </table>
+        <div style="margin-top:24px; padding:16px; background:#141414; border:1px solid #1F1F1F; border-radius:6px;">
+          <p style="margin:0; color:#A3A3A3; font-size:12px;">Total de membros</p>
+          <p style="margin:4px 0 0; color:#FFFFFF; font-size:32px; font-weight:900;">{total_members}</p>
+        </div>
+      </div>
+    </div>
+    """
+
+    if not api_key or resend is None:
+        logger.info(
+            "[EMAIL MOCKED] -> %s | subject=%s | member=%s invite=%s total=%d",
+            notify, subject, member["name"], member["invite_code"], total_members,
+        )
+        return
+
+    try:
+        resend.api_key = api_key
+        params = {"from": sender, "to": [notify], "subject": subject, "html": html}
+        await asyncio.to_thread(resend.Emails.send, params)
+        logger.info("[EMAIL SENT] -> %s", notify)
+    except Exception as e:  # pragma: no cover
+        logger.error("[EMAIL FAILED] %s", e)
+
+
+@api_router.post("/members/enter", response_model=dict)
+async def member_enter(data: MemberEnter):
+    name = data.name.strip()
+    phone = data.phone.strip()
+    code = data.code.strip().upper()
+
+    if not name or not phone or not data.neighborhood.strip() or not data.city.strip() or not data.state.strip():
+        raise HTTPException(status_code=400, detail="Acesso não autorizado")
+    if len(name.split()) < 2:
+        raise HTTPException(status_code=400, detail="Acesso não autorizado")
+
+    # Security: member must be pre-authorized by admin (name + phone + code triple)
+    nname = normalize_name(name)
+    nphone = normalize_phone(phone)
+
+    auth_doc = await db.authorized.find_one({
+        "name_norm": nname,
+        "phone_norm": nphone,
+        "code": code,
+    }, {"_id": 0})
+
+    root_code = os.environ.get("GATE_ROOT_CODE", "BLACK-SEED").upper()
+    tier = "black"
+    parent_name: Optional[str] = None
+
+    if auth_doc:
+        tier = auth_doc.get("tier", "black")
+        parent_name = auth_doc.get("parent_name")
+    else:
+        # Discreet error — do not leak which field is wrong
+        raise HTTPException(status_code=401, detail="Acesso não autorizado")
+
+    # Reuse member if already exists (idempotent re-entry)
+    existing = await db.members.find_one({"phone_norm": nphone, "name_norm": nname}, {"_id": 0})
+    if existing:
+        return {
+            "member_id": existing["member_id"],
+            "name": existing["name"],
+            "invite_code": existing["invite_code"],
+            "parent_code": existing.get("parent_code", code),
+            "parent_name": existing.get("parent_name"),
+            "tier": existing.get("tier", tier),
+            "nickname": existing.get("nickname"),
+            "neighborhood": existing.get("neighborhood", data.neighborhood),
+            "city": existing.get("city", data.city),
+            "state": existing.get("state", data.state),
+            "total_members": await db.members.count_documents({}),
+            "created_at": existing["created_at"],
+        }
+
+    # Generate unique invite code (kept for future referrals)
+    base_prefix = code[:3] if len(code) >= 3 else code
+    invite_code = ""
+    for _ in range(30):
+        candidate = base_prefix + _gen_suffix()
+        exists = await db.members.find_one({"invite_code": candidate})
+        if not exists:
+            invite_code = candidate
+            break
+    if not invite_code:
+        invite_code = base_prefix + _gen_suffix() + _gen_suffix()
+
+    member_id = f"mem_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    member_doc = {
+        "member_id": member_id,
+        "name": name,
+        "name_norm": nname,
+        "phone": phone,
+        "phone_norm": nphone,
+        "neighborhood": data.neighborhood.strip(),
+        "city": data.city.strip(),
+        "state": data.state.strip().upper(),
+        "parent_code": code,
+        "parent_name": parent_name,
+        "invite_code": invite_code,
+        "tier": tier,
+        "nickname": None,
+        "created_at": now,
+    }
+    await db.members.insert_one(member_doc)
+
+    total = await db.members.count_documents({})
+
+    try:
+        await _send_new_member_email(member_doc, total)
+    except Exception as e:
+        logger.error("email notify failed: %s", e)
+
+    return {
+        "member_id": member_id,
+        "name": name,
+        "invite_code": invite_code,
+        "parent_code": code,
+        "parent_name": parent_name,
+        "tier": tier,
+        "nickname": None,
+        "neighborhood": member_doc["neighborhood"],
+        "city": member_doc["city"],
+        "state": member_doc["state"],
+        "total_members": total,
+        "created_at": now,
+    }
+
+
+@api_router.get("/members/stats")
+async def members_stats():
+    total = await db.members.count_documents({})
+    return {"total_members": total}
+
+
+@api_router.get("/members/{member_id}")
+async def member_detail(member_id: str):
+    m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "name_norm": 0, "phone_norm": 0})
+    if not m:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    return m
+
+
+class NicknameUpdate(BaseModel):
+    nickname: str
+
+
+@api_router.put("/members/{member_id}/nickname")
+async def update_nickname(member_id: str, data: NicknameUpdate):
+    nick = data.nickname.strip()
+    if len(nick) < 2 or len(nick) > 24:
+        raise HTTPException(status_code=400, detail="Apelido deve ter entre 2 e 24 caracteres")
+    await db.members.update_one({"member_id": member_id}, {"$set": {"nickname": nick}})
+    return {"ok": True, "nickname": nick}
+
+
+# -------------- Admin: Authorized members --------------
+class AuthorizedCreate(BaseModel):
+    name: str
+    phone: str
+    code: str
+    tier: str = "black"
+    parent_name: Optional[str] = None
+
+
+@api_router.post("/admin/authorized")
+async def admin_authorize(data: AuthorizedCreate, admin: dict = Depends(require_admin)):
+    nname = normalize_name(data.name)
+    nphone = normalize_phone(data.phone)
+    code = data.code.strip().upper()
+    if not nname or not nphone or not code:
+        raise HTTPException(status_code=400, detail="Dados obrigatórios")
+    doc = {
+        "auth_id": f"auth_{uuid.uuid4().hex[:12]}",
+        "name": data.name.strip(),
+        "name_norm": nname,
+        "phone": data.phone.strip(),
+        "phone_norm": nphone,
+        "code": code,
+        "tier": (data.tier or "black").lower(),
+        "parent_name": data.parent_name,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.authorized.update_one(
+        {"name_norm": nname, "phone_norm": nphone},
+        {"$set": doc},
+        upsert=True,
+    )
+    return {"ok": True, "code": code}
+
+
+@api_router.get("/admin/authorized")
+async def admin_list_authorized(admin: dict = Depends(require_admin)):
+    cursor = db.authorized.find({}, {"_id": 0}).sort("created_at", -1)
+    return await cursor.to_list(length=500)
+
+
+@api_router.delete("/admin/authorized/{auth_id}")
+async def admin_delete_authorized(auth_id: str, admin: dict = Depends(require_admin)):
+    r = await db.authorized.delete_one({"auth_id": auth_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Entrada não encontrada")
+    return {"ok": True}
 
 
 # -------------- Orders & Chat --------------
@@ -234,13 +425,13 @@ async def create_order(data: OrderCreate):
         "created_at": now,
     })
 
-    # Create initial support message describing the order
     lines = [f"• {i.name} x{i.quantity} — R$ {i.price * i.quantity:.2f}" for i in data.items]
+    addr = f"{member.get('neighborhood','')}, {member.get('city','')}/{member.get('state','')}"
     summary = (
         f"🛒 *NOVO PEDIDO #{order_id[-6:].upper()}*\n\n"
         f"Cliente: {member['name']}\n"
         f"Telefone: {member['phone']}\n"
-        f"Endereço: {member['address']}\n\n"
+        f"Região: {addr}\n\n"
         f"Itens:\n" + "\n".join(lines) + f"\n\n*Total: R$ {data.total:.2f}*"
     )
     await db.messages.insert_one({
@@ -259,6 +450,26 @@ async def create_order(data: OrderCreate):
 async def chat_member_get(member_id: str):
     cursor = db.messages.find({"thread_id": member_id}, {"_id": 0}).sort("created_at", 1)
     msgs = await cursor.to_list(length=500)
+    # If empty, seed welcome message
+    if not msgs:
+        member = await db.members.find_one({"member_id": member_id}, {"_id": 0})
+        if member:
+            welcome = {
+                "message_id": f"msg_{uuid.uuid4().hex[:12]}",
+                "thread_id": member_id,
+                "sender": "support",
+                "sender_name": "BLACKSCLUB",
+                "text": (
+                    f"Olá, {member['name'].split()[0]}. Como podemos ajudar?\n\n"
+                    f"• Tirar uma dúvida\n"
+                    f"• Fazer um pedido\n"
+                    f"• Solicitar um orçamento"
+                ),
+                "created_at": datetime.now(timezone.utc),
+            }
+            await db.messages.insert_one(welcome)
+            welcome.pop("_id", None)
+            msgs = [welcome]
     return msgs
 
 
@@ -308,6 +519,7 @@ async def chat_threads(staff: dict = Depends(require_staff)):
             "member_id": r["_id"],
             "member_name": member["name"],
             "member_phone": member["phone"],
+            "tier": member.get("tier", "black"),
             "last_message": r["last_message"][:120],
             "last_sender": r["last_sender"],
             "last_at": r["last_at"],
@@ -320,7 +532,6 @@ async def chat_threads(staff: dict = Depends(require_staff)):
 async def chat_support_get(member_id: str, staff: dict = Depends(require_staff)):
     cursor = db.messages.find({"thread_id": member_id}, {"_id": 0}).sort("created_at", 1)
     msgs = await cursor.to_list(length=500)
-    # Mark as read by support
     await db.messages.update_many(
         {"thread_id": member_id, "sender": "member"},
         {"$set": {"read_by_support": True}},
@@ -337,7 +548,7 @@ async def chat_support_send(member_id: str, data: ChatSend, staff: dict = Depend
         "message_id": f"msg_{uuid.uuid4().hex[:12]}",
         "thread_id": member_id,
         "sender": "support",
-        "sender_name": staff["name"],
+        "sender_name": staff.get("name", "BLACKSCLUB"),
         "text": text,
         "created_at": datetime.now(timezone.utc),
     }
@@ -352,7 +563,88 @@ async def orders_member(member_id: str):
     return await cursor.to_list(length=100)
 
 
-# -------------- Product Routes --------------
+# -------------- Quotes (Orçamento) --------------
+class QuoteRequest(BaseModel):
+    member_id: str
+    description: str
+    budget: Optional[str] = None
+
+
+@api_router.post("/quotes/request")
+async def quote_request(data: QuoteRequest):
+    member = await db.members.find_one({"member_id": data.member_id}, {"_id": 0})
+    if not member:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    desc = data.description.strip()
+    if len(desc) < 6:
+        raise HTTPException(status_code=400, detail="Descreva com mais detalhes")
+    quote_id = f"qt_{uuid.uuid4().hex[:10]}"
+    now = datetime.now(timezone.utc)
+    await db.quotes.insert_one({
+        "quote_id": quote_id,
+        "member_id": data.member_id,
+        "member_name": member["name"],
+        "description": desc,
+        "budget": (data.budget or "").strip() or None,
+        "status": "open",
+        "created_at": now,
+    })
+
+    # Also post into chat as a "orçamento" message
+    body = (
+        f"💎 *SOLICITAÇÃO DE ORÇAMENTO #{quote_id[-6:].upper()}*\n\n"
+        f"{desc}"
+    )
+    if data.budget:
+        body += f"\n\n*Faixa de orçamento:* {data.budget}"
+    await db.messages.insert_one({
+        "message_id": f"msg_{uuid.uuid4().hex[:12]}",
+        "thread_id": data.member_id,
+        "sender": "member",
+        "sender_name": member["name"],
+        "text": body,
+        "quote_id": quote_id,
+        "created_at": now,
+    })
+    return {"quote_id": quote_id, "status": "open"}
+
+
+# -------------- Products --------------
+class ProductCreate(BaseModel):
+    name: str
+    category: str
+    description: str
+    price: float
+    member_price: float
+    image_url: str
+    stock: int = 10
+    featured: bool = False
+
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    member_price: Optional[float] = None
+    image_url: Optional[str] = None
+    stock: Optional[int] = None
+    featured: Optional[bool] = None
+
+
+class Product(BaseModel):
+    product_id: str
+    name: str
+    category: str
+    description: str
+    price: float
+    member_price: float
+    image_url: str
+    stock: int
+    featured: bool
+    created_at: datetime
+
+
 @api_router.get("/products", response_model=List[Product])
 async def list_products(category: Optional[str] = None, q: Optional[str] = None):
     query: dict = {}
@@ -420,151 +712,6 @@ async def delete_product(product_id: str, admin: dict = Depends(require_admin)):
     return {"ok": True}
 
 
-# -------------- Members (gate flow) --------------
-class MemberEnter(BaseModel):
-    name: str
-    phone: str
-    address: str
-    code: str
-
-
-class MemberPublic(BaseModel):
-    member_id: str
-    name: str
-    phone: str
-    address: str
-    invite_code: str
-    parent_code: str
-    parent_name: Optional[str] = None
-    created_at: datetime
-
-
-def _gen_suffix() -> str:
-    return random.choice(string.ascii_uppercase) + random.choice(string.digits)
-
-
-async def _send_new_member_email(member: dict, total_members: int) -> None:
-    notify = os.environ.get("NOTIFY_EMAIL", "")
-    api_key = os.environ.get("RESEND_API_KEY", "")
-    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
-
-    subject = f"Novo membro FarmaClube — {member['name']}"
-    html = f"""
-    <div style="font-family: Arial, sans-serif; background:#050505; color:#F5F5F5; padding:24px;">
-      <div style="max-width:560px; margin:0 auto; background:#121212; border:1px solid #262626; border-radius:8px; padding:24px;">
-        <p style="color:#C0C0C0; letter-spacing:2px; font-size:11px; font-weight:700; margin:0 0 8px;">FARMACLUBE</p>
-        <h1 style="color:#FFFFFF; font-size:22px; margin:0 0 16px;">Novo membro no clube</h1>
-        <table cellpadding="8" cellspacing="0" style="width:100%; border-collapse:collapse; color:#F5F5F5; font-size:14px;">
-          <tr><td style="color:#A3A3A3; width:40%;">Nome</td><td><strong>{member['name']}</strong></td></tr>
-          <tr><td style="color:#A3A3A3;">Telefone</td><td>{member['phone']}</td></tr>
-          <tr><td style="color:#A3A3A3;">Endereço</td><td>{member['address']}</td></tr>
-          <tr><td style="color:#A3A3A3;">Código usado</td><td style="font-family:monospace; color:#C0C0C0;">{member['parent_code']}</td></tr>
-          <tr><td style="color:#A3A3A3;">Padrinho</td><td>{member.get('parent_name') or 'Guilherme (raiz)'}</td></tr>
-          <tr><td style="color:#A3A3A3;">Código gerado</td><td style="font-family:monospace; color:#FFFFFF; font-weight:700;">{member['invite_code']}</td></tr>
-          <tr><td style="color:#A3A3A3;">Entrou em</td><td>{member['created_at'].strftime('%d/%m/%Y %H:%M UTC')}</td></tr>
-        </table>
-        <div style="margin-top:24px; padding:16px; background:#1A1A1A; border:1px solid #262626; border-radius:6px;">
-          <p style="margin:0; color:#A3A3A3; font-size:12px;">Total de membros ativos</p>
-          <p style="margin:4px 0 0; color:#FFFFFF; font-size:32px; font-weight:900;">{total_members}</p>
-        </div>
-      </div>
-    </div>
-    """
-
-    if not api_key or resend is None:
-        logger.info(
-            "[EMAIL MOCKED] -> %s | subject=%s | member=%s invite=%s total=%d",
-            notify, subject, member["name"], member["invite_code"], total_members,
-        )
-        return
-
-    try:
-        resend.api_key = api_key
-        params = {
-            "from": sender,
-            "to": [notify],
-            "subject": subject,
-            "html": html,
-        }
-        await asyncio.to_thread(resend.Emails.send, params)
-        logger.info("[EMAIL SENT] -> %s", notify)
-    except Exception as e:  # pragma: no cover
-        logger.error("[EMAIL FAILED] %s", e)
-
-
-@api_router.post("/members/enter", response_model=dict)
-async def member_enter(data: MemberEnter):
-    name = data.name.strip()
-    phone = data.phone.strip()
-    address = data.address.strip()
-    code = data.code.strip().upper()
-
-    if not name or not phone or not address:
-        raise HTTPException(status_code=400, detail="Nome, telefone e endereço são obrigatórios")
-    if len(name) < 3:
-        raise HTTPException(status_code=400, detail="Informe seu nome completo")
-
-    root_code = os.environ.get("GATE_ROOT_CODE", "X2T").upper()
-
-    parent_name: Optional[str] = None
-    if code == root_code:
-        parent_name = "Guilherme (raiz)"
-    else:
-        parent = await db.members.find_one({"invite_code": code}, {"_id": 0})
-        if not parent:
-            raise HTTPException(status_code=401, detail="Código de acesso inválido ou revogado")
-        parent_name = parent["name"]
-
-    # Generate unique invite code (retry on rare collisions)
-    invite_code = ""
-    for _ in range(30):
-        candidate = code + _gen_suffix()
-        exists = await db.members.find_one({"invite_code": candidate})
-        if not exists:
-            invite_code = candidate
-            break
-    if not invite_code:
-        raise HTTPException(status_code=500, detail="Não foi possível gerar código único")
-
-    member_id = f"mem_{uuid.uuid4().hex[:12]}"
-    now = datetime.now(timezone.utc)
-    member_doc = {
-        "member_id": member_id,
-        "name": name,
-        "phone": phone,
-        "address": address,
-        "parent_code": code,
-        "parent_name": parent_name,
-        "invite_code": invite_code,
-        "created_at": now,
-    }
-    await db.members.insert_one(member_doc)
-
-    total = await db.members.count_documents({})
-
-    # Fire & forget email notification (MOCKED if RESEND_API_KEY empty)
-    try:
-        await _send_new_member_email(member_doc, total)
-    except Exception as e:
-        logger.error("email notify failed: %s", e)
-
-    return {
-        "member_id": member_id,
-        "name": name,
-        "invite_code": invite_code,
-        "parent_code": code,
-        "parent_name": parent_name,
-        "total_members": total,
-        "created_at": now,
-    }
-
-
-@api_router.get("/members/stats")
-async def members_stats():
-    total = await db.members.count_documents({})
-    return {"total_members": total}
-
-
 @api_router.get("/categories")
 async def get_categories():
     return [
@@ -574,10 +721,80 @@ async def get_categories():
         {"id": "hormonios", "name": "Hormônios", "icon": "pulse"},
         {"id": "pre_treinos", "name": "Pré-treinos", "icon": "rocket"},
         {"id": "suplementos", "name": "Suplementos", "icon": "nutrition"},
+        {"id": "tecnologia", "name": "Tecnologia", "icon": "hardware-chip"},
+        {"id": "bem_estar", "name": "Bem-estar", "icon": "leaf"},
     ]
 
 
-# -------------- Startup: seed admin + products --------------
+# -------------- Seed --------------
+SEED_PRODUCTS = [
+    {
+        "name": "Ozempic 1mg (Semaglutida)",
+        "category": "emagrecedores",
+        "description": "Caneta aplicadora 1mg. Análogo de GLP-1 para controle de peso e glicemia.",
+        "price": 1250.00, "member_price": 999.00,
+        "image_url": "https://images.unsplash.com/photo-1704018731170-f30899f60917?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwyfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 12, "featured": True,
+    },
+    {
+        "name": "Mounjaro 5mg (Tirzepatida)",
+        "category": "emagrecedores",
+        "description": "Agonista duplo GIP/GLP-1. Redução de apetite e perda de peso progressiva.",
+        "price": 1890.00, "member_price": 1499.00,
+        "image_url": "https://images.unsplash.com/photo-1700225195232-c55a4e9db6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 8, "featured": True,
+    },
+    {
+        "name": "BPC-157 5mg",
+        "category": "peptideos",
+        "description": "Peptídeo regenerativo. Auxilia recuperação muscular e tecidual.",
+        "price": 420.00, "member_price": 329.00,
+        "image_url": "https://images.unsplash.com/photo-1549505415-e16dbd446231?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 25, "featured": True,
+    },
+    {
+        "name": "TB-500 5mg",
+        "category": "peptideos",
+        "description": "Fragmento de Timosina Beta 4. Recuperação e flexibilidade.",
+        "price": 480.00, "member_price": 379.00,
+        "image_url": "https://images.pexels.com/photos/36591369/pexels-photo-36591369.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "stock": 18, "featured": False,
+    },
+    {
+        "name": "Durateston Landerlan 250mg",
+        "category": "landerlan",
+        "description": "Blend de 4 ésteres de testosterona. Ampola 1ml. Produto autêntico.",
+        "price": 180.00, "member_price": 139.00,
+        "image_url": "https://images.unsplash.com/photo-1709315957145-a4bad1feef28?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwzfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 30, "featured": True,
+    },
+    {
+        "name": "HGH Somatropina 10UI",
+        "category": "hormonios",
+        "description": "Hormônio do crescimento recombinante. Caixa com 10 frascos.",
+        "price": 1350.00, "member_price": 1099.00,
+        "image_url": "https://images.unsplash.com/photo-1700225195232-c55a4e9db6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 7, "featured": True,
+    },
+    {
+        "name": "Whey Protein Isolado 900g",
+        "category": "suplementos",
+        "description": "Proteína isolada hidrolisada. 27g de proteína por dose.",
+        "price": 219.00, "member_price": 169.00,
+        "image_url": "https://images.pexels.com/photos/36591369/pexels-photo-36591369.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "stock": 45, "featured": False,
+    },
+    {
+        "name": "Creatina Monohidratada 300g",
+        "category": "suplementos",
+        "description": "Creatina pura micronizada. Força, volume e performance.",
+        "price": 119.00, "member_price": 89.00,
+        "image_url": "https://images.pexels.com/photos/29611432/pexels-photo-29611432.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "stock": 60, "featured": True,
+    },
+]
+
+
 async def seed_admin():
     admin_email = os.environ["ADMIN_EMAIL"].lower()
     admin_password = os.environ["ADMIN_PASSWORD"]
@@ -597,15 +814,14 @@ async def seed_admin():
             {"$set": {"password_hash": hash_password(admin_password), "role": "admin"}},
         )
 
-    # Seed support user
-    support_email = "suporte@farmaclube.com"
+    support_email = "suporte@blacksclub.com"
     support_password = "suporte123"
     support_existing = await db.users.find_one({"email": support_email})
     if not support_existing:
         await db.users.insert_one({
             "user_id": f"user_{uuid.uuid4().hex[:12]}",
             "email": support_email,
-            "name": "Equipe de Suporte",
+            "name": "Equipe BLACKSCLUB",
             "password_hash": hash_password(support_password),
             "role": "support",
             "created_at": datetime.now(timezone.utc),
@@ -617,128 +833,27 @@ async def seed_admin():
         )
 
 
-SEED_PRODUCTS = [
-    {
-        "name": "Ozempic 1mg (Semaglutida)",
-        "category": "emagrecedores",
-        "description": "Caneta aplicadora 1mg. Análogo de GLP-1 para controle de peso e glicemia. Uso subcutâneo semanal. Atenção: Sob prescrição médica.",
-        "price": 1250.00,
-        "member_price": 999.00,
-        "image_url": "https://images.unsplash.com/photo-1704018731170-f30899f60917?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwyfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
-        "stock": 12,
-        "featured": True,
-    },
-    {
-        "name": "Mounjaro 5mg (Tirzepatida)",
-        "category": "emagrecedores",
-        "description": "Agonista duplo GIP/GLP-1. Redução de apetite e perda de peso progressiva. Caneta pré-preenchida.",
-        "price": 1890.00,
-        "member_price": 1499.00,
-        "image_url": "https://images.unsplash.com/photo-1700225195232-c55a4e9db6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
-        "stock": 8,
-        "featured": True,
-    },
-    {
-        "name": "BPC-157 5mg",
-        "category": "peptideos",
-        "description": "Peptídeo de regeneração tecidual. Auxilia recuperação muscular, tendinosa e gástrica. Frasco liofilizado.",
-        "price": 420.00,
-        "member_price": 329.00,
-        "image_url": "https://images.unsplash.com/photo-1549505415-e16dbd446231?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
-        "stock": 25,
-        "featured": True,
-    },
-    {
-        "name": "TB-500 5mg",
-        "category": "peptideos",
-        "description": "Fragmento de Timosina Beta 4. Recuperação de lesões, flexibilidade e cicatrização acelerada.",
-        "price": 480.00,
-        "member_price": 379.00,
-        "image_url": "https://images.pexels.com/photos/36591369/pexels-photo-36591369.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "stock": 18,
-        "featured": False,
-    },
-    {
-        "name": "Durateston Landerlan 250mg",
-        "category": "landerlan",
-        "description": "Blend de 4 ésteres de testosterona. Ampola 1ml. Linha Landerlan original, lote rastreável.",
-        "price": 180.00,
-        "member_price": 139.00,
-        "image_url": "https://images.unsplash.com/photo-1709315957145-a4bad1feef28?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwzfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
-        "stock": 30,
-        "featured": True,
-    },
-    {
-        "name": "Deposteron Landerlan 200mg",
-        "category": "landerlan",
-        "description": "Cipionato de testosterona. Ampola 2ml. Produto Landerlan autêntico, ideal para TRT ou ciclos.",
-        "price": 160.00,
-        "member_price": 119.00,
-        "image_url": "https://images.pexels.com/photos/29611432/pexels-photo-29611432.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "stock": 40,
-        "featured": False,
-    },
-    {
-        "name": "Stanozolol Landerlan 50mg",
-        "category": "landerlan",
-        "description": "Winstrol injetável. Frasco 30ml. Definição e vascularização, redução de gordura.",
-        "price": 220.00,
-        "member_price": 169.00,
-        "image_url": "https://images.pexels.com/photos/29825227/pexels-photo-29825227.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "stock": 22,
-        "featured": False,
-    },
-    {
-        "name": "HGH Somatropina 10UI",
-        "category": "hormonios",
-        "description": "Hormônio do crescimento recombinante. Caixa com 10 frascos de 10UI + diluentes. Armazenar refrigerado.",
-        "price": 1350.00,
-        "member_price": 1099.00,
-        "image_url": "https://images.unsplash.com/photo-1700225195232-c55a4e9db6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
-        "stock": 7,
-        "featured": True,
-    },
-    {
-        "name": "Insulina Humulin R",
-        "category": "hormonios",
-        "description": "Insulina regular de ação rápida. Frasco 10ml 100UI. Uso pré/pós treino sob protocolo.",
-        "price": 95.00,
-        "member_price": 72.00,
-        "image_url": "https://images.unsplash.com/photo-1704018731170-f30899f60917?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwyfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
-        "stock": 15,
-        "featured": False,
-    },
-    {
-        "name": "Pré-treino Black Skull 300g",
-        "category": "pre_treinos",
-        "description": "Fórmula com cafeína, beta-alanina e citrulina. Energia extrema e foco para treinos pesados.",
-        "price": 139.00,
-        "member_price": 99.00,
-        "image_url": "https://images.unsplash.com/photo-1549505415-e16dbd446231?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
-        "stock": 50,
-        "featured": True,
-    },
-    {
-        "name": "Whey Protein Isolado 900g",
-        "category": "suplementos",
-        "description": "Proteína isolada hidrolisada. 27g de proteína por dose. Baixo teor de gordura e lactose.",
-        "price": 219.00,
-        "member_price": 169.00,
-        "image_url": "https://images.pexels.com/photos/36591369/pexels-photo-36591369.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "stock": 45,
-        "featured": False,
-    },
-    {
-        "name": "Creatina Monohidratada 300g",
-        "category": "suplementos",
-        "description": "Creatina pura micronizada. Aumento de força, volume muscular e performance anaeróbica.",
-        "price": 119.00,
-        "member_price": 89.00,
-        "image_url": "https://images.pexels.com/photos/29611432/pexels-photo-29611432.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "stock": 60,
-        "featured": True,
-    },
-]
+async def seed_authorized():
+    # Demo authorized entry so testing works. Admin can add more via API.
+    demo = {
+        "name": "Guilherme Demo",
+        "phone": "+5511999990000",
+        "code": "BLACK-SEED",
+        "tier": "diamond",
+        "parent_name": None,
+    }
+    nname = normalize_name(demo["name"])
+    nphone = normalize_phone(demo["phone"])
+    exists = await db.authorized.find_one({"name_norm": nname, "phone_norm": nphone})
+    if not exists:
+        await db.authorized.insert_one({
+            "auth_id": f"auth_{uuid.uuid4().hex[:12]}",
+            "name": demo["name"], "name_norm": nname,
+            "phone": demo["phone"], "phone_norm": nphone,
+            "code": demo["code"], "tier": demo["tier"],
+            "parent_name": demo["parent_name"],
+            "created_at": datetime.now(timezone.utc),
+        })
 
 
 async def seed_products():
@@ -748,11 +863,7 @@ async def seed_products():
     now = datetime.now(timezone.utc)
     docs = []
     for p in SEED_PRODUCTS:
-        docs.append({
-            "product_id": f"prod_{uuid.uuid4().hex[:12]}",
-            "created_at": now,
-            **p,
-        })
+        docs.append({"product_id": f"prod_{uuid.uuid4().hex[:12]}", "created_at": now, **p})
     await db.products.insert_many(docs)
 
 
@@ -761,14 +872,17 @@ async def on_startup():
     await db.users.create_index("email", unique=True)
     await db.products.create_index("category")
     await db.members.create_index("invite_code", unique=True)
+    await db.members.create_index([("phone_norm", 1), ("name_norm", 1)])
+    await db.authorized.create_index([("name_norm", 1), ("phone_norm", 1)], unique=True)
     await db.messages.create_index("thread_id")
     await db.messages.create_index("created_at")
     await db.orders.create_index("member_id")
+    await db.quotes.create_index("member_id")
     await seed_admin()
+    await seed_authorized()
     await seed_products()
 
 
-# -------------- Include --------------
 app.include_router(api_router)
 
 app.add_middleware(
@@ -779,10 +893,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
