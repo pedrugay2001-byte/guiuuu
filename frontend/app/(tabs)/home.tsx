@@ -24,7 +24,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   tecnologia: "#4E8FE0",
   bem_estar: "#A8E04E",
 };
-
 const CATEGORY_ICONS: Record<string, any> = {
   emagrecedores: "flash",
   peptideos: "flask",
@@ -36,27 +35,26 @@ const CATEGORY_ICONS: Record<string, any> = {
   bem_estar: "leaf",
 };
 
-// "Areas" of the club — shown at the top carousel
 type Area = {
   id: string;
-  title: string;
-  subtitle?: string;
+  label: string[]; // 1 or 2 lines
   icon: { lib: "ion" | "mci"; name: string };
   route?: string;
   comingSoon?: boolean;
 };
 
+// Match the reference layout — short 1-2 word labels, golden filled icons
 const AREAS: Area[] = [
-  { id: "ai", title: "INTELIGÊNCIA", subtitle: "ARTIFICIAL", icon: { lib: "mci", name: "brain" }, route: "/ai" },
-  { id: "community", title: "COMUNIDADE", icon: { lib: "ion", name: "chatbubbles" }, route: "/(tabs)/community" },
-  { id: "catalog", title: "PRODUTOS", subtitle: "DO CLUBE", icon: { lib: "ion", name: "cube" }, route: "/(tabs)/catalog" },
-  { id: "saude", title: "SAÚDE", subtitle: "E FORMA", icon: { lib: "mci", name: "dumbbell" }, comingSoon: true },
-  { id: "medicos", title: "MÉDICOS", subtitle: "PARCEIROS", icon: { lib: "mci", name: "stethoscope" }, comingSoon: true },
-  { id: "academias", title: "ACADEMIAS", subtitle: "PARCEIRAS", icon: { lib: "mci", name: "weight-lifter" }, comingSoon: true },
-  { id: "delivery", title: "DELIVERY", subtitle: "FITNESS", icon: { lib: "mci", name: "food-apple" }, comingSoon: true },
-  { id: "educacao", title: "EDUCAÇÃO", subtitle: "E CURSOS", icon: { lib: "ion", name: "school" }, comingSoon: true },
-  { id: "negocios", title: "NEGÓCIOS", subtitle: "B2B", icon: { lib: "ion", name: "trending-up" }, comingSoon: true },
-  { id: "chat", title: "SUPORTE", subtitle: "PRIVADO", icon: { lib: "ion", name: "headset" }, route: "/chat" },
+  { id: "ai", label: ["INTELIGÊNCIA", "ARTIFICIAL"], icon: { lib: "mci", name: "brain" }, route: "/ai" },
+  { id: "community", label: ["COMUNIDADE"], icon: { lib: "ion", name: "chatbubbles" }, route: "/(tabs)/community" },
+  { id: "negocios", label: ["NEGÓCIOS"], icon: { lib: "ion", name: "trending-up" }, comingSoon: true },
+  { id: "educacao", label: ["EDUCAÇÃO"], icon: { lib: "ion", name: "school" }, comingSoon: true },
+  { id: "saude", label: ["SAÚDE", "E FORMA"], icon: { lib: "mci", name: "dumbbell" }, comingSoon: true },
+  { id: "catalog", label: ["PRODUTOS"], icon: { lib: "ion", name: "cube" }, route: "/(tabs)/catalog" },
+  { id: "medicos", label: ["MÉDICOS"], icon: { lib: "mci", name: "stethoscope" }, comingSoon: true },
+  { id: "academias", label: ["ACADEMIAS"], icon: { lib: "mci", name: "weight-lifter" }, comingSoon: true },
+  { id: "delivery", label: ["DELIVERY", "FITNESS"], icon: { lib: "mci", name: "food-apple" }, comingSoon: true },
+  { id: "chat", label: ["SUPORTE"], icon: { lib: "ion", name: "headset" }, route: "/chat" },
 ];
 
 function AreaIcon({ icon, size, color }: { icon: Area["icon"]; size: number; color: string }) {
@@ -74,135 +72,110 @@ export default function Home() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [pageIndex, setPageIndex] = useState(0);
 
   const load = useCallback(async () => {
     try {
       const [f, c] = await Promise.all([api.featured(), api.categories()]);
       setFeatured(f);
       setCategories(c);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    } finally { setLoading(false); setRefreshing(false); }
   }, []);
-
   useEffect(() => { load(); }, [load]);
-  const onRefresh = () => { setRefreshing(true); load(); };
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.bg, justifyContent: "center" }}>
+      <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center" }}>
         <ActivityIndicator color={theme.colors.white} />
       </View>
     );
   }
 
   const tier = member ? TIERS[member.tier] || TIERS.black : TIERS.black;
-  const firstName = member?.name?.split(" ")[0] || "Membro";
+  const firstName = (member?.name?.split(" ")[0] || "Membro").toUpperCase();
   const memberNum = (member as any)?.member_number;
 
-  // Single card per page (big hero style) — more impactful + matches the reference
-  const PAGE_SIZE = 1;
-  const pages: Area[][] = [];
-  for (let i = 0; i < AREAS.length; i += PAGE_SIZE) pages.push(AREAS.slice(i, i + PAGE_SIZE));
-
-  const H_PAD = 24;
-  const cardW = width - H_PAD * 2;
-  const pageW = width;
+  // 4.3 cards visible at once (peek on edge) — cap width to mobile for desktop web
+  const H_PAD = 16;
+  const GAP = 10;
+  const visible = 4;
+  const W = Math.min(width, 420);
+  const cardW = Math.floor((W - H_PAD * 2 - GAP * (visible - 1)) / (visible + 0.3));
+  const cardH = cardW * 1.15;
 
   return (
     <ImageBackground
-      source={{ uri: "https://images.unsplash.com/photo-1614850523060-8da1d56ae167?auto=format&fit=crop&w=900&q=80" }}
+      source={{ uri: "https://images.unsplash.com/photo-1616690710400-a16d146927c5?auto=format&fit=crop&w=900&q=80" }}
       style={{ flex: 1, backgroundColor: "#000" }}
-      imageStyle={{ opacity: 0.10 }}
+      imageStyle={{ opacity: 0.12 }}
       testID="home-screen"
     >
       <View style={styles.bgVignette} />
+
       <ScrollView
-        refreshControl={<RefreshControl tintColor={theme.colors.white} refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl tintColor={theme.colors.white} refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: 80, paddingBottom: 30 }}
+        contentContainerStyle={{ paddingTop: 70, paddingBottom: 30 }}
       >
-        {/* Top name */}
-        <View style={styles.topNameWrap}>
-          <Text style={styles.topNameSmall}>Olá,</Text>
-          <Text style={styles.topName} numberOfLines={1} adjustsFontSizeToFit>{firstName}</Text>
+        {/* Big user name centered */}
+        <Text style={styles.bigName} numberOfLines={1} adjustsFontSizeToFit allowFontScaling={false}>{firstName}</Text>
+
+        {/* Serif brand */}
+        <View style={{ marginTop: 6, alignItems: "center" }}>
+          <BrandSerifHero fontSize={width < 380 ? 30 : 34} />
         </View>
 
-        {/* Serif brand + diamond hero */}
-        <View style={styles.heroBlock}>
-          <BrandSerifHero fontSize={width < 380 ? 32 : 38} />
-          <View style={styles.diamondWrap}>
-            <View style={styles.diamondGlow} />
-            <MaterialCommunityIcons name="diamond-stone" size={64} color={GOLD} />
-            <View style={styles.diamondShine} />
+        {/* Diamond with strong gold glow */}
+        <View style={styles.diamondWrap}>
+          <View style={styles.goldGlowBig} />
+          <View style={styles.goldGlowMid} />
+          <View style={styles.diamondDisc}>
+            <MaterialCommunityIcons name="diamond-stone" size={72} color={GOLD} />
           </View>
-          <View style={styles.tierRow}>
-            <View style={[styles.tierPill, { borderColor: tier.color }]}>
-              <Ionicons name={tier.icon as any} size={11} color={tier.color} />
-              <Text style={[styles.tierTxt, { color: tier.color }]}>{tier.label.toUpperCase()}</Text>
-            </View>
-            {memberNum && <Text style={styles.codeTxt}>#{memberNum}</Text>}
-          </View>
+          <View style={styles.goldLine} />
         </View>
 
-        {/* Areas carousel — paginated, 2 big cards per page */}
+        {/* Tier & number */}
+        <View style={styles.tierRow}>
+          <View style={[styles.tierPill, { borderColor: tier.color }]}>
+            <Ionicons name={tier.icon as any} size={11} color={tier.color} />
+            <Text style={[styles.tierTxt, { color: tier.color }]}>{tier.label.toUpperCase()}</Text>
+          </View>
+          {memberNum && <Text style={styles.codeTxt}>#{memberNum}</Text>}
+        </View>
+
+        {/* Areas — horizontal scrollable row of small square cards */}
         <FlatList
-          data={pages}
-          keyExtractor={(_, i) => `p-${i}`}
+          style={{ marginTop: 22 }}
+          data={AREAS}
+          keyExtractor={(a) => a.id}
           horizontal
-          pagingEnabled
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 16 }}
-          snapToInterval={pageW}
-          decelerationRate="fast"
-          onMomentumScrollEnd={(e) => setPageIndex(Math.round(e.nativeEvent.contentOffset.x / pageW))}
+          contentContainerStyle={{ paddingHorizontal: H_PAD, gap: GAP }}
           renderItem={({ item }) => (
-            <View style={{ width: pageW, paddingHorizontal: H_PAD }}>
-              {item.map((a) => (
-                <TouchableOpacity
-                  key={a.id}
-                  style={[styles.areaCard, { width: cardW }]}
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    if (a.comingSoon) return;
-                    if (a.route) router.push(a.route as any);
-                  }}
-                  testID={`area-${a.id}`}
-                >
-                  <View style={styles.areaCardGloss} />
-                  <View style={styles.areaIconWrap}>
-                    <AreaIcon icon={a.icon} size={64} color={GOLD_LIGHT} />
-                  </View>
-                  <View style={styles.areaLabelWrap}>
-                    <Text style={styles.areaTitle}>{a.title}</Text>
-                    {a.subtitle && <Text style={styles.areaSubtitle}>{a.subtitle}</Text>}
-                  </View>
-                  {a.comingSoon ? (
-                    <View style={styles.soonTag}>
-                      <Text style={styles.soonTxt}>EM BREVE</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.arrowTag}>
-                      <Ionicons name="arrow-forward" size={18} color={GOLD} />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
+            <TouchableOpacity
+              style={[styles.areaCard, { width: cardW, height: cardH }]}
+              activeOpacity={0.85}
+              onPress={() => {
+                if (item.comingSoon) return;
+                if (item.route) router.push(item.route as any);
+              }}
+              testID={`area-${item.id}`}
+            >
+              <View style={styles.areaCardTopLine} />
+              <View style={styles.areaIconBox}>
+                <AreaIcon icon={item.icon} size={Math.round(cardW * 0.42)} color={GOLD} />
+              </View>
+              <View style={styles.areaLabelBox}>
+                {item.label.map((l, i) => (
+                  <Text key={i} style={styles.areaLbl} numberOfLines={1} adjustsFontSizeToFit>{l}</Text>
+                ))}
+              </View>
+              {item.comingSoon && (
+                <View style={styles.soonDot} />
+              )}
+            </TouchableOpacity>
           )}
         />
-
-        {/* Dots */}
-        <View style={styles.dots}>
-          {pages.map((_, i) => (
-            <View key={i} style={[styles.dot, i === pageIndex && styles.dotActive]} />
-          ))}
-        </View>
-
-        {/* Separator */}
-        <View style={styles.sep} />
 
         {/* Featured */}
         {featured.length > 0 && (
@@ -228,7 +201,7 @@ export default function Home() {
           </View>
         )}
 
-        {/* Product Categories — moved to the bottom */}
+        {/* Product Categories */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>CATEGORIAS DE PRODUTOS</Text>
           <FlatList
@@ -262,98 +235,82 @@ export default function Home() {
 const styles = StyleSheet.create({
   bgVignette: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.85)",
-  },
-  topNameWrap: {
-    alignItems: "center",
-    paddingTop: 4, paddingBottom: 4,
-  },
-  topNameSmall: { color: "#888", fontSize: 11, letterSpacing: 3, fontWeight: "600" },
-  topName: {
-    color: "#F6F6F6", fontSize: 30, fontWeight: "700",
-    letterSpacing: 1, marginTop: -2,
-    fontStyle: "italic",
+    backgroundColor: "rgba(0,0,0,0.88)",
   },
 
-  heroBlock: { alignItems: "center", paddingTop: 14, paddingBottom: 26 },
+  bigName: {
+    color: "#F6F6F6", fontSize: 28, fontWeight: "700",
+    textAlign: "center", letterSpacing: 6,
+  },
+
   diamondWrap: {
-    marginTop: 14,
-    width: 110, height: 110,
+    alignItems: "center", justifyContent: "center",
+    marginTop: 12, marginBottom: 6,
+    position: "relative", height: 180,
+  },
+  goldGlowBig: {
+    position: "absolute", width: 260, height: 260, borderRadius: 130,
+    backgroundColor: GOLD, opacity: 0.10, top: -40,
+  },
+  goldGlowMid: {
+    position: "absolute", width: 160, height: 160, borderRadius: 80,
+    backgroundColor: GOLD, opacity: 0.22, top: 10,
+  },
+  diamondDisc: {
+    width: 120, height: 120, borderRadius: 60,
+    backgroundColor: "#1a1508",
+    borderWidth: 1, borderColor: "rgba(212,175,55,0.4)",
     alignItems: "center", justifyContent: "center",
   },
-  diamondGlow: {
-    position: "absolute",
-    width: 150, height: 150, borderRadius: 75,
-    backgroundColor: GOLD,
-    opacity: 0.18,
-    top: -20, left: -20,
+  goldLine: {
+    position: "absolute", bottom: 28,
+    width: 80, height: 4, borderRadius: 4,
+    backgroundColor: GOLD_LIGHT, opacity: 0.55,
   },
-  diamondShine: {
-    position: "absolute",
-    width: 70, height: 6, bottom: 6,
-    borderRadius: 6,
-    backgroundColor: GOLD_LIGHT,
-    opacity: 0.35,
-  },
-  tierRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10 },
+
+  tierRow: { flexDirection: "row", alignItems: "center", gap: 10, justifyContent: "center", marginTop: 2 },
   tierPill: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
     borderWidth: 1, backgroundColor: "rgba(0,0,0,0.5)",
   },
   tierTxt: { fontSize: 10, fontWeight: "900", letterSpacing: 2 },
-  codeTxt: { color: "#999", fontSize: 11, fontWeight: "700", letterSpacing: 1.5 },
+  codeTxt: { color: "#AAA", fontSize: 11, fontWeight: "700", letterSpacing: 1.5 },
 
+  // Small square area cards — like the reference image
   areaCard: {
-    height: 170, borderRadius: 20, padding: 20,
-    backgroundColor: "rgba(22,22,22,0.92)",
+    backgroundColor: "#0F0F0F",
+    borderRadius: 14,
     borderWidth: 1, borderColor: "rgba(212,175,55,0.25)",
-    flexDirection: "row", alignItems: "center", gap: 18,
+    padding: 8,
+    alignItems: "center", justifyContent: "space-between",
     position: "relative", overflow: "hidden",
   },
-  areaCardGloss: {
-    position: "absolute", top: 0, left: 0, right: 0, height: 1,
-    backgroundColor: "rgba(212,175,55,0.35)",
+  areaCardTopLine: {
+    position: "absolute", left: 8, right: 8, top: 0, height: 1,
+    backgroundColor: "rgba(212,175,55,0.45)",
   },
-  areaIconWrap: {
-    width: 90, height: 90, borderRadius: 45,
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(212,175,55,0.10)",
-    borderWidth: 1, borderColor: "rgba(212,175,55,0.30)",
+  areaIconBox: {
+    flex: 1, alignItems: "center", justifyContent: "center",
+    paddingTop: 4,
   },
-  areaLabelWrap: { flex: 1 },
-  areaTitle: {
-    color: "#F3F3F3", fontSize: 18, fontWeight: "800",
-    letterSpacing: 2,
+  areaLabelBox: {
+    alignItems: "center",
+    paddingBottom: 4, minHeight: 26,
   },
-  areaSubtitle: {
-    color: GOLD_LIGHT, fontSize: 16, fontWeight: "700",
-    letterSpacing: 1.5, marginTop: 4,
+  areaLbl: {
+    color: "#EFEFEF",
+    fontSize: 9, fontWeight: "800",
+    letterSpacing: 1,
+    textAlign: "center",
   },
-  soonTag: {
-    position: "absolute", top: 14, right: 14,
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4,
-    backgroundColor: "rgba(212,175,55,0.15)",
-    borderWidth: 1, borderColor: "rgba(212,175,55,0.35)",
-  },
-  soonTxt: { color: GOLD_LIGHT, fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
-  arrowTag: {
-    width: 36, height: 36, borderRadius: 18,
-    borderWidth: 1, borderColor: "rgba(212,175,55,0.35)",
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(212,175,55,0.08)",
+  soonDot: {
+    position: "absolute", top: 6, right: 6,
+    width: 6, height: 6, borderRadius: 3,
+    backgroundColor: GOLD, opacity: 0.6,
   },
 
-  dots: { flexDirection: "row", gap: 5, justifyContent: "center", marginTop: 14, marginBottom: 6 },
-  dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "rgba(255,255,255,0.2)" },
-  dotActive: { backgroundColor: GOLD, width: 18 },
-
-  sep: {
-    height: 1, marginHorizontal: 24, marginTop: 18, marginBottom: 10,
-    backgroundColor: "rgba(255,255,255,0.06)",
-  },
-
-  section: { marginTop: theme.spacing.md, marginBottom: theme.spacing.sm },
+  section: { marginTop: theme.spacing.lg, marginBottom: theme.spacing.sm },
   sectionTitle: {
     color: "#BBB", fontSize: 10, fontWeight: "800",
     letterSpacing: 3, paddingHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
