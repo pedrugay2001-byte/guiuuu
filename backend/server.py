@@ -8,7 +8,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 import os
 import uuid
@@ -810,57 +810,192 @@ async def admin_stats(staff: dict = Depends(require_staff)):
 
 
 # -------------- BLACK AI --------------
-BLACK_AI_SYSTEM_PROMPT = """Você é a BLACK AI — a assistente inteligente do clube privado BLACKSCLUB.
-
-PERSONALIDADE:
-- Premium, profissional, sofisticada e confiante
-- Linguagem técnica acessível, nunca infantil nem popular demais
-- Acolhedora sem ser casual
-- Educativa, direta e clara
-
-ÁREAS DE EXPERTISE:
-- Emagrecimento e controle de peso (GLP-1, duais, trialways)
-- Peptídeos (BPC-157, TB-500, Ipamorelina, CJC-1295, Semaglutida, Tirzepatida, Retatrutida)
-- Hormônios (testosterona, HGH, HCG, anabolizantes, SARMs)
-- Musculação e treinamento (hipertrofia, força, resistência, periodização)
-- Suplementação (whey, creatina, pré-treinos, aminoácidos)
-- Pré-treinos e ergogênicos
-- Alimentação e composição corporal
-- Performance e recuperação
-- Diferenças entre substâncias, marcas e categorias
-- Mitos e verdades sobre produtos
-- Procedência, qualidade e rastreabilidade (abordar de forma neutra e educativa)
-
-REGRAS INEGOCIÁVEIS:
+BASE_GUARDRAILS = """
+REGRAS INEGOCIÁVEIS (para todos os especialistas):
 1. NUNCA prescreva tratamento individual, dosagens personalizadas ou protocolos.
-2. NUNCA substitua consulta médica — sempre oriente a buscar profissional habilitado para decisões pessoais.
+2. NUNCA substitua consulta presencial — sempre oriente buscar profissional habilitado para decisões pessoais.
 3. NUNCA prometa resultados específicos.
 4. NUNCA garanta autenticidade de produtos sem comprovação.
 5. NUNCA incentive uso irresponsável.
-6. NÃO faça acusações ou afirmações ilegais.
-7. Sobre procedência/qualidade: explique diferenças entre mercados, marcas, regulação e contextos comerciais de forma neutra, sem promessas absolutas. Oriente a verificar lote, fabricante, embalagem e rastreabilidade.
+6. NÃO faça acusações, diagnósticos definitivos, nem afirmações ilegais.
+7. Sobre procedência/qualidade: explique diferenças entre mercados, marcas, regulação e contextos comerciais de forma neutra.
 
-PODE E DEVE:
-- Explicar para que serve cada substância de forma educativa
-- Descrever como costumam ser utilizadas em contexto INFORMATIVO
-- Comparar compostos, mecanismos de ação e categorias
-- Explicar efeitos esperados e possíveis riscos
-- Apontar sinais de alerta e quando buscar avaliação
-- Desmistificar dúvidas com base técnica
-- Explicar que disponibilidade, patente, regulação e importação variam por país
-
-FORMATO DA RESPOSTA:
-- Direto ao ponto, máximo 4-6 parágrafos curtos.
-- Use bullets quando couber para clareza.
-- Sempre finalize com uma ressalva educativa ("Para decisões individuais, consulte profissional habilitado") quando o tópico pedir.
+ESTILO DE RESPOSTA:
+- Premium, profissional, sofisticado e confiante.
+- Linguagem técnica acessível — nunca infantil.
+- Direto ao ponto, 3 a 6 parágrafos curtos, use bullets quando ajudar.
 - Jamais use emojis. Jamais seja informal.
 - Sempre em português do Brasil.
+- Quando o tópico pedir, finalize com ressalva educativa ("Para decisões individuais, consulte profissional habilitado").
 """
+
+SPECIALISTS: List[Dict[str, Any]] = [
+    {
+        "id": "nutrologo",
+        "name": "Dr. Rafael Moretti",
+        "title": "Nutrólogo",
+        "tagline": "Emagrecimento, GLP-1 e metabolismo",
+        "description": "Especialista em controle de peso, GLP-1 (Ozempic, Mounjaro, Retatrutida), síndrome metabólica e déficit calórico inteligente.",
+        "color": "#F5C150",
+        "avatar": "https://randomuser.me/api/portraits/men/32.jpg",
+        "starters": [
+            "Qual a diferença entre Tirzepatida e Retatrutida?",
+            "Como funciona o GLP-1 para emagrecer?",
+            "O que esperar do Mounjaro nas primeiras semanas?",
+            "Como manter o peso após parar o Ozempic?",
+        ],
+        "persona": "Você é Dr. Rafael Moretti — Nutrólogo do BLACKSCLUB. Formação em Medicina com especialização em Nutrologia. Foco em emagrecimento inteligente, análogos de GLP-1 (semaglutida, tirzepatida, retatrutida), síndrome metabólica, déficit calórico, jejum intermitente e composição corporal. Apresente-se de forma premium e acolhedora, explique mecanismos de ação e contextualize. Nunca prescreva dose. Sempre oriente acompanhamento presencial.",
+    },
+    {
+        "id": "endocrino",
+        "name": "Dra. Helena Costa",
+        "title": "Endocrinologista",
+        "tagline": "Hormônios, TRT, HGH, HCG",
+        "description": "Referência em reposição hormonal, testosterona, HGH, HCG, tireoide, cortisol e equilíbrio endócrino.",
+        "color": "#E57FD7",
+        "avatar": "https://randomuser.me/api/portraits/women/44.jpg",
+        "starters": [
+            "Quais sintomas de baixa testosterona em homens?",
+            "O que é TRT e quando é indicada?",
+            "Como o HGH atua no corpo?",
+            "HCG tem utilidade em protocolos hormonais?",
+        ],
+        "persona": "Você é Dra. Helena Costa — Endocrinologista do BLACKSCLUB. Formação em Medicina com especialização em Endocrinologia. Foco em reposição hormonal, TRT, HGH, HCG, tireoide, cortisol, insulina e eixos endócrinos. Seja técnica e educativa, explique fisiologia de forma clara. Nunca prescreva dose individual. Sempre oriente acompanhamento com médico habilitado.",
+    },
+    {
+        "id": "nutricionista",
+        "name": "Dra. Camila Ferreira",
+        "title": "Nutricionista Esportiva",
+        "tagline": "Dieta, macros e composição corporal",
+        "description": "Planejamento alimentar, macronutrientes, cutting, bulking, jejum intermitente e suplementação esportiva.",
+        "color": "#4EE07F",
+        "avatar": "https://randomuser.me/api/portraits/women/65.jpg",
+        "starters": [
+            "Como montar uma dieta de cutting?",
+            "Quanto de proteína por kg para hipertrofia?",
+            "Vale a pena fazer jejum intermitente no bulking?",
+            "Whey isolado ou concentrado?",
+        ],
+        "persona": "Você é Dra. Camila Ferreira — Nutricionista Esportiva do BLACKSCLUB. Formação em Nutrição com especialização em Nutrição Esportiva. Foco em planejamento alimentar, macronutrientes, cutting, bulking, recomposição corporal, timing nutricional e suplementação. Dê orientações educativas e realistas. Nunca prescreva dieta individual. Sempre oriente avaliação presencial.",
+    },
+    {
+        "id": "medico_esporte",
+        "name": "Dr. Bruno Santos",
+        "title": "Médico do Esporte",
+        "tagline": "Performance, lesões e recuperação",
+        "description": "Medicina esportiva: performance, prevenção e tratamento de lesões, recuperação, sono e longevidade atlética.",
+        "color": "#7FD7E5",
+        "avatar": "https://randomuser.me/api/portraits/men/51.jpg",
+        "starters": [
+            "Como acelerar a recuperação entre treinos?",
+            "O que o BPC-157 faz em lesões?",
+            "Quando procurar médico por dor articular?",
+            "Como o sono impacta a hipertrofia?",
+        ],
+        "persona": "Você é Dr. Bruno Santos — Médico do Esporte do BLACKSCLUB. Formação em Medicina com especialização em Medicina Esportiva. Foco em performance, lesões musculoesqueléticas, recuperação, peptídeos reparadores (BPC-157, TB-500), sono, hidratação e longevidade atlética. Explique de forma técnica e prática. Nunca prescreva protocolo individual. Sempre oriente avaliação presencial.",
+    },
+    {
+        "id": "personal",
+        "name": "Coach Rafael Lima",
+        "title": "Personal Trainer",
+        "tagline": "Hipertrofia, força e periodização",
+        "description": "Treinamento resistido, hipertrofia, força, técnica de execução, periodização e progressão de cargas.",
+        "color": "#FF7A4D",
+        "avatar": "https://randomuser.me/api/portraits/men/45.jpg",
+        "starters": [
+            "Qual o melhor split para hipertrofia?",
+            "Como periodizar treino para força máxima?",
+            "Vale a pena treinar até a falha?",
+            "Quantos sets por grupo muscular por semana?",
+        ],
+        "persona": "Você é Coach Rafael Lima — Personal Trainer e preparador físico do BLACKSCLUB. Formação em Educação Física (bacharelado) com CREF ativo. Foco em hipertrofia, força, técnica de execução, periodização, progressão de cargas e metodologias modernas (push/pull/legs, upper/lower, fullbody). Seja direto, técnico e prático. Nunca prescreva treino individual. Sempre oriente acompanhamento presencial.",
+    },
+    {
+        "id": "farmaceutico",
+        "name": "Dr. Paulo Almeida",
+        "title": "Farmacêutico Clínico",
+        "tagline": "Peptídeos, interações e procedência",
+        "description": "Farmácia clínica: peptídeos, interações medicamentosas, farmacocinética, armazenamento e rastreabilidade.",
+        "color": "#D4AF37",
+        "avatar": "https://randomuser.me/api/portraits/men/68.jpg",
+        "starters": [
+            "Como armazenar peptídeos corretamente?",
+            "O que verificar na procedência de um produto?",
+            "Diferença entre CJC-1295 com e sem DAC?",
+            "Quais interações comuns de GLP-1?",
+        ],
+        "persona": "Você é Dr. Paulo Almeida — Farmacêutico Clínico do BLACKSCLUB. Formação em Farmácia com especialização clínica. Foco em peptídeos, mecanismos farmacológicos, farmacocinética, interações medicamentosas, armazenamento (reconstituição, refrigeração), lote, rastreabilidade e biossegurança. Seja técnico e educativo. Nunca prescreva. Sempre oriente acompanhamento médico.",
+    },
+    {
+        "id": "dermato",
+        "name": "Dra. Juliana Reis",
+        "title": "Dermatologista",
+        "tagline": "Pele, colágeno e longevidade",
+        "description": "Saúde da pele, colágeno, peptídeos estéticos (GHK-Cu, Epitalon), anti-aging e skincare.",
+        "color": "#A8E04E",
+        "avatar": "https://randomuser.me/api/portraits/women/28.jpg",
+        "starters": [
+            "Como aumentar colágeno de forma inteligente?",
+            "O que é GHK-Cu e para que serve?",
+            "Skincare básico para homem que treina?",
+            "Acne por uso de anabolizantes: o que fazer?",
+        ],
+        "persona": "Você é Dra. Juliana Reis — Dermatologista do BLACKSCLUB. Formação em Medicina com especialização em Dermatologia. Foco em saúde da pele, colágeno (tipos, estímulos), peptídeos estéticos (GHK-Cu, Epitalon, Melanotan II em contexto educativo), acne, skincare, fotoproteção e longevidade. Nunca prescreva. Sempre oriente avaliação presencial.",
+    },
+    {
+        "id": "preparadora",
+        "name": "Coach Bianca Souza",
+        "title": "Preparadora Física Feminina",
+        "tagline": "Estética feminina e emagrecimento",
+        "description": "Preparação física com foco no público feminino: glúteos, emagrecimento, ciclo menstrual e treino.",
+        "color": "#4E8FE0",
+        "avatar": "https://randomuser.me/api/portraits/women/50.jpg",
+        "starters": [
+            "Melhor treino para hipertrofia de glúteos?",
+            "Como treinar conforme o ciclo menstrual?",
+            "Emagrecer sem perder curvas: como?",
+            "Cardio no bulking feminino: necessário?",
+        ],
+        "persona": "Você é Coach Bianca Souza — Preparadora Física com foco no público feminino no BLACKSCLUB. Formação em Educação Física (bacharelado) com CREF ativo. Foco em hipertrofia feminina, glúteos e posterior, emagrecimento preservando musculatura, ciclo menstrual e treino, estética e postura. Seja técnica, empática e direta. Nunca prescreva treino individual. Sempre oriente acompanhamento presencial.",
+    },
+]
+
+
+def _get_specialist(specialist_id: Optional[str]) -> Dict[str, Any]:
+    if not specialist_id:
+        return SPECIALISTS[0]
+    for s in SPECIALISTS:
+        if s["id"] == specialist_id:
+            return s
+    return SPECIALISTS[0]
+
+
+def _system_prompt_for(specialist: Dict[str, Any]) -> str:
+    return f"{specialist['persona']}\n\n{BASE_GUARDRAILS}"
 
 
 class AIMessage(BaseModel):
     member_id: str
     text: str
+    specialist_id: Optional[str] = None
+
+
+@api_router.get("/ai/specialists")
+async def list_specialists():
+    # Public-safe payload (no persona / prompt leaked)
+    return [
+        {
+            "id": s["id"],
+            "name": s["name"],
+            "title": s["title"],
+            "tagline": s["tagline"],
+            "description": s["description"],
+            "color": s["color"],
+            "avatar": s["avatar"],
+            "starters": s["starters"],
+        }
+        for s in SPECIALISTS
+    ]
 
 
 @api_router.post("/ai/chat")
@@ -877,33 +1012,25 @@ async def ai_chat(data: AIMessage):
     if not member:
         raise HTTPException(status_code=404, detail="Membro não encontrado")
 
-    session_id = f"black_ai_{data.member_id}"
+    specialist = _get_specialist(data.specialist_id)
+    session_id = f"black_ai_{specialist['id']}_{data.member_id}"
     chat = LlmChat(
         api_key=key,
         session_id=session_id,
-        system_message=BLACK_AI_SYSTEM_PROMPT,
+        system_message=_system_prompt_for(specialist),
     ).with_model("openai", "gpt-4o")
 
-    # Persist member message
     now = datetime.now(timezone.utc)
     await db.ai_messages.insert_one({
         "ai_msg_id": f"aim_{uuid.uuid4().hex[:12]}",
         "session_id": session_id,
+        "specialist_id": specialist["id"],
+        "member_id": data.member_id,
         "sender": "member",
         "text": text,
         "created_at": now,
     })
 
-    # Restore prior messages into the chat
-    prior = await db.ai_messages.find(
-        {"session_id": session_id, "created_at": {"$lt": now}},
-        {"_id": 0},
-    ).sort("created_at", 1).to_list(length=40)
-
-    # Feed history by replaying; LlmChat maintains its own state per session via send_message
-    # Easier: just send latest with history as context in system message? LlmChat caches state
-    # To ensure state is fresh for gpt-4o, replay ourselves if no cache:
-    # We keep it simple: send only the new message; if first time, gpt-4o only sees system.
     try:
         reply = await chat.send_message(UserMessage(text=text))
     except Exception as e:
@@ -913,24 +1040,34 @@ async def ai_chat(data: AIMessage):
     await db.ai_messages.insert_one({
         "ai_msg_id": f"aim_{uuid.uuid4().hex[:12]}",
         "session_id": session_id,
+        "specialist_id": specialist["id"],
+        "member_id": data.member_id,
         "sender": "ai",
         "text": reply,
         "created_at": datetime.now(timezone.utc),
     })
-    return {"reply": reply}
+    return {"reply": reply, "specialist_id": specialist["id"]}
 
 
 @api_router.get("/ai/history/{member_id}")
-async def ai_history(member_id: str):
-    session_id = f"black_ai_{member_id}"
-    cursor = db.ai_messages.find({"session_id": session_id}, {"_id": 0}).sort("created_at", 1).limit(200)
+async def ai_history(member_id: str, specialist_id: Optional[str] = None):
+    if specialist_id:
+        session_id = f"black_ai_{specialist_id}_{member_id}"
+        q = {"session_id": session_id}
+    else:
+        # Legacy fallback: return everything for this member
+        q = {"member_id": member_id}
+    cursor = db.ai_messages.find(q, {"_id": 0}).sort("created_at", 1).limit(200)
     return await cursor.to_list(length=200)
 
 
 @api_router.delete("/ai/history/{member_id}")
-async def ai_history_clear(member_id: str):
-    session_id = f"black_ai_{member_id}"
-    await db.ai_messages.delete_many({"session_id": session_id})
+async def ai_history_clear(member_id: str, specialist_id: Optional[str] = None):
+    if specialist_id:
+        session_id = f"black_ai_{specialist_id}_{member_id}"
+        await db.ai_messages.delete_many({"session_id": session_id})
+    else:
+        await db.ai_messages.delete_many({"member_id": member_id})
     return {"ok": True}
 
 

@@ -116,12 +116,25 @@ export const api = {
   },
   subcategories: (category: string) =>
     request<{ id: string; name: string; count: number }[]>(`/subcategories/${category}`),
-  aiChat: (member_id: string, text: string) =>
-    request<{ reply: string }>("/ai/chat", { method: "POST", body: JSON.stringify({ member_id, text }) }),
-  aiHistory: (member_id: string) =>
-    request<{ sender: "member" | "ai"; text: string; created_at: string }[]>(`/ai/history/${member_id}`),
-  aiClear: (member_id: string) =>
-    request<{ ok: boolean }>(`/ai/history/${member_id}`, { method: "DELETE" }),
+  aiSpecialists: () =>
+    request<{
+      id: string; name: string; title: string; tagline: string;
+      description: string; color: string; avatar: string; starters: string[];
+    }[]>("/ai/specialists"),
+  aiChat: (member_id: string, text: string, specialist_id?: string) =>
+    request<{ reply: string; specialist_id: string }>("/ai/chat", {
+      method: "POST",
+      body: JSON.stringify({ member_id, text, specialist_id }),
+    }),
+  aiHistory: (member_id: string, specialist_id?: string) =>
+    request<{ sender: "member" | "ai"; text: string; created_at: string }[]>(
+      `/ai/history/${member_id}${specialist_id ? `?specialist_id=${specialist_id}` : ""}`
+    ),
+  aiClear: (member_id: string, specialist_id?: string) =>
+    request<{ ok: boolean }>(
+      `/ai/history/${member_id}${specialist_id ? `?specialist_id=${specialist_id}` : ""}`,
+      { method: "DELETE" }
+    ),
   featured: () => request<Product[]>("/products/featured"),
   product: (id: string) => request<Product>(`/products/${id}`),
   categories: () => request<Category[]>("/categories"),

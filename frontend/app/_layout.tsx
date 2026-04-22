@@ -26,6 +26,9 @@ export default function RootLayout() {
             <Stack.Screen name="forgot" options={{ title: "Recuperar senha" }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="product/[id]" options={{ title: "Produto" }} />
+            <Stack.Screen name="category/[id]" options={{ title: "Categoria" }} />
+            <Stack.Screen name="ai/index" options={{ title: "BLACK AI" }} />
+            <Stack.Screen name="ai/[specialist]" options={{ title: "" }} />
             <Stack.Screen name="chat" options={{ title: "Suporte BLACKSCLUB" }} />
             <Stack.Screen name="quote" options={{ title: "Chamados" }} />
             <Stack.Screen name="wallet" options={{ title: "Black Coins" }} />

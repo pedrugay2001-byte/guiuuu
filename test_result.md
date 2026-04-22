@@ -109,6 +109,27 @@ user_problem_statement: |
   Checkout via Chat Interno (substituindo WhatsApp) com painel de staff para responder.
 
 backend:
+  - task: "BLACK AI Specialists (GET /api/ai/specialists + POST /api/ai/chat per specialist)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: |
+            Added 8 BLACK AI specialists (Nutrologo, Endocrino, Nutricionista, Medico Esporte, Personal,
+            Farmaceutico, Dermato, Preparadora). Each has its own persona, tagline, color, avatar, 4 starter
+            questions, and a dedicated system prompt merged with base guardrails.
+            New endpoint GET /api/ai/specialists returns the public-safe list.
+            POST /api/ai/chat now accepts optional specialist_id (defaults to nutrologo).
+            Session scoping is by `black_ai_{specialist_id}_{member_id}` so each specialist keeps its own history.
+            GET/DELETE /api/ai/history/{member_id} support optional ?specialist_id= filter.
+            Validated via curl (200 OK) and end-to-end via UI (Dra. Helena Costa answered correctly with
+            persona + guardrails).
+
   - task: "Orders + In-App Chat endpoints"
     implemented: true
     working: "NA"
@@ -133,6 +154,26 @@ backend:
             Precisa validação: criar pedido, verificar mensagem inicial, troca de mensagens nos dois sentidos, listagem de threads, proteção de auth.
 
 frontend:
+  - task: "BLACK AI — specialist selection + chat screen"
+    implemented: true
+    working: true
+    file: "frontend/app/ai/index.tsx, frontend/app/ai/[specialist].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: |
+            Replaced single ai.tsx with nested route:
+            - /ai/index.tsx: premium hero + grid of 8 specialist cards (avatar, ring, online dot,
+              color accent bar, category title, name, description, CTA).
+            - /ai/[specialist].tsx: individual chat with the chosen specialist. Shows avatar in header,
+              empty state with big ring avatar + starter questions, bubbles with specialist avatar,
+              and input bar colored with specialist accent color. Attach/mic buttons show "Em breve" alert.
+            Verified end-to-end on iPhone viewport (390x844). GPT-4o replied correctly as Dra. Helena
+            with all guardrails.
+
   - task: "Checkout Chat + Staff Inbox UI"
     implemented: true
     working: "NA"
