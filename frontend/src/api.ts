@@ -74,6 +74,7 @@ export type MemberData = {
   parent_name: string | null; tier: TierId; nickname?: string | null;
   neighborhood?: string; city?: string; state?: string;
   total_members?: number; created_at: string;
+  avatar_base64?: string | null;
 };
 
 export type AuthorizedEntry = {

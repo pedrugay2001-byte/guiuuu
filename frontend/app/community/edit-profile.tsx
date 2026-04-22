@@ -6,13 +6,14 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { pickCompressedImage } from "../../src/imagepicker";
+import { notify } from "../../src/alerts";
 import { api, CommunityMember } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
 
 export default function EditProfile() {
   const router = useRouter();
-  const { member } = useGate();
+  const { member, updateMember } = useGate();
   const [me, setMe] = useState<CommunityMember | null>(null);
   const [nickname, setNickname] = useState("");
   const [bio, setBio] = useState("");
@@ -49,8 +50,8 @@ export default function EditProfile() {
   };
 
   const addPhoto = async () => {
-    if (photos.length >= 10) { Alert.alert("Limite", "Máximo de 10 fotos"); return; }
-    const uri = await pickCompressedImage({ quality: 0.3 });
+    if (photos.length >= 10) { notify("Limite", "Máximo de 10 fotos"); return; }
+    const uri = await pickCompressedImage({ quality: 0.35 });
     if (uri) setPhotos([...photos, uri]);
   };
 
@@ -65,8 +66,14 @@ export default function EditProfile() {
         avatar_base64: avatar || undefined,
       });
       await api.updatePhotos(member.member_id, photos);
-      Alert.alert("Perfil salvo", "Seu perfil público foi atualizado.", [{ text: "OK", onPress: () => router.back() }]);
-    } catch (e: any) { Alert.alert("Erro", e.message || "Falha ao salvar"); }
+      // Update local gate cache so the avatar shows up immediately in Home + Member screens
+      try { await updateMember({ avatar_base64: avatar, nickname: nickname.trim() || null } as any); } catch {}
+      notify("Perfil salvo!", "Sua foto e dados foram atualizados.");
+      router.back();
+    } catch (e: any) {
+      console.log("save profile error", e);
+      notify("Erro ao salvar", e?.message || "Tente uma foto menor ou verifique sua conexão.");
+    }
     finally { setSaving(false); }
   };
 

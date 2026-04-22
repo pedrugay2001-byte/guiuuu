@@ -22,6 +22,8 @@ export default function Community() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const [firstLoaded, setFirstLoaded] = useState(false);
+
   const load = useCallback(async () => {
     if (!member) return;
     try {
@@ -32,6 +34,7 @@ export default function Community() {
         api.groupsList(member.member_id),
       ]);
       setStories(ss); setPosts(pp); setMembers(mm); setGroups(gg);
+      setFirstLoaded(true);
     } finally { setLoading(false); setRefreshing(false); }
   }, [member]);
 
@@ -39,10 +42,11 @@ export default function Community() {
     if (!member) return;
     let alive = true;
     api.heartbeat(member.member_id).catch(() => {});
-    const t = setInterval(() => { if (alive) api.heartbeat(member.member_id).catch(() => {}); }, 60_000);
-    load();
+    const t = setInterval(() => { if (alive) api.heartbeat(member.member_id).catch(() => {}); }, 120_000);
+    // Load only on first mount or after 30s; otherwise rely on pull-to-refresh
+    if (!firstLoaded) load();
     return () => { alive = false; clearInterval(t); };
-  }, [member, load]));
+  }, [member, load, firstLoaded]));
 
   const myStories = stories.find(s => s.member_id === member?.member_id);
   const otherStories = stories.filter(s => s.member_id !== member?.member_id);

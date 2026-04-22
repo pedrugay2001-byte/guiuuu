@@ -86,9 +86,21 @@ export default function Member() {
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="member-screen">
       <ScrollView>
         <View style={styles.profileCard}>
-          <View style={[styles.avatar, { borderColor: tier.color }]}>
-            <Text style={styles.avatarText}>{member?.name?.substring(0, 1).toUpperCase() || "M"}</Text>
-          </View>
+          <TouchableOpacity
+            style={[styles.avatar, { borderColor: tier.color }]}
+            onPress={() => router.push("/community/edit-profile")}
+            activeOpacity={0.8}
+            testID="member-avatar-edit"
+          >
+            {member?.avatar_base64 ? (
+              <Image source={{ uri: member.avatar_base64 }} style={styles.avatarImg} />
+            ) : (
+              <Text style={styles.avatarText}>{member?.name?.substring(0, 1).toUpperCase() || "M"}</Text>
+            )}
+            <View style={styles.cameraBadge}>
+              <Ionicons name="camera" size={12} color="#000" />
+            </View>
+          </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.name} numberOfLines={1}>{member?.name}</Text>
             <Text style={styles.email}>{member?.phone}</Text>
@@ -105,6 +117,23 @@ export default function Member() {
             </View>
           </View>
         </View>
+
+        {/* Big, obvious EDIT PROFILE button */}
+        <TouchableOpacity
+          style={styles.editProfileCta}
+          onPress={() => router.push("/community/edit-profile")}
+          testID="member-edit-profile"
+          activeOpacity={0.85}
+        >
+          <View style={styles.editProfileIcon}>
+            <Ionicons name="person-circle" size={22} color="#D4AF37" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.editProfileTitle}>EDITAR PERFIL PÚBLICO</Text>
+            <Text style={styles.editProfileSub}>Foto, apelido, bio, cidade, galeria (10 fotos)</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#D4AF37" />
+        </TouchableOpacity>
 
         {/* INVITE CODE — visible, shareable */}
         {member?.invite_code ? (
@@ -247,11 +276,19 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12,
   },
   avatar: {
-    width: 56, height: 56, borderRadius: 28,
+    width: 72, height: 72, borderRadius: 36,
     backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1.5, alignItems: "center", justifyContent: "center",
+    borderWidth: 2, alignItems: "center", justifyContent: "center",
+    overflow: "hidden", position: "relative",
   },
-  avatarText: { color: theme.colors.white, fontSize: 22, fontWeight: "900" },
+  avatarImg: { width: "100%", height: "100%", borderRadius: 36 },
+  cameraBadge: {
+    position: "absolute", bottom: -2, right: -2,
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: "#D4AF37", alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: theme.colors.surface,
+  },
+  avatarText: { color: theme.colors.white, fontSize: 26, fontWeight: "900" },
   name: { color: theme.colors.white, fontSize: 17, fontWeight: "800" },
   email: { color: theme.colors.textMuted, fontSize: 12, marginTop: 2 },
   tierBadge: {
@@ -266,6 +303,22 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceElevated,
   },
   numberTxt: { color: theme.colors.text, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+
+  editProfileCta: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
+    paddingHorizontal: 16, paddingVertical: 14,
+    backgroundColor: "#0F0F0F",
+    borderWidth: 1.5, borderColor: "rgba(212,175,55,0.4)",
+    borderRadius: 12,
+  },
+  editProfileIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "rgba(212,175,55,0.12)",
+    alignItems: "center", justifyContent: "center",
+  },
+  editProfileTitle: { color: "#D4AF37", fontSize: 12, fontWeight: "900", letterSpacing: 1.5 },
+  editProfileSub: { color: theme.colors.textMuted, fontSize: 11, marginTop: 3 },
 
   inviteCard: {
     marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
