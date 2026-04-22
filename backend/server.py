@@ -25,6 +25,12 @@ try:
 except Exception:  # pragma: no cover
     resend = None
 
+try:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+except Exception:
+    LlmChat = None
+    UserMessage = None
+
 # MongoDB connection
 mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
@@ -803,10 +809,136 @@ async def admin_stats(staff: dict = Depends(require_staff)):
     }
 
 
+# -------------- BLACK AI --------------
+BLACK_AI_SYSTEM_PROMPT = """Você é a BLACK AI — a assistente inteligente do clube privado BLACKSCLUB.
+
+PERSONALIDADE:
+- Premium, profissional, sofisticada e confiante
+- Linguagem técnica acessível, nunca infantil nem popular demais
+- Acolhedora sem ser casual
+- Educativa, direta e clara
+
+ÁREAS DE EXPERTISE:
+- Emagrecimento e controle de peso (GLP-1, duais, trialways)
+- Peptídeos (BPC-157, TB-500, Ipamorelina, CJC-1295, Semaglutida, Tirzepatida, Retatrutida)
+- Hormônios (testosterona, HGH, HCG, anabolizantes, SARMs)
+- Musculação e treinamento (hipertrofia, força, resistência, periodização)
+- Suplementação (whey, creatina, pré-treinos, aminoácidos)
+- Pré-treinos e ergogênicos
+- Alimentação e composição corporal
+- Performance e recuperação
+- Diferenças entre substâncias, marcas e categorias
+- Mitos e verdades sobre produtos
+- Procedência, qualidade e rastreabilidade (abordar de forma neutra e educativa)
+
+REGRAS INEGOCIÁVEIS:
+1. NUNCA prescreva tratamento individual, dosagens personalizadas ou protocolos.
+2. NUNCA substitua consulta médica — sempre oriente a buscar profissional habilitado para decisões pessoais.
+3. NUNCA prometa resultados específicos.
+4. NUNCA garanta autenticidade de produtos sem comprovação.
+5. NUNCA incentive uso irresponsável.
+6. NÃO faça acusações ou afirmações ilegais.
+7. Sobre procedência/qualidade: explique diferenças entre mercados, marcas, regulação e contextos comerciais de forma neutra, sem promessas absolutas. Oriente a verificar lote, fabricante, embalagem e rastreabilidade.
+
+PODE E DEVE:
+- Explicar para que serve cada substância de forma educativa
+- Descrever como costumam ser utilizadas em contexto INFORMATIVO
+- Comparar compostos, mecanismos de ação e categorias
+- Explicar efeitos esperados e possíveis riscos
+- Apontar sinais de alerta e quando buscar avaliação
+- Desmistificar dúvidas com base técnica
+- Explicar que disponibilidade, patente, regulação e importação variam por país
+
+FORMATO DA RESPOSTA:
+- Direto ao ponto, máximo 4-6 parágrafos curtos.
+- Use bullets quando couber para clareza.
+- Sempre finalize com uma ressalva educativa ("Para decisões individuais, consulte profissional habilitado") quando o tópico pedir.
+- Jamais use emojis. Jamais seja informal.
+- Sempre em português do Brasil.
+"""
+
+
+class AIMessage(BaseModel):
+    member_id: str
+    text: str
+
+
+@api_router.post("/ai/chat")
+async def ai_chat(data: AIMessage):
+    if not LlmChat:
+        raise HTTPException(status_code=503, detail="IA temporariamente indisponível")
+    key = os.environ.get("EMERGENT_LLM_KEY", "")
+    if not key:
+        raise HTTPException(status_code=503, detail="LLM não configurada")
+    text = data.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Mensagem vazia")
+    member = await db.members.find_one({"member_id": data.member_id}, {"_id": 0})
+    if not member:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+
+    session_id = f"black_ai_{data.member_id}"
+    chat = LlmChat(
+        api_key=key,
+        session_id=session_id,
+        system_message=BLACK_AI_SYSTEM_PROMPT,
+    ).with_model("openai", "gpt-4o")
+
+    # Persist member message
+    now = datetime.now(timezone.utc)
+    await db.ai_messages.insert_one({
+        "ai_msg_id": f"aim_{uuid.uuid4().hex[:12]}",
+        "session_id": session_id,
+        "sender": "member",
+        "text": text,
+        "created_at": now,
+    })
+
+    # Restore prior messages into the chat
+    prior = await db.ai_messages.find(
+        {"session_id": session_id, "created_at": {"$lt": now}},
+        {"_id": 0},
+    ).sort("created_at", 1).to_list(length=40)
+
+    # Feed history by replaying; LlmChat maintains its own state per session via send_message
+    # Easier: just send latest with history as context in system message? LlmChat caches state
+    # To ensure state is fresh for gpt-4o, replay ourselves if no cache:
+    # We keep it simple: send only the new message; if first time, gpt-4o only sees system.
+    try:
+        reply = await chat.send_message(UserMessage(text=text))
+    except Exception as e:
+        logger.error("AI error: %s", e)
+        raise HTTPException(status_code=500, detail=f"Falha na BLACK AI: {e}")
+
+    await db.ai_messages.insert_one({
+        "ai_msg_id": f"aim_{uuid.uuid4().hex[:12]}",
+        "session_id": session_id,
+        "sender": "ai",
+        "text": reply,
+        "created_at": datetime.now(timezone.utc),
+    })
+    return {"reply": reply}
+
+
+@api_router.get("/ai/history/{member_id}")
+async def ai_history(member_id: str):
+    session_id = f"black_ai_{member_id}"
+    cursor = db.ai_messages.find({"session_id": session_id}, {"_id": 0}).sort("created_at", 1).limit(200)
+    return await cursor.to_list(length=200)
+
+
+@api_router.delete("/ai/history/{member_id}")
+async def ai_history_clear(member_id: str):
+    session_id = f"black_ai_{member_id}"
+    await db.ai_messages.delete_many({"session_id": session_id})
+    return {"ok": True}
+
+
 # -------------- Products --------------
 class ProductCreate(BaseModel):
     name: str
     category: str
+    subcategory: Optional[str] = None
     description: str
     price: float
     member_price: float
@@ -818,6 +950,7 @@ class ProductCreate(BaseModel):
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     category: Optional[str] = None
+    subcategory: Optional[str] = None
     description: Optional[str] = None
     price: Optional[float] = None
     member_price: Optional[float] = None
@@ -830,6 +963,7 @@ class Product(BaseModel):
     product_id: str
     name: str
     category: str
+    subcategory: Optional[str] = None
     description: str
     price: float
     member_price: float
@@ -840,10 +974,12 @@ class Product(BaseModel):
 
 
 @api_router.get("/products", response_model=List[Product])
-async def list_products(category: Optional[str] = None, q: Optional[str] = None):
+async def list_products(category: Optional[str] = None, subcategory: Optional[str] = None, q: Optional[str] = None):
     query: dict = {}
     if category and category != "all":
         query["category"] = category
+    if subcategory and subcategory != "all":
+        query["subcategory"] = subcategory
     if q:
         query["$or"] = [
             {"name": {"$regex": q, "$options": "i"}},
@@ -852,6 +988,17 @@ async def list_products(category: Optional[str] = None, q: Optional[str] = None)
     cursor = db.products.find(query, {"_id": 0}).sort("created_at", -1)
     items = await cursor.to_list(length=500)
     return [Product(**item) for item in items]
+
+
+@api_router.get("/subcategories/{category}")
+async def subcategories(category: str):
+    cursor = db.products.aggregate([
+        {"$match": {"category": category, "subcategory": {"$ne": None}}},
+        {"$group": {"_id": "$subcategory", "count": {"$sum": 1}}},
+        {"$sort": {"_id": 1}},
+    ])
+    rows = await cursor.to_list(length=100)
+    return [{"id": r["_id"], "name": r["_id"], "count": r["count"]} for r in rows if r["_id"]]
 
 
 @api_router.get("/products/featured", response_model=List[Product])
@@ -922,69 +1069,162 @@ async def get_categories():
 
 # -------------- Seed --------------
 SEED_PRODUCTS = [
+    # EMAGRECEDORES — Semaglutida
     {
-        "name": "Ozempic 1mg (Semaglutida)",
-        "category": "emagrecedores",
-        "description": "Caneta aplicadora 1mg. Análogo de GLP-1 para controle de peso e glicemia.",
+        "name": "Ozempic 1mg (Semaglutida)", "category": "emagrecedores", "subcategory": "Semaglutida",
+        "description": "Caneta 1mg. Análogo de GLP-1 para controle de peso e glicemia. Aplicação semanal.",
         "price": 1250.00, "member_price": 999.00,
         "image_url": "https://images.unsplash.com/photo-1704018731170-f30899f60917?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwyfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
         "stock": 12, "featured": True,
     },
     {
-        "name": "Mounjaro 5mg (Tirzepatida)",
-        "category": "emagrecedores",
+        "name": "Wegovy 2.4mg (Semaglutida)", "category": "emagrecedores", "subcategory": "Semaglutida",
+        "description": "Alta dosagem GLP-1 dedicada ao manejo de obesidade. Caneta semanal.",
+        "price": 1650.00, "member_price": 1299.00,
+        "image_url": "https://images.unsplash.com/photo-1700225195232-c55a4e9db6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 6, "featured": False,
+    },
+    # EMAGRECEDORES — Tirzepatida
+    {
+        "name": "Mounjaro 5mg (Tirzepatida)", "category": "emagrecedores", "subcategory": "Tirzepatida",
         "description": "Agonista duplo GIP/GLP-1. Redução de apetite e perda de peso progressiva.",
         "price": 1890.00, "member_price": 1499.00,
         "image_url": "https://images.unsplash.com/photo-1700225195232-c55a4e9db6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
         "stock": 8, "featured": True,
     },
     {
-        "name": "BPC-157 5mg",
-        "category": "peptideos",
+        "name": "Mounjaro 10mg (Tirzepatida)", "category": "emagrecedores", "subcategory": "Tirzepatida",
+        "description": "Dose intermediária. Caneta aplicadora pronta para uso semanal.",
+        "price": 2190.00, "member_price": 1749.00,
+        "image_url": "https://images.unsplash.com/photo-1704018731170-f30899f60917?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwyfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 5, "featured": False,
+    },
+    # EMAGRECEDORES — Retatrutida
+    {
+        "name": "Retatrutida 10mg (Ampola)", "category": "emagrecedores", "subcategory": "Retatrutida",
+        "description": "Tri-agonista (GLP-1, GIP, Glucagon). Ampola para reconstituição. Uso semanal.",
+        "price": 2450.00, "member_price": 1999.00,
+        "image_url": "https://images.unsplash.com/photo-1549505415-e16dbd446231?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 4, "featured": True,
+    },
+    # PEPTIDEOS
+    {
+        "name": "BPC-157 5mg", "category": "peptideos", "subcategory": "Regenerativos",
         "description": "Peptídeo regenerativo. Auxilia recuperação muscular e tecidual.",
         "price": 420.00, "member_price": 329.00,
         "image_url": "https://images.unsplash.com/photo-1549505415-e16dbd446231?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
         "stock": 25, "featured": True,
     },
     {
-        "name": "TB-500 5mg",
-        "category": "peptideos",
-        "description": "Fragmento de Timosina Beta 4. Recuperação e flexibilidade.",
+        "name": "TB-500 5mg", "category": "peptideos", "subcategory": "Regenerativos",
+        "description": "Fragmento de Timosina Beta 4. Recuperação e flexibilidade tecidual.",
         "price": 480.00, "member_price": 379.00,
         "image_url": "https://images.pexels.com/photos/36591369/pexels-photo-36591369.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
         "stock": 18, "featured": False,
     },
     {
-        "name": "Durateston Landerlan 250mg",
-        "category": "landerlan",
+        "name": "Ipamorelina 5mg", "category": "peptideos", "subcategory": "GH-releasers",
+        "description": "Secretagogo de GH. Liberação pulsátil, sem aumentar cortisol.",
+        "price": 380.00, "member_price": 299.00,
+        "image_url": "https://images.unsplash.com/photo-1709315957145-a4bad1feef28?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwzfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 14, "featured": False,
+    },
+    {
+        "name": "CJC-1295 DAC 5mg", "category": "peptideos", "subcategory": "GH-releasers",
+        "description": "Análogo de GHRH de longa duração. Liberação sustentada de GH.",
+        "price": 520.00, "member_price": 399.00,
+        "image_url": "https://images.pexels.com/photos/29611432/pexels-photo-29611432.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "stock": 10, "featured": False,
+    },
+    # LANDERLAN
+    {
+        "name": "Durateston Landerlan 250mg", "category": "landerlan", "subcategory": "Testosterona",
         "description": "Blend de 4 ésteres de testosterona. Ampola 1ml. Produto autêntico.",
         "price": 180.00, "member_price": 139.00,
         "image_url": "https://images.unsplash.com/photo-1709315957145-a4bad1feef28?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwzfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
         "stock": 30, "featured": True,
     },
     {
-        "name": "HGH Somatropina 10UI",
-        "category": "hormonios",
-        "description": "Hormônio do crescimento recombinante. Caixa com 10 frascos.",
+        "name": "Deca-durabolin Landerlan 300mg", "category": "landerlan", "subcategory": "Nandrolona",
+        "description": "Decanoato de nandrolona. Ampola 10ml. Linha Paraguai autêntica.",
+        "price": 240.00, "member_price": 189.00,
+        "image_url": "https://images.pexels.com/photos/29825227/pexels-photo-29825227.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "stock": 22, "featured": False,
+    },
+    # HORMONIOS (com Wonderland seeds)
+    {
+        "name": "HGH Somatropina Wonderland 10UI", "category": "hormonios", "subcategory": "Wonderland",
+        "description": "Hormônio do crescimento recombinante. Linha Wonderland. Caixa com 10 frascos.",
         "price": 1350.00, "member_price": 1099.00,
         "image_url": "https://images.unsplash.com/photo-1700225195232-c55a4e9db6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
         "stock": 7, "featured": True,
     },
     {
-        "name": "Whey Protein Isolado 900g",
-        "category": "suplementos",
+        "name": "HCG Wonderland 5000UI", "category": "hormonios", "subcategory": "Wonderland",
+        "description": "Gonadotrofina coriônica humana. Linha Wonderland. Ampola + diluente.",
+        "price": 240.00, "member_price": 189.00,
+        "image_url": "https://images.unsplash.com/photo-1704018731170-f30899f60917?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwyfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 15, "featured": False,
+    },
+    # PRE-TREINOS
+    {
+        "name": "C4 Ultimate 380g", "category": "pre_treinos", "subcategory": "Estimulante",
+        "description": "Pré-treino de alta intensidade. Cafeína, beta-alanina e citrulina.",
+        "price": 199.00, "member_price": 149.00,
+        "image_url": "https://images.pexels.com/photos/29611432/pexels-photo-29611432.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "stock": 40, "featured": False,
+    },
+    # SUPLEMENTOS
+    {
+        "name": "Whey Protein Isolado 900g", "category": "suplementos", "subcategory": "Proteínas",
         "description": "Proteína isolada hidrolisada. 27g de proteína por dose.",
         "price": 219.00, "member_price": 169.00,
         "image_url": "https://images.pexels.com/photos/36591369/pexels-photo-36591369.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
         "stock": 45, "featured": False,
     },
     {
-        "name": "Creatina Monohidratada 300g",
-        "category": "suplementos",
+        "name": "Creatina Monohidratada 300g", "category": "suplementos", "subcategory": "Performance",
         "description": "Creatina pura micronizada. Força, volume e performance.",
         "price": 119.00, "member_price": 89.00,
         "image_url": "https://images.pexels.com/photos/29611432/pexels-photo-29611432.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
         "stock": 60, "featured": True,
+    },
+    # TECNOLOGIA — balanças e auxiliares
+    {
+        "name": "Balança Bioimpedância Premium", "category": "tecnologia", "subcategory": "Balanças",
+        "description": "Análise de 14 métricas corporais (gordura, músculo, hidratação, idade metabólica). App integrado.",
+        "price": 499.00, "member_price": 389.00,
+        "image_url": "https://images.unsplash.com/photo-1549505415-e16dbd446231?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 20, "featured": True,
+    },
+    {
+        "name": "Fita Métrica Digital Corporal", "category": "tecnologia", "subcategory": "Medidores",
+        "description": "Medição automática de circunferências. Bluetooth + app de histórico.",
+        "price": 189.00, "member_price": 139.00,
+        "image_url": "https://images.pexels.com/photos/36591369/pexels-photo-36591369.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "stock": 35, "featured": False,
+    },
+    {
+        "name": "Kit Seringas Aplicação (100un)", "category": "tecnologia", "subcategory": "Aplicação",
+        "description": "Seringas estéreis descartáveis para aplicação subcutânea e intramuscular.",
+        "price": 89.00, "member_price": 69.00,
+        "image_url": "https://images.unsplash.com/photo-1700225195232-c55a4e9db6aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHxibGFjayUyMGx1eHVyeSUyMHN1cHBsZW1lbnQlMjBib3R0bGV8ZW58MHx8fHwxNzc2ODAyNTA3fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 80, "featured": False,
+    },
+    {
+        "name": "Água Bacteriostática 30ml", "category": "tecnologia", "subcategory": "Diluentes",
+        "description": "Diluente estéril para reconstituição de peptídeos liofilizados. 30ml.",
+        "price": 69.00, "member_price": 49.00,
+        "image_url": "https://images.unsplash.com/photo-1549505415-e16dbd446231?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85",
+        "stock": 100, "featured": False,
+    },
+    # BEM-ESTAR
+    {
+        "name": "Magnésio Dimalato 60 caps", "category": "bem_estar", "subcategory": "Minerais",
+        "description": "Biodisponibilidade superior. Sono, relaxamento muscular e energia celular.",
+        "price": 89.00, "member_price": 59.00,
+        "image_url": "https://images.pexels.com/photos/29825227/pexels-photo-29825227.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "stock": 50, "featured": False,
     },
 ]
 
@@ -1051,9 +1291,13 @@ async def seed_authorized():
 
 
 async def seed_products():
+    # Re-seed if existing products lack subcategory
     count = await db.products.count_documents({})
-    if count > 0:
+    missing_subcat = await db.products.count_documents({"subcategory": {"$exists": False}})
+    if count > 0 and missing_subcat == 0:
         return
+    if missing_subcat > 0:
+        await db.products.delete_many({})
     now = datetime.now(timezone.utc)
     docs = []
     for p in SEED_PRODUCTS:

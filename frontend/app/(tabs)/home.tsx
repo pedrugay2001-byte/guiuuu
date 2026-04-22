@@ -3,7 +3,6 @@ import {
   View, Text, StyleSheet, ScrollView, Image, TouchableOpacity,
   ImageBackground, ActivityIndicator, RefreshControl, FlatList,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api, Category, Product, formatBRL } from "../../src/api";
@@ -11,14 +10,25 @@ import { useGate } from "../../src/gate";
 import { theme, TIERS } from "../../src/theme";
 
 const CATEGORY_COLORS: Record<string, string> = {
-  emagrecedores: "#FF7A4D",
+  emagrecedores: "#F5C150",  // yellow highlight
   peptideos: "#7FD7E5",
   landerlan: "#D4AF37",
-  hormonios: "#E57FD7",
-  pre_treinos: "#FF4E4E",
+  hormonios: "#E57FD7",      // Wonderland
+  pre_treinos: "#FF7A4D",
   suplementos: "#4EE07F",
   tecnologia: "#4E8FE0",
   bem_estar: "#A8E04E",
+};
+
+const CATEGORY_ICONS: Record<string, any> = {
+  emagrecedores: "flash",
+  peptideos: "flask",
+  landerlan: "shield-checkmark",
+  hormonios: "sparkles",  // Wonderland icon
+  pre_treinos: "rocket",
+  suplementos: "nutrition",
+  tecnologia: "hardware-chip",
+  bem_estar: "leaf",
 };
 
 export default function Home() {
@@ -41,7 +51,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
   const onRefresh = () => { setRefreshing(true); load(); };
 
   if (loading) {
@@ -53,6 +62,7 @@ export default function Home() {
   }
 
   const tier = member ? TIERS[member.tier] || TIERS.black : TIERS.black;
+  const firstName = member?.name?.split(" ")[0] || "Membro";
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="home-screen">
@@ -60,50 +70,44 @@ export default function Home() {
         refreshControl={<RefreshControl tintColor={theme.colors.white} refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Greeting */}
-        <View style={styles.greetBlock}>
-          <Text style={styles.hello}>Olá, {member?.name?.split(" ")[0] || "Membro"}</Text>
-          <Text style={styles.tagline}>Curadoria privada. Acesso restrito.</Text>
-        </View>
-
-        {/* Hero */}
+        {/* Hero with background */}
         <ImageBackground
           source={{ uri: "https://images.unsplash.com/photo-1709315957145-a4bad1feef28?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwzfHxkYXJrJTIwZ3ltJTIwZml0bmVzcyUyMGF0aGxldGV8ZW58MHx8fHwxNzc2NzY2Njc2fDA&ixlib=rb-4.1.0&q=85" }}
           style={styles.hero}
-          imageStyle={{ borderRadius: 12 }}
+          imageStyle={styles.heroImg}
         >
           <View style={styles.heroOverlay}>
             <Text style={styles.heroKicker}>ACESSO EXCLUSIVO</Text>
-            <Text style={styles.heroTitle}>VALORES QUE{"\n"}SÓ MEMBROS VEEM.</Text>
-            <TouchableOpacity style={styles.heroBtn} onPress={() => router.push("/(tabs)/catalog")}>
-              <Text style={styles.heroBtnText}>EXPLORAR CATÁLOGO</Text>
-              <Ionicons name="arrow-forward" size={15} color={theme.colors.bg} />
-            </TouchableOpacity>
+            <Text style={styles.heroTitle}>DESTAQUES{"\n"}DA SEMANA.</Text>
+            <Text style={styles.heroSub}>Seleção curada de produtos em condições exclusivas para membros.</Text>
           </View>
         </ImageBackground>
 
-        {/* Quick actions */}
-        <View style={styles.quickRow}>
-          <TouchableOpacity
-            style={[styles.quickCard, styles.quickPrimary]}
-            onPress={() => router.push("/quote")}
-            testID="home-quote"
-            activeOpacity={0.85}
-          >
-            <Ionicons name="sparkles" size={18} color={theme.colors.bg} />
-            <Text style={styles.quickPrimaryTitle}>SOLICITAR ORÇAMENTO</Text>
-            <Text style={styles.quickPrimarySub}>Peça o que não está no catálogo</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.quickCard, styles.quickGhost]}
-            onPress={() => router.push("/chat")}
-            testID="home-support"
-            activeOpacity={0.85}
-          >
-            <Ionicons name="chatbubbles" size={18} color={theme.colors.white} />
-            <Text style={styles.quickGhostTitle}>FALAR COM{"\n"}SUPORTE</Text>
-          </TouchableOpacity>
-        </View>
+        {/* BLACK AI Card */}
+        <TouchableOpacity
+          style={styles.aiCard}
+          onPress={() => router.push("/ai")}
+          testID="home-black-ai"
+          activeOpacity={0.9}
+        >
+          <View style={styles.aiGlow} />
+          <View style={styles.aiCardTop}>
+            <View style={styles.aiBadge}>
+              <Ionicons name="sparkles" size={13} color={theme.colors.bg} />
+              <Text style={styles.aiBadgeText}>IA EXCLUSIVA</Text>
+            </View>
+          </View>
+          <Text style={styles.aiTitle}>BLACK AI</Text>
+          <Text style={styles.aiSub}>
+            Sua assistente inteligente para tirar dúvidas e orientar sua jornada.
+          </Text>
+          <View style={styles.aiBtnRow}>
+            <View style={styles.aiBtn}>
+              <Text style={styles.aiBtnText}>CONVERSAR AGORA</Text>
+              <Ionicons name="arrow-forward" size={14} color={theme.colors.white} />
+            </View>
+          </View>
+        </TouchableOpacity>
 
         {/* Categories */}
         <View style={styles.section}>
@@ -116,13 +120,15 @@ export default function Home() {
             contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, gap: 10 }}
             renderItem={({ item }) => {
               const color = CATEGORY_COLORS[item.id] || theme.colors.silver;
+              const icon = CATEGORY_ICONS[item.id] || item.icon;
               return (
                 <TouchableOpacity
                   style={[styles.catChip, { borderLeftColor: color, borderLeftWidth: 3 }]}
-                  onPress={() => router.push({ pathname: "/(tabs)/catalog", params: { category: item.id } })}
+                  onPress={() => router.push(`/category/${item.id}`)}
                   testID={`home-category-${item.id}`}
+                  activeOpacity={0.8}
                 >
-                  <Ionicons name={item.icon as any} size={17} color={color} />
+                  <Ionicons name={icon as any} size={17} color={color} />
                   <Text style={styles.catChipText}>{item.name}</Text>
                 </TouchableOpacity>
               );
@@ -130,14 +136,9 @@ export default function Home() {
           />
         </View>
 
-        {/* Featured */}
+        {/* Destaques */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>SELECIONADOS</Text>
-            <TouchableOpacity onPress={() => router.push("/(tabs)/catalog")}>
-              <Text style={styles.link}>VER TUDO</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.sectionTitle}>DESTAQUES DA SEMANA</Text>
           <View style={styles.grid}>
             {featured.map((p) => (
               <TouchableOpacity
@@ -164,45 +165,54 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  greetBlock: { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.md },
-  hello: { color: theme.colors.white, fontSize: 20, fontWeight: "800", letterSpacing: -0.3 },
-  tagline: { color: theme.colors.textMuted, fontSize: 12, fontWeight: "600", letterSpacing: 0.5, marginTop: 2 },
-  hero: {
-    height: 220, marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
-    borderRadius: 12, overflow: "hidden",
-  },
+  hero: { height: 180, marginHorizontal: theme.spacing.lg, marginTop: theme.spacing.sm, marginBottom: theme.spacing.md },
+  heroImg: { borderRadius: 14 },
   heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.52)", padding: theme.spacing.lg,
-    justifyContent: "flex-end", borderRadius: 12,
+    ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.55)",
+    padding: theme.spacing.lg, justifyContent: "flex-end", borderRadius: 14,
   },
   heroKicker: { color: theme.colors.silver, fontSize: 10, fontWeight: "800", letterSpacing: 3 },
   heroTitle: {
-    color: theme.colors.white, fontSize: 30, fontWeight: "900", letterSpacing: -1,
-    marginTop: 8, marginBottom: 16, lineHeight: 32, textTransform: "uppercase",
+    color: theme.colors.white, fontSize: 26, fontWeight: "900", letterSpacing: -0.8,
+    marginTop: 4, lineHeight: 28, textTransform: "uppercase",
   },
-  heroBtn: {
-    flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 8,
-    backgroundColor: theme.colors.white, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 8,
+  heroSub: { color: "#CFCFCF", fontSize: 12, marginTop: 6 },
+  aiCard: {
+    marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.lg,
+    padding: 20, borderRadius: 14, overflow: "hidden",
+    backgroundColor: "#0A0A0A",
+    borderWidth: 1, borderColor: "#2A2A2A",
+    position: "relative",
   },
-  heroBtnText: { color: theme.colors.bg, fontWeight: "900", fontSize: 12, letterSpacing: 1.5 },
-  quickRow: { flexDirection: "row", gap: 10, paddingHorizontal: theme.spacing.lg, marginBottom: theme.spacing.lg },
-  quickCard: { flex: 1, padding: 14, borderRadius: 10, gap: 8 },
-  quickPrimary: { backgroundColor: theme.colors.white },
-  quickPrimaryTitle: { color: theme.colors.bg, fontSize: 12, fontWeight: "900", letterSpacing: 1.2 },
-  quickPrimarySub: { color: "#444", fontSize: 10 },
-  quickGhost: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
-  quickGhostTitle: { color: theme.colors.white, fontSize: 12, fontWeight: "900", letterSpacing: 1.2, lineHeight: 15 },
+  aiGlow: {
+    position: "absolute", top: -40, right: -40, width: 180, height: 180, borderRadius: 90,
+    backgroundColor: "#7FD7E5", opacity: 0.12,
+  },
+  aiCardTop: { flexDirection: "row", marginBottom: 14 },
+  aiBadge: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20,
+    backgroundColor: theme.colors.white,
+  },
+  aiBadgeText: { color: theme.colors.bg, fontSize: 9, fontWeight: "900", letterSpacing: 1.5 },
+  aiTitle: {
+    color: theme.colors.white, fontSize: 32, fontWeight: "900",
+    letterSpacing: 4, marginBottom: 6,
+  },
+  aiSub: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 19, marginBottom: 14 },
+  aiBtnRow: { flexDirection: "row" },
+  aiBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderRadius: 8, borderWidth: 1, borderColor: "#7FD7E5",
+    backgroundColor: "rgba(127, 215, 229, 0.12)",
+  },
+  aiBtnText: { color: theme.colors.white, fontWeight: "900", fontSize: 11, letterSpacing: 1.5 },
   section: { marginBottom: theme.spacing.lg },
-  sectionHeader: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
-  },
   sectionTitle: {
     color: theme.colors.silver, fontSize: 11, fontWeight: "800",
     letterSpacing: 3, paddingHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
   },
-  link: { color: theme.colors.white, fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
   catChip: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 16, paddingVertical: 12, borderRadius: 8,

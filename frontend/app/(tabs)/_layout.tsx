@@ -25,23 +25,30 @@ export default function TabsLayout() {
   }
 
   const tier = TIERS[member.tier] || TIERS.black;
+  const firstName = member.name?.split(" ")[0] || "Membro";
 
   const HeaderLeft = () => (
-    <View style={{ marginLeft: 14, flexDirection: "row", alignItems: "center", gap: 10 }}>
-      <BrandLogo size="sm" />
-    </View>
+    <TouchableOpacity
+      style={styles.headerLeft}
+      onPress={() => router.push("/(tabs)/member")}
+      testID="header-member"
+    >
+      <Ionicons name="diamond" size={12} color={tier.color} />
+      <Text style={styles.memberName} numberOfLines={1}>{firstName}</Text>
+    </TouchableOpacity>
   );
 
+  const HeaderTitle = () => <BrandLogo size="sm" />;
+
   const HeaderRight = () => (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginRight: 12 }}>
-      <View style={[styles.tierPill, { borderColor: tier.color }]}>
-        <Ionicons name={tier.icon as any} size={10} color={tier.color} />
-        <Text style={[styles.tierText, { color: tier.color }]}>{tier.label.toUpperCase()}</Text>
-      </View>
-      <TouchableOpacity onPress={() => router.push("/wallet")} style={styles.chatBtn} testID="header-wallet-button">
-        <Ionicons name="wallet" size={16} color={theme.colors.white} />
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity
+      style={styles.walletBtn}
+      onPress={() => router.push("/wallet")}
+      testID="header-wallet-button"
+    >
+      <Ionicons name="wallet" size={16} color={theme.colors.white} />
+      <Text style={styles.walletBalance}>0 BC</Text>
+    </TouchableOpacity>
   );
 
   return (
@@ -53,7 +60,8 @@ export default function TabsLayout() {
           borderBottomColor: theme.colors.border,
         },
         headerTintColor: theme.colors.text,
-        headerTitle: "",
+        headerTitle: () => <HeaderTitle />,
+        headerTitleAlign: "center",
         headerLeft: () => <HeaderLeft />,
         headerRight: () => <HeaderRight />,
         tabBarStyle: {

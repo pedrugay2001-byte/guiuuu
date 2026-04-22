@@ -9,7 +9,9 @@ export type User = {
 };
 
 export type Product = {
-  product_id: string; name: string; category: string; description: string;
+  product_id: string; name: string; category: string;
+  subcategory?: string | null;
+  description: string;
   price: number; member_price: number; image_url: string;
   stock: number; featured: boolean; created_at: string;
 };
@@ -104,13 +106,22 @@ export const api = {
     request<{ ok: boolean; nickname: string }>(`/members/${member_id}/nickname`, {
       method: "PUT", body: JSON.stringify({ nickname }),
     }),
-  listProducts: (params?: { category?: string; q?: string }) => {
+  listProducts: (params?: { category?: string; subcategory?: string; q?: string }) => {
     const qs = new URLSearchParams();
     if (params?.category && params.category !== "all") qs.set("category", params.category);
+    if (params?.subcategory && params.subcategory !== "all") qs.set("subcategory", params.subcategory);
     if (params?.q) qs.set("q", params.q);
     const s = qs.toString();
     return request<Product[]>(`/products${s ? "?" + s : ""}`);
   },
+  subcategories: (category: string) =>
+    request<{ id: string; name: string; count: number }[]>(`/subcategories/${category}`),
+  aiChat: (member_id: string, text: string) =>
+    request<{ reply: string }>("/ai/chat", { method: "POST", body: JSON.stringify({ member_id, text }) }),
+  aiHistory: (member_id: string) =>
+    request<{ sender: "member" | "ai"; text: string; created_at: string }[]>(`/ai/history/${member_id}`),
+  aiClear: (member_id: string) =>
+    request<{ ok: boolean }>(`/ai/history/${member_id}`, { method: "DELETE" }),
   featured: () => request<Product[]>("/products/featured"),
   product: (id: string) => request<Product>(`/products/${id}`),
   categories: () => request<Category[]>("/categories"),
