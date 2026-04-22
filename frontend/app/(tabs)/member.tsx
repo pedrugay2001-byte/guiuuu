@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
-  Image, ActivityIndicator, Share, TextInput,
+  Image, ActivityIndicator, Share, TextInput, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -36,12 +36,25 @@ export default function Member() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const lockClub = () => {
+    const doLogout = async () => {
+      await setToken(null);
+      await clear();
+      router.replace("/welcome");
+    };
+    if (Platform.OS === "web") {
+      // Alert.alert on web has flaky button callbacks; use native confirm
+      // eslint-disable-next-line no-alert
+      if (typeof window !== "undefined" && window.confirm("Sair do clube? Você precisará de um código válido para voltar.")) {
+        doLogout();
+      }
+      return;
+    }
     Alert.alert(
       "Sair do clube",
       "Você precisará de um código válido e da pré-autorização para entrar novamente. Continuar?",
       [
         { text: "Cancelar", style: "cancel" },
-        { text: "Sair", style: "destructive", onPress: async () => { await setToken(null); await clear(); router.replace("/welcome"); } },
+        { text: "Sair", style: "destructive", onPress: doLogout },
       ],
     );
   };

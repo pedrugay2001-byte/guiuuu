@@ -42,7 +42,7 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
       }}
     >
-      <Tabs.Screen name="home" options={{ title: "Início", headerTransparent: true, headerStyle: { backgroundColor: "transparent", borderBottomWidth: 0, elevation: 0, shadowOpacity: 0 }, headerTitle: () => null, tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} /> }} />
+      <Tabs.Screen name="home" options={{ title: "Início", headerShown: false, tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} /> }} />
       <Tabs.Screen name="catalog" options={{ title: "Catálogo", headerStyle: { backgroundColor: theme.colors.bg, borderBottomWidth: 1, borderBottomColor: theme.colors.border }, headerTitle: () => <BrandLogo size="sm" />, tabBarIcon: ({ color, size }) => <Ionicons name="grid" color={color} size={size} /> }} />
       <Tabs.Screen name="community" options={{ title: "Comunidade", headerShown: false, tabBarIcon: ({ color, size }) => <Ionicons name="people" color={color} size={size} /> }} />
       <Tabs.Screen name="negocios" options={{ href: null }} />

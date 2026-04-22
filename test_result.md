@@ -211,7 +211,38 @@ frontend:
             - /community/group/[id] com header colorido, estado vazio e envio de mensagens (validado via testID group-send).
             - Bug fixed: _public_member comparava datetime naive vs tz-aware quando heartbeat populava online_at (causava 500 em /community/members/{id} e na listagem quando havia membros online). Agora normaliza para UTC.
 
-  - task: "Bug fixes + Permissões + BLACK AI expansão + Notificações"
+  - task: "Home Premium Redesign + Logout fix + BLACK AI expandida"
+    implemented: true
+    working: true
+    file: "frontend/app/(tabs)/home.tsx, frontend/app/(tabs)/_layout.tsx, frontend/app/(tabs)/member.tsx, frontend/src/gate.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: |
+            Rodada 3 — Home reformulada em nível "app de fintech premium" + fixes:
+            
+            ### 🎨 Home redesign premium
+            - Logo BLACKSCLUB pequeno branco no canto superior esquerdo (com ponto dourado), tipografia clean
+            - Avatar circular dourado no canto superior direito
+            - Greeting tier-aware: "Membro BLACK DIAMOND" + "Bem-vindo, Guilherme."
+            - Texto gigante "Disciplina/Comunidade/Exclusividade" REMOVIDO
+            - Novo Card DESTAQUE DA SEMANA com glassmorphism + borda dourada + CTA
+            - Grid 4x2 "ACESSO RÁPIDO" com 8 tiles em glassmorphism (BLACK AI, Comunidade, Marketplace, Negócios, BLACK Coins, Produtos, Suporte, Alertas)
+            - Seção ATIVIDADE DO CLUBE: carrossel horizontal com posts da comunidade (avatar com ring + foto + nome)
+            - Seção MARKETPLACE EM ALTA: carrossel horizontal com anúncios em destaque
+            - Nova imagem de fundo cinematográfica (Unsplash dark gym close-up) com overlay 70% + 35%
+            - Micro-interaction no Pressable (scale 0.97 + opacity 0.85 ao toque)
+            
+            ### 🐛 Bug fix: Logout
+            - Alert.alert no web não dispara callbacks confiavelmente; adicionado fallback com window.confirm para Platform.OS === "web"
+            - Validado: clicar "Sair do clube" → confirm → volta para /welcome (Gate)
+            
+            ### 📦 Outros
+            - MemberData type agora inclui avatar_base64
+            - Header do tab Home: headerShown: false (limpou o topo, logo agora está no próprio conteúdo)
     implemented: true
     working: true
     file: "backend/server.py + multiple frontend files"

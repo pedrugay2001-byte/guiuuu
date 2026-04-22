@@ -19,6 +19,7 @@ export type MemberData = {
   parent_name: string | null;
   tier: TierId;
   nickname?: string | null;
+  avatar_base64?: string | null;
 };
 
 type GateState = {
