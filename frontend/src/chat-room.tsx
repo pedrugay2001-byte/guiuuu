@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Image, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api, ChatMessage } from "./api";
 import { theme } from "./theme";
+import { pickImage, takePhoto, PickedAsset } from "./media";
 
 type Mode = "member" | "support";
 
@@ -19,6 +20,7 @@ export default function ChatRoom({ mode }: { mode: Mode }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [assets, setAssets] = useState<PickedAsset[]>([]);
   const [title, setTitle] = useState(mode === "support" ? "Conversa" : "Suporte BLACKSCLUB");
   const listRef = useRef<FlatList>(null);
 
@@ -72,16 +74,26 @@ export default function ChatRoom({ mode }: { mode: Mode }) {
   }, [messages.length]);
 
   const send = async () => {
-    if (!text.trim() || !memberId) return;
+    if ((!text.trim() && assets.length === 0) || !memberId) return;
     setSending(true);
     try {
-      if (mode === "member") await api.chatMemberSend(memberId, text.trim());
-      else await api.chatSupportSend(memberId, text.trim());
-      setText("");
+      const atts = assets.map((a) => a.base64);
+      if (mode === "member") await api.chatMemberSend(memberId, text.trim(), atts);
+      else await api.chatSupportSend(memberId, text.trim(), atts);
+      setText(""); setAssets([]);
       await load();
     } finally {
       setSending(false);
     }
+  };
+
+  const addImage = async () => {
+    const a = await pickImage();
+    if (a) setAssets((prev) => [...prev, a]);
+  };
+  const addPhoto = async () => {
+    const a = await takePhoto();
+    if (a) setAssets((prev) => [...prev, a]);
   };
 
   if (loading) {
@@ -124,7 +136,16 @@ export default function ChatRoom({ mode }: { mode: Mode }) {
                 {!isMine && mode === "support" && (
                   <Text style={styles.senderLabel}>{item.sender_name}</Text>
                 )}
-                <Text style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>{item.text}</Text>
+                {item.attachments && item.attachments.length > 0 && (
+                  <View style={styles.attGrid}>
+                    {item.attachments.map((att, i) => (
+                      <Image key={i} source={{ uri: att }} style={styles.attImg} resizeMode="cover" />
+                    ))}
+                  </View>
+                )}
+                {item.text ? (
+                  <Text style={[styles.bubbleText, isMine && styles.bubbleTextMine]}>{item.text}</Text>
+                ) : null}
                 <Text style={[styles.timeText, isMine && styles.timeTextMine]}>
                   {new Date(item.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                 </Text>
@@ -135,27 +156,53 @@ export default function ChatRoom({ mode }: { mode: Mode }) {
       />
 
       <SafeAreaView edges={["bottom"]} style={styles.inputBar}>
-        <TextInput
-          testID="chat-input"
-          style={styles.input}
-          value={text}
-          onChangeText={setText}
-          placeholder="Escrever mensagem..."
-          placeholderTextColor={theme.colors.textMuted}
-          multiline
-        />
-        <TouchableOpacity
-          style={[styles.sendBtn, (!text.trim() || sending) && { opacity: 0.5 }]}
-          onPress={send}
-          disabled={!text.trim() || sending}
-          testID="chat-send"
-        >
-          {sending ? (
-            <ActivityIndicator color={theme.colors.bg} size="small" />
-          ) : (
-            <Ionicons name="send" size={18} color={theme.colors.bg} />
-          )}
-        </TouchableOpacity>
+        {assets.length > 0 && (
+          <View style={styles.preview}>
+            {assets.map((a, i) => (
+              <View key={i} style={styles.previewItem}>
+                <Image source={{ uri: a.base64 }} style={styles.previewImg} />
+                <TouchableOpacity
+                  style={styles.previewRemove}
+                  onPress={() => setAssets((prev) => prev.filter((_, idx) => idx !== i))}
+                >
+                  <Ionicons name="close" size={12} color={theme.colors.bg} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+        <View style={styles.inputRow}>
+          <TouchableOpacity style={styles.attachIcon} onPress={addImage}>
+            <Ionicons name="image" size={20} color={theme.colors.silver} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.attachIcon} onPress={addPhoto}>
+            <Ionicons name="camera" size={20} color={theme.colors.silver} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.attachIcon} onPress={() => Alert.alert("Em breve", "Gravação de áudio será liberada na próxima atualização.")}>
+            <Ionicons name="mic" size={20} color={theme.colors.textMuted} />
+          </TouchableOpacity>
+          <TextInput
+            testID="chat-input"
+            style={styles.input}
+            value={text}
+            onChangeText={setText}
+            placeholder="Escrever mensagem..."
+            placeholderTextColor={theme.colors.textMuted}
+            multiline
+          />
+          <TouchableOpacity
+            style={[styles.sendBtn, ((!text.trim() && assets.length === 0) || sending) && { opacity: 0.5 }]}
+            onPress={send}
+            disabled={(!text.trim() && assets.length === 0) || sending}
+            testID="chat-send"
+          >
+            {sending ? (
+              <ActivityIndicator color={theme.colors.bg} size="small" />
+            ) : (
+              <Ionicons name="send" size={18} color={theme.colors.bg} />
+            )}
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     </KeyboardAvoidingView>
   );
@@ -183,11 +230,24 @@ const styles = StyleSheet.create({
   timeText: { color: theme.colors.textMuted, fontSize: 10, marginTop: 4, alignSelf: "flex-end" },
   timeTextMine: { color: "rgba(0,0,0,0.55)" },
   inputBar: {
-    flexDirection: "row", alignItems: "flex-end", gap: 8,
-    padding: theme.spacing.md,
+    padding: theme.spacing.sm,
     borderTopWidth: 1, borderTopColor: theme.colors.border,
     backgroundColor: theme.colors.bg,
   },
+  inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 6 },
+  preview: { flexDirection: "row", gap: 6, paddingBottom: 6, paddingHorizontal: 4 },
+  previewItem: { position: "relative" },
+  previewImg: { width: 60, height: 60, borderRadius: 6, backgroundColor: theme.colors.surface },
+  previewRemove: {
+    position: "absolute", top: -4, right: -4,
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: theme.colors.white, alignItems: "center", justifyContent: "center",
+  },
+  attachIcon: {
+    width: 36, height: 44, alignItems: "center", justifyContent: "center",
+  },
+  attGrid: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginBottom: 6 },
+  attImg: { width: 120, height: 120, borderRadius: 8, backgroundColor: theme.colors.surfaceElevated },
   input: {
     flex: 1, backgroundColor: theme.colors.surface,
     borderWidth: 1, borderColor: theme.colors.border,
@@ -200,6 +260,6 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   onlineRow: { flexDirection: "row", alignItems: "center", gap: 6, marginRight: 8 },
-  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.whatsapp },
+  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#4EE07F" },
   onlineText: { color: theme.colors.silver, fontSize: 11, fontWeight: "600" },
 });

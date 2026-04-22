@@ -38,8 +38,8 @@ export default function TabsLayout() {
         <Ionicons name={tier.icon as any} size={10} color={tier.color} />
         <Text style={[styles.tierText, { color: tier.color }]}>{tier.label.toUpperCase()}</Text>
       </View>
-      <TouchableOpacity onPress={() => router.push("/chat")} style={styles.chatBtn} testID="header-chat-button">
-        <Ionicons name="chatbubble-ellipses" size={16} color={theme.colors.white} />
+      <TouchableOpacity onPress={() => router.push("/wallet")} style={styles.chatBtn} testID="header-wallet-button">
+        <Ionicons name="wallet" size={16} color={theme.colors.white} />
       </TouchableOpacity>
     </View>
   );

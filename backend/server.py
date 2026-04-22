@@ -515,6 +515,7 @@ class OrderCreate(BaseModel):
 
 class ChatSend(BaseModel):
     text: str
+    attachments: Optional[List[str]] = None
 
 
 @api_router.post("/orders")
@@ -588,14 +589,16 @@ async def chat_member_send(member_id: str, data: ChatSend):
     if not member:
         raise HTTPException(status_code=404, detail="Membro não encontrado")
     text = data.text.strip()
-    if not text:
+    atts = [a for a in (data.attachments or []) if len(a) < 3_000_000][:5]
+    if not text and not atts:
         raise HTTPException(status_code=400, detail="Mensagem vazia")
     msg = {
         "message_id": f"msg_{uuid.uuid4().hex[:12]}",
         "thread_id": member_id,
         "sender": "member",
         "sender_name": member["name"],
-        "text": text,
+        "text": text or ("📎 anexo" if atts else ""),
+        "attachments": atts,
         "created_at": datetime.now(timezone.utc),
     }
     await db.messages.insert_one(msg)
@@ -677,6 +680,7 @@ class QuoteRequest(BaseModel):
     member_id: str
     description: str
     budget: Optional[str] = None
+    attachments: Optional[List[str]] = None  # base64 data URIs
 
 
 @api_router.post("/quotes/request")
@@ -689,6 +693,11 @@ async def quote_request(data: QuoteRequest):
         raise HTTPException(status_code=400, detail="Descreva com mais detalhes")
     quote_id = f"qt_{uuid.uuid4().hex[:10]}"
     now = datetime.now(timezone.utc)
+
+    atts = data.attachments or []
+    # Limit attachments size to avoid memory issues (~2MB each)
+    atts = [a for a in atts if len(a) < 3_000_000][:5]
+
     await db.quotes.insert_one({
         "quote_id": quote_id,
         "member_id": data.member_id,
@@ -696,16 +705,18 @@ async def quote_request(data: QuoteRequest):
         "description": desc,
         "budget": (data.budget or "").strip() or None,
         "status": "open",
+        "attachments": atts,
         "created_at": now,
     })
 
-    # Also post into chat as a "orçamento" message
     body = (
-        f"💎 *SOLICITAÇÃO DE ORÇAMENTO #{quote_id[-6:].upper()}*\n\n"
+        f"💎 *CHAMADO #{quote_id[-6:].upper()}*\n\n"
         f"{desc}"
     )
     if data.budget:
         body += f"\n\n*Faixa de orçamento:* {data.budget}"
+    if atts:
+        body += f"\n\n📎 {len(atts)} anexo(s)"
     await db.messages.insert_one({
         "message_id": f"msg_{uuid.uuid4().hex[:12]}",
         "thread_id": data.member_id,
@@ -713,9 +724,83 @@ async def quote_request(data: QuoteRequest):
         "sender_name": member["name"],
         "text": body,
         "quote_id": quote_id,
+        "attachments": atts,
         "created_at": now,
     })
     return {"quote_id": quote_id, "status": "open"}
+
+
+@api_router.get("/quotes/member/{member_id}")
+async def quotes_member(member_id: str):
+    cursor = db.quotes.find({"member_id": member_id}, {"_id": 0}).sort("created_at", -1)
+    return await cursor.to_list(length=200)
+
+
+@api_router.get("/quotes")
+async def quotes_list(staff: dict = Depends(require_staff)):
+    cursor = db.quotes.find({}, {"_id": 0}).sort("created_at", -1)
+    return await cursor.to_list(length=500)
+
+
+# -------------- Admin: Member management --------------
+class MemberUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    tier: Optional[str] = None
+    active: Optional[bool] = None
+
+
+@api_router.get("/admin/members")
+async def admin_members(admin: dict = Depends(require_admin)):
+    cursor = db.members.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1)
+    return await cursor.to_list(length=500)
+
+
+@api_router.put("/admin/members/{member_id}")
+async def admin_update_member(member_id: str, data: MemberUpdate, admin: dict = Depends(require_admin)):
+    updates = {}
+    if data.name and data.name.strip():
+        updates["name"] = data.name.strip()
+        updates["name_norm"] = normalize_name(data.name)
+    if data.phone and data.phone.strip():
+        updates["phone"] = data.phone.strip()
+        updates["phone_norm"] = normalize_phone(data.phone)
+    if data.tier and data.tier in ("black", "silver", "gold", "diamond"):
+        updates["tier"] = data.tier
+    if data.active is not None:
+        updates["active"] = data.active
+    if not updates:
+        raise HTTPException(status_code=400, detail="Nada para atualizar")
+    r = await db.members.update_one({"member_id": member_id}, {"$set": updates})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    return {"ok": True}
+
+
+@api_router.delete("/admin/members/{member_id}")
+async def admin_delete_member(member_id: str, admin: dict = Depends(require_admin)):
+    await db.members.delete_one({"member_id": member_id})
+    await db.messages.delete_many({"thread_id": member_id})
+    return {"ok": True}
+
+
+@api_router.get("/admin/stats")
+async def admin_stats(staff: dict = Depends(require_staff)):
+    total = await db.members.count_documents({})
+    active = await db.members.count_documents({"active": {"$ne": False}})
+    open_quotes = await db.quotes.count_documents({"status": "open"})
+    total_quotes = await db.quotes.count_documents({})
+    open_orders = await db.orders.count_documents({"status": "open"})
+    # unread = messages from member that support hasn't read
+    unread = await db.messages.count_documents({"sender": "member", "read_by_support": {"$ne": True}})
+    return {
+        "members": total,
+        "active_members": active,
+        "open_quotes": open_quotes,
+        "total_quotes": total_quotes,
+        "open_orders": open_orders,
+        "unread_messages": unread,
+    }
 
 
 # -------------- Products --------------

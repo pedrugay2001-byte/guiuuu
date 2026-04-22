@@ -52,6 +52,7 @@ export type ChatMessage = {
   sender: "member" | "support"; sender_name: string;
   text: string; created_at: string;
   order_id?: string; quote_id?: string;
+  attachments?: string[];
 };
 
 export type ChatThread = {
@@ -124,16 +125,30 @@ export const api = {
       method: "POST", body: JSON.stringify(body),
     }),
   chatMemberGet: (member_id: string) => request<ChatMessage[]>(`/chat/member/${member_id}`),
-  chatMemberSend: (member_id: string, text: string) =>
-    request<ChatMessage>(`/chat/member/${member_id}`, { method: "POST", body: JSON.stringify({ text }) }),
+  chatMemberSend: (member_id: string, text: string, attachments?: string[]) =>
+    request<ChatMessage>(`/chat/member/${member_id}`, { method: "POST", body: JSON.stringify({ text, attachments }) }),
   chatThreads: () => request<ChatThread[]>("/chat/threads"),
   chatSupportGet: (member_id: string) => request<ChatMessage[]>(`/chat/support/${member_id}`),
-  chatSupportSend: (member_id: string, text: string) =>
-    request<ChatMessage>(`/chat/support/${member_id}`, { method: "POST", body: JSON.stringify({ text }) }),
-  requestQuote: (body: { member_id: string; description: string; budget?: string }) =>
+  chatSupportSend: (member_id: string, text: string, attachments?: string[]) =>
+    request<ChatMessage>(`/chat/support/${member_id}`, { method: "POST", body: JSON.stringify({ text, attachments }) }),
+  requestQuote: (body: { member_id: string; description: string; budget?: string; attachments?: string[] }) =>
     request<{ quote_id: string; status: string }>("/quotes/request", {
       method: "POST", body: JSON.stringify(body),
     }),
+  memberQuotes: (member_id: string) =>
+    request<any[]>(`/quotes/member/${member_id}`),
+  allQuotes: () => request<any[]>("/quotes"),
+  adminStats: () =>
+    request<{
+      members: number; active_members: number;
+      open_quotes: number; total_quotes: number;
+      open_orders: number; unread_messages: number;
+    }>("/admin/stats"),
+  adminMembers: () => request<any[]>("/admin/members"),
+  adminUpdateMember: (id: string, body: { name?: string; phone?: string; tier?: TierId; active?: boolean }) =>
+    request<{ ok: boolean }>(`/admin/members/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  adminDeleteMember: (id: string) =>
+    request<{ ok: boolean }>(`/admin/members/${id}`, { method: "DELETE" }),
   adminListAuthorized: () => request<AuthorizedEntry[]>("/admin/authorized"),
   adminAddAuthorized: (body: { name: string; phone: string; code: string; tier?: TierId; parent_name?: string }) =>
     request<{ ok: boolean; code: string }>("/admin/authorized", {

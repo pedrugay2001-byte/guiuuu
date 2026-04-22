@@ -10,6 +10,17 @@ import { api, Category, Product, formatBRL } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { theme, TIERS } from "../../src/theme";
 
+const CATEGORY_COLORS: Record<string, string> = {
+  emagrecedores: "#FF7A4D",
+  peptideos: "#7FD7E5",
+  landerlan: "#D4AF37",
+  hormonios: "#E57FD7",
+  pre_treinos: "#FF4E4E",
+  suplementos: "#4EE07F",
+  tecnologia: "#4E8FE0",
+  bem_estar: "#A8E04E",
+};
+
 export default function Home() {
   const router = useRouter();
   const { member } = useGate();
@@ -103,16 +114,19 @@ export default function Home() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, gap: 10 }}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.catChip}
-                onPress={() => router.push({ pathname: "/(tabs)/catalog", params: { category: item.id } })}
-                testID={`home-category-${item.id}`}
-              >
-                <Ionicons name={item.icon as any} size={17} color={theme.colors.silver} />
-                <Text style={styles.catChipText}>{item.name}</Text>
-              </TouchableOpacity>
-            )}
+            renderItem={({ item }) => {
+              const color = CATEGORY_COLORS[item.id] || theme.colors.silver;
+              return (
+                <TouchableOpacity
+                  style={[styles.catChip, { borderLeftColor: color, borderLeftWidth: 3 }]}
+                  onPress={() => router.push({ pathname: "/(tabs)/catalog", params: { category: item.id } })}
+                  testID={`home-category-${item.id}`}
+                >
+                  <Ionicons name={item.icon as any} size={17} color={color} />
+                  <Text style={styles.catChipText}>{item.name}</Text>
+                </TouchableOpacity>
+              );
+            }}
           />
         </View>
 

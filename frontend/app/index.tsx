@@ -9,9 +9,12 @@ export default function Index() {
   const { member } = useGate();
 
   useEffect(() => {
-    if (member === undefined) return;
-    if (member) router.replace("/(tabs)/home");
-    else router.replace("/welcome");
+    if (member === undefined) return; // still loading
+    if (member) {
+      router.replace("/(tabs)/home");
+    } else {
+      router.replace("/welcome");
+    }
   }, [member, router]);
 
   return (

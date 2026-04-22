@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { PasswordInput } from "../src/password-input";
 import { api, setToken } from "../src/api";
 import { useGate, MemberData } from "../src/gate";
 import { theme, BR_STATES, TIERS } from "../src/theme";
@@ -19,6 +20,7 @@ export default function Enter() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
   const [neighborhood, setNeighborhood] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
@@ -45,6 +47,10 @@ export default function Enter() {
     }
     if (password.length < 6) {
       setError("Senha deve ter 6+ caracteres");
+      return;
+    }
+    if (password !== password2) {
+      setError("As senhas não conferem");
       return;
     }
     if (!BR_STATES.includes(state.trim().toUpperCase())) {
@@ -174,8 +180,12 @@ export default function Enter() {
 
           <View style={styles.field}>
             <Text style={styles.label}>SENHA (6+ CARACTERES)</Text>
-            <TextInput testID="enter-password-input" style={styles.input} value={password} onChangeText={setPassword}
-              placeholder="Defina uma senha forte" placeholderTextColor={theme.colors.textMuted} secureTextEntry />
+            <PasswordInput testID="enter-password-input" value={password} onChangeText={setPassword} placeholder="Crie uma senha forte" />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>REPETIR SENHA</Text>
+            <PasswordInput testID="enter-password2-input" value={password2} onChangeText={setPassword2} placeholder="Confirme a senha" />
           </View>
 
           <View style={styles.field}>

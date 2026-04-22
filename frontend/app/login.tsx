@@ -10,6 +10,7 @@ import { api, setToken } from "../src/api";
 import { useGate } from "../src/gate";
 import { theme } from "../src/theme";
 import { BrandLogo } from "../src/brand";
+import { PasswordInput } from "../src/password-input";
 
 export default function Login() {
   const router = useRouter();
@@ -91,15 +92,7 @@ export default function Login() {
 
           <View style={styles.field}>
             <Text style={styles.label}>SENHA</Text>
-            <TextInput
-              testID="login-password"
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              placeholderTextColor={theme.colors.textMuted}
-              secureTextEntry
-            />
+            <PasswordInput testID="login-password" value={password} onChangeText={setPassword} placeholder="••••••••" />
           </View>
 
           {error && <Text style={styles.error}>{error}</Text>}

@@ -30,7 +30,7 @@ export default function StaffLogin() {
         return;
       }
       await setToken(res.token);
-      router.replace("/staff/inbox");
+      router.replace("/staff/dashboard");
     } catch (e: any) {
       setError(e.message || "Falha ao entrar");
     } finally {
