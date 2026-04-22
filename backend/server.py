@@ -2518,9 +2518,6 @@ async def create_custom_group(data: CustomGroupCreate):
     return g
 
 
-app.include_router(api_router)
-
-
 # ---------- NOTIFICATIONS (aggregated, virtual feed) ----------
 
 @api_router.get("/notifications/{member_id}")
@@ -2582,6 +2579,224 @@ async def notifications_count(member_id: str):
     dm_count = await db.dms.count_documents({"to_id": member_id, "created_at": {"$gte": since}})
     sales_count = await db.wallet_txs.count_documents({"to_id": member_id, "type": "escrow", "created_at": {"$gte": since}})
     return {"count": dm_count + sales_count}
+
+
+# ---------- MARKETPLACE SEED (fictional members + 60+ realistic ads) ----------
+
+FICTIONAL_MEMBERS = [
+    {"nickname": "Renato Black", "name": "Renato Santos", "phone": "5511988880001", "city": "São Paulo - SP", "age": 38, "profession": "Empresário", "gym": "Bio Ritmo Paulista"},
+    {"nickname": "Caio Diamond", "name": "Caio Oliveira", "phone": "5521988880002", "city": "Rio de Janeiro - RJ", "age": 34, "profession": "Investidor", "gym": "Smart Fit Ipanema"},
+    {"nickname": "Fábio King", "name": "Fábio Martins", "phone": "5531988880003", "city": "Belo Horizonte - MG", "age": 41, "profession": "Médico", "gym": "Cia Athletica BH"},
+    {"nickname": "Lucas Peak", "name": "Lucas Almeida", "phone": "5541988880004", "city": "Curitiba - PR", "age": 29, "profession": "Advogado", "gym": "Bluefit Batel"},
+    {"nickname": "Diego Prime", "name": "Diego Ferreira", "phone": "5561988880005", "city": "Brasília - DF", "age": 36, "profession": "Piloto", "gym": "Selfit Asa Sul"},
+    {"nickname": "Marcelo Wolf", "name": "Marcelo Costa", "phone": "5551988880006", "city": "Porto Alegre - RS", "age": 43, "profession": "Consultor", "gym": "Companhia Atlética Moinhos"},
+    {"nickname": "Vini Sharp", "name": "Vinícius Pereira", "phone": "5571988880007", "city": "Salvador - BA", "age": 31, "profession": "Arquiteto", "gym": "Runner Shopping da Bahia"},
+    {"nickname": "Ricardo Elite", "name": "Ricardo Lima", "phone": "5581988880008", "city": "Recife - PE", "age": 45, "profession": "Cirurgião", "gym": "Bodytech RioMar"},
+    {"nickname": "André Stark", "name": "André Ribeiro", "phone": "5511988880009", "city": "São Paulo - SP", "age": 33, "profession": "Trader", "gym": "Bodytech Itaim"},
+    {"nickname": "Thiago Ace", "name": "Thiago Nascimento", "phone": "5511988880010", "city": "Santos - SP", "age": 27, "profession": "Empresário", "gym": "Les Cinq Gonzaga"},
+]
+
+CATEGORY_IMAGES: Dict[str, List[str]] = {
+    "emagrecedores": [
+        "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=600&q=80",
+        "https://images.unsplash.com/photo-1550572017-edd951b55104?auto=format&fit=crop&w=600&q=80",
+        "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?auto=format&fit=crop&w=600&q=80",
+    ],
+    "peptideos": [
+        "https://images.unsplash.com/photo-1559757175-5700dde675bc?auto=format&fit=crop&w=600&q=80",
+        "https://images.unsplash.com/photo-1632053002434-ea2a14c30e51?auto=format&fit=crop&w=600&q=80",
+        "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=600&q=80",
+    ],
+    "hormonios": [
+        "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80",
+        "https://images.unsplash.com/photo-1585435557343-3b092031a831?auto=format&fit=crop&w=600&q=80",
+    ],
+    "pre_treinos": [
+        "https://images.unsplash.com/photo-1583500178690-f7fd39a9f4f5?auto=format&fit=crop&w=600&q=80",
+        "https://images.unsplash.com/photo-1599901571879-6b22ba2daf64?auto=format&fit=crop&w=600&q=80",
+    ],
+    "suplementos": [
+        "https://images.unsplash.com/photo-1579722821273-0f6c1f1d7b54?auto=format&fit=crop&w=600&q=80",
+        "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=600&q=80",
+        "https://images.unsplash.com/photo-1609942072337-c3370e0bdf4e?auto=format&fit=crop&w=600&q=80",
+    ],
+    "outros": [
+        "https://images.unsplash.com/photo-1584362917165-526a968579e8?auto=format&fit=crop&w=600&q=80",
+    ],
+}
+
+SEED_ADS_CATALOG: List[Dict[str, Any]] = [
+    # RETATRUTIDA (emagrecedores)
+    {"cat": "emagrecedores", "title": "RETAGEN OXYGEN 40mg (caneta)", "price": 1875, "desc": "Retatrutida 40mg em caneta aplicadora. Lacrado, validade longa."},
+    {"cat": "emagrecedores", "title": "RETAGEN OXYGEN 40mg (liofilizada c/ água)", "price": 1750, "desc": "Retatrutida 40mg liofilizada com água bacteriostática inclusa."},
+    {"cat": "emagrecedores", "title": "RETAGEN OXYGEN 40mg (4 ampolas)", "price": 1750, "desc": "Kit com 4 ampolas de Retatrutida 40mg."},
+    {"cat": "emagrecedores", "title": "Reta SYNEDICA 40mg (caneta verde)", "price": 1875, "desc": "Retatrutida Synedica em caneta verde premium."},
+    {"cat": "emagrecedores", "title": "Reta PEPTI SCIENCES 40mg (liofilizada)", "price": 1500, "desc": "Retatrutida PeptiSciences 40mg liofilizada. Alta pureza."},
+    {"cat": "emagrecedores", "title": "Reta ZPHC 60mg (caneta)", "price": 3125, "desc": "Retatrutida ZPHC 60mg em caneta. Dose concentrada."},
+    {"cat": "emagrecedores", "title": "Reta VELTRANE 90mg (1 ampola 6ml)", "price": 1875, "desc": "Retatrutida Veltrane 90mg ampola 6ml."},
+    # TIRZEPATIDA (emagrecedores)
+    {"cat": "emagrecedores", "title": "GLUCONEX 15mg", "price": 1162.50, "desc": "Tirzepatida Gluconex 15mg lacrado."},
+    {"cat": "emagrecedores", "title": "LIPOLAND 15mg", "price": 1162.50, "desc": "Tirzepatida Lipoland 15mg."},
+    {"cat": "emagrecedores", "title": "LIPOLESS MD 15mg", "price": 937.50, "desc": "Tirzepatida Lipoless MD 15mg."},
+    {"cat": "emagrecedores", "title": "LIPOLESS 15mg", "price": 962.50, "desc": "Tirzepatida Lipoless 15mg."},
+    {"cat": "emagrecedores", "title": "T.G 15mg", "price": 1075, "desc": "Tirzepatida T.G 15mg."},
+    {"cat": "emagrecedores", "title": "TIRZEC 15mg", "price": 1025, "desc": "Tirzepatida Tirzec 15mg."},
+    {"cat": "emagrecedores", "title": "TIRZEGEN 60mg (caneta)", "price": 1625, "desc": "Tirzepatida Tirzegen 60mg em caneta."},
+    {"cat": "emagrecedores", "title": "Ozempic 1mg lacrado", "price": 1200, "desc": "Semaglutida Ozempic 1mg caneta lacrada."},
+    {"cat": "emagrecedores", "title": "Ozempic 2mg", "price": 1600, "desc": "Semaglutida Ozempic 2mg."},
+    {"cat": "emagrecedores", "title": "Mounjaro 12.5mg (caneta)", "price": 1500, "desc": "Tirzepatida Mounjaro 12.5mg original."},
+    {"cat": "emagrecedores", "title": "Mounjaro 15mg (caneta)", "price": 1700, "desc": "Tirzepatida Mounjaro 15mg Eli Lilly."},
+    {"cat": "emagrecedores", "title": "Wegovy 1.7mg", "price": 1400, "desc": "Semaglutida Wegovy 1.7mg."},
+    {"cat": "emagrecedores", "title": "Saxenda 18mg (caneta)", "price": 900, "desc": "Liraglutida Saxenda 18mg."},
+    # PEPTÍDEOS (~35)
+    {"cat": "peptideos", "title": "AOD9604 10mg (pepline)", "price": 900, "desc": "AOD9604 10mg Pepline. Lipolítico."},
+    {"cat": "peptideos", "title": "BB20 20mg (usa)", "price": 900, "desc": "BB20 20mg importado USA."},
+    {"cat": "peptideos", "title": "CBL514 3ml 60mg (biotirz)", "price": 900, "desc": "CBL514 60mg em 3ml Biotirz."},
+    {"cat": "peptideos", "title": "CJC1295 + IPAMORELIN 10mg c/água", "price": 750, "desc": "CJC1295 + Ipamorelin 10mg Oxygenkw."},
+    {"cat": "peptideos", "title": "EPITHALON 10mg (usa)", "price": 700, "desc": "Epithalon 10mg importado USA."},
+    {"cat": "peptideos", "title": "EPITHALON 50mg (peptisciences)", "price": 1400, "desc": "Epithalon 50mg PeptiSciences."},
+    {"cat": "peptideos", "title": "GHK-CU 50mg DILUIDO", "price": 600, "desc": "GHK-CU 50mg Oxygenkw já diluído."},
+    {"cat": "peptideos", "title": "GHK-CU 100mg DILUIDO", "price": 750, "desc": "GHK-CU 100mg diluído."},
+    {"cat": "peptideos", "title": "GHK-CU 100mg (biogenesis)", "price": 750, "desc": "GHK-CU 100mg Biogenesis."},
+    {"cat": "peptideos", "title": "GHK-CU 100mg (bionexis)", "price": 750, "desc": "GHK-CU 100mg Bionexis."},
+    {"cat": "peptideos", "title": "GHK-CU 100mg (pepline)", "price": 750, "desc": "GHK-CU 100mg Pepline."},
+    {"cat": "peptideos", "title": "GLOW 70mg (biogenesis)", "price": 800, "desc": "Glow 70mg Biogenesis."},
+    {"cat": "peptideos", "title": "GLOW 70mg (peptisciences)", "price": 800, "desc": "Glow 70mg PeptiSciences."},
+    {"cat": "peptideos", "title": "KLOW 80mg (biogenesis)", "price": 950, "desc": "Klow 80mg Biogenesis."},
+    {"cat": "peptideos", "title": "KLOW 80mg (usa)", "price": 950, "desc": "Klow 80mg importado."},
+    {"cat": "peptideos", "title": "HGH FRAG 176 10mg (usa)", "price": 800, "desc": "HGH Frag 176 10mg USA."},
+    {"cat": "peptideos", "title": "HGH FRAG 176 10mg c/água", "price": 1100, "desc": "HGH Frag 176 10mg MuscleLabs com água."},
+    {"cat": "peptideos", "title": "IPAMORELIN 10mg (oxygen)", "price": 600, "desc": "Ipamorelin 10mg Oxygen."},
+    {"cat": "peptideos", "title": "KISSPETIN 10mg (peptisciences)", "price": 800, "desc": "Kisspetin 10mg PeptiSciences."},
+    {"cat": "peptideos", "title": "KPV 10mg (usa)", "price": 600, "desc": "KPV 10mg importado."},
+    {"cat": "peptideos", "title": "MELANOTAN2 10mg (usa)", "price": 500, "desc": "Melanotan2 10mg bronzeador."},
+    {"cat": "peptideos", "title": "MOTS-C 10mg (usa)", "price": 800, "desc": "MOTS-C 10mg longevidade."},
+    {"cat": "peptideos", "title": "NAD+ 500mg (usa)", "price": 700, "desc": "NAD+ 500mg USA."},
+    {"cat": "peptideos", "title": "NAD+ 2500mg c/água (zphc)", "price": 1600, "desc": "NAD+ 2500mg ZPHC com água."},
+    {"cat": "peptideos", "title": "PT141 10mg (peptisciences)", "price": 700, "desc": "PT-141 10mg libido."},
+    {"cat": "peptideos", "title": "SELANK 10mg (peptisciences)", "price": 900, "desc": "Selank 10mg ansiolítico."},
+    {"cat": "peptideos", "title": "SEMAX 10mg (usa)", "price": 800, "desc": "Semax 10mg nootrópico."},
+    {"cat": "peptideos", "title": "SS31 10mg (usa)", "price": 650, "desc": "SS-31 10mg USA."},
+    {"cat": "peptideos", "title": "SS31 50mg (peptisciences)", "price": 1300, "desc": "SS-31 50mg PeptiSciences."},
+    {"cat": "peptideos", "title": "TESAMORELIN 10mg c/água", "price": 900, "desc": "Tesamorelin 10mg Oxygenkw c/água."},
+    {"cat": "peptideos", "title": "TESAMORELIN 10mg (usa)", "price": 800, "desc": "Tesamorelin 10mg USA."},
+    {"cat": "peptideos", "title": "GLOW 70mg caneta (alluvi)", "price": 1500, "desc": "Glow 70mg em caneta Alluvi."},
+    {"cat": "peptideos", "title": "GLOW 70mg caneta (oxygenkw)", "price": 1500, "desc": "Glow 70mg em caneta Oxygenkw."},
+    {"cat": "peptideos", "title": "GHK-CU 100mg caneta (oxygenkw)", "price": 1500, "desc": "GHK-CU 100mg em caneta Oxygenkw."},
+    {"cat": "peptideos", "title": "NAD+ 1000mg + B12 4000mcg caneta", "price": 1500, "desc": "NAD+ 1000mg + B12 4000mcg Oxygenkw."},
+    # HORMÔNIOS (15)
+    {"cat": "hormonios", "title": "Testosterona Cipionato 200mg/ml", "price": 450, "desc": "Cipionato 200mg/ml, 10ml."},
+    {"cat": "hormonios", "title": "Testosterona Enantato 250mg", "price": 400, "desc": "Enantato 250mg, 10ml."},
+    {"cat": "hormonios", "title": "Testosterona Undecilato Nebido", "price": 850, "desc": "Nebido trimestral."},
+    {"cat": "hormonios", "title": "Oxandrolona 10mg (100 comp)", "price": 520, "desc": "Oxandrolona 10mg 100 comp."},
+    {"cat": "hormonios", "title": "Stanozolol injetável 100mg/ml", "price": 380, "desc": "Stanozolol 100mg/ml 10ml."},
+    {"cat": "hormonios", "title": "Boldenona 250mg/ml", "price": 420, "desc": "Boldenona 250mg/ml 10ml."},
+    {"cat": "hormonios", "title": "HCG 5000 UI Choriomon", "price": 290, "desc": "HCG Choriomon 5000 UI, 2 ampolas."},
+    {"cat": "hormonios", "title": "HGH Somatropina 100 UI", "price": 1800, "desc": "Somatropina 100 UI completo."},
+    {"cat": "hormonios", "title": "Proviron 25mg Bayer (20 comp)", "price": 280, "desc": "Proviron Bayer original 25mg."},
+    {"cat": "hormonios", "title": "Anastrozol 1mg (30 comp)", "price": 180, "desc": "Anastrozol 1mg controle de estrógeno."},
+    {"cat": "hormonios", "title": "Clomifeno 50mg (24 comp)", "price": 140, "desc": "Clomifeno 50mg pós-ciclo."},
+    {"cat": "hormonios", "title": "Tamoxifeno 20mg (30 comp)", "price": 120, "desc": "Tamoxifeno 20mg."},
+    # PRÉ-TREINOS (10)
+    {"cat": "pre_treinos", "title": "Hybrid Superhuman Alpha Lion", "price": 480, "desc": "Pré-treino ultra forte Alpha Lion."},
+    {"cat": "pre_treinos", "title": "Bucked Up Pre Workout", "price": 420, "desc": "Bucked Up importado."},
+    {"cat": "pre_treinos", "title": "C4 Ultimate 40 doses", "price": 320, "desc": "C4 Ultimate Cellucor."},
+    {"cat": "pre_treinos", "title": "Redcon1 Total War", "price": 380, "desc": "Redcon1 Total War."},
+    {"cat": "pre_treinos", "title": "Predator Pre Black Label", "price": 350, "desc": "Predator Pre Black Label."},
+    {"cat": "pre_treinos", "title": "Amino Growth 300g Integral", "price": 160, "desc": "Amino Growth 300g."},
+    {"cat": "pre_treinos", "title": "Beta Alanina Integral 100g", "price": 75, "desc": "Beta alanina pura 100g."},
+    {"cat": "pre_treinos", "title": "Citrulina Malato 300g", "price": 180, "desc": "Citrulina Malato 2:1 300g."},
+    # SUPLEMENTOS (14)
+    {"cat": "suplementos", "title": "Whey Isolado Importado 2kg", "price": 480, "desc": "Whey isolado Gold Standard 2kg."},
+    {"cat": "suplementos", "title": "Creatina Creapure 500g", "price": 220, "desc": "Creatina Creapure 500g."},
+    {"cat": "suplementos", "title": "Albumina 500g Naturovos", "price": 90, "desc": "Albumina 500g."},
+    {"cat": "suplementos", "title": "Caseína Micellar 900g", "price": 280, "desc": "Caseína Micellar 900g."},
+    {"cat": "suplementos", "title": "BCAA 10:1:1 300g", "price": 150, "desc": "BCAA 10:1:1 300g."},
+    {"cat": "suplementos", "title": "Glutamina Micronizada 500g", "price": 140, "desc": "Glutamina 500g."},
+    {"cat": "suplementos", "title": "Animal Pak 44 packs", "price": 320, "desc": "Animal Pak Universal 44 packs."},
+    {"cat": "suplementos", "title": "ZMA Universal 90 caps", "price": 180, "desc": "ZMA Universal."},
+    {"cat": "suplementos", "title": "Ômega 3 1000mg (120 caps)", "price": 95, "desc": "Ômega 3 120 caps."},
+    {"cat": "suplementos", "title": "Vitamina D3 10.000 UI", "price": 75, "desc": "Vit D3 10k 60 caps."},
+    {"cat": "suplementos", "title": "Magnésio Dimalato 300mg", "price": 110, "desc": "Magnésio dimalato 120 caps."},
+    {"cat": "suplementos", "title": "Stack Whey+Creatina+Pré", "price": 850, "desc": "Kit 30 dias completo."},
+    # OUTROS (4)
+    {"cat": "outros", "title": "Água Bacteriostática 3ml", "price": 50, "desc": "Água bacteriostática 3ml."},
+    {"cat": "outros", "title": "Água Bacteriostática 10ml", "price": 100, "desc": "Água bacteriostática 10ml."},
+    {"cat": "outros", "title": "Kit Seringas 1ml (10un)", "price": 80, "desc": "10 seringas insulina 1ml."},
+    {"cat": "outros", "title": "Kit Agulhas descartáveis", "price": 60, "desc": "Agulhas descartáveis."},
+]
+
+FICTIONAL_AVATARS = [
+    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
+    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80",
+    "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80",
+    "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80",
+    "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=200&q=80",
+    "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=200&q=80",
+    "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=80",
+    "https://images.unsplash.com/photo-1528892952291-009c663ce843?auto=format&fit=crop&w=200&q=80",
+    "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=200&q=80",
+    "https://images.unsplash.com/photo-1504257432389-52343af06ae3?auto=format&fit=crop&w=200&q=80",
+]
+
+
+async def _ensure_fictional_members() -> List[str]:
+    ids: List[str] = []
+    for i, m in enumerate(FICTIONAL_MEMBERS):
+        existing = await db.members.find_one({"phone": m["phone"]})
+        if existing:
+            ids.append(existing["member_id"]); continue
+        mid = f"mem_fk_{uuid.uuid4().hex[:8]}"
+        cnt_doc = await db.counters.find_one_and_update({"_id": "member_number"}, {"$inc": {"seq": 1}}, upsert=True, return_document=True)
+        number = ((cnt_doc or {}).get("seq", 0)) + 10100
+        await db.members.insert_one({
+            "member_id": mid, "member_number": number, "name": m["name"], "nickname": m["nickname"],
+            "phone": m["phone"], "city": m["city"], "age": m["age"], "profession": m["profession"],
+            "gym": m["gym"], "tier": "diamond", "is_fictional": True,
+            "invite_code": f"FK{uuid.uuid4().hex[:4].upper()}",
+            "avatar_base64": FICTIONAL_AVATARS[i % len(FICTIONAL_AVATARS)],
+            "photos": [],
+            "created_at": datetime.now(timezone.utc),
+        })
+        ids.append(mid)
+    return ids
+
+
+@api_router.post("/admin/seed-marketplace")
+async def seed_marketplace(force: bool = False):
+    import random
+    existing_count = await db.ads.count_documents({"active": True})
+    if existing_count >= 50 and not force:
+        return {"ok": True, "skipped": True, "existing": existing_count}
+    seller_ids = await _ensure_fictional_members()
+    created = 0
+    for item in SEED_ADS_CATALOG:
+        seller = random.choice(seller_ids)
+        imgs = CATEGORY_IMAGES.get(item["cat"], [])
+        img = random.choice(imgs) if imgs else None
+        ad = {
+            "ad_id": f"ad_{uuid.uuid4().hex[:12]}",
+            "seller_id": seller,
+            "title": item["title"],
+            "description": item["desc"],
+            "price_full": float(item["price"]),
+            "category": item["cat"],
+            "images": [img] if img else [],
+            "stock": random.randint(2, 12),
+            "active": True,
+            "is_seed": True,
+            "created_at": datetime.now(timezone.utc) - timedelta(hours=random.randint(1, 200)),
+        }
+        await db.ads.insert_one(ad)
+        created += 1
+    return {"ok": True, "created": created, "sellers": len(seller_ids)}
+
+
+@api_router.delete("/admin/seed-marketplace")
+async def clear_seed_marketplace():
+    r = await db.ads.delete_many({"is_seed": True})
+    await db.members.delete_many({"is_fictional": True})
+    return {"ok": True, "deleted_ads": r.deleted_count}
 
 
 app.include_router(api_router)

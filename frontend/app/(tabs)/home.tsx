@@ -53,8 +53,8 @@ export default function Home() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const W = Math.min(width, 430);
-  const featW = W - 28;
-  const featH = featW * 0.5;
+  const featW = W - 36;  // wider margins so right side isn't cut
+  const featH = featW * 0.48;
 
   return (
     <ImageBackground
@@ -93,7 +93,7 @@ export default function Home() {
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={() => router.push("/ads")}
-            style={[styles.featured, { width: featW, height: featH, marginHorizontal: 14 }]}
+            style={[styles.featured, { width: featW, height: featH, marginHorizontal: 18 }]}
             testID="home-featured"
           >
             <View style={styles.featuredGlass}>
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   tileGlass: { aspectRatio: 1, borderRadius: 14, backgroundColor: "rgba(15,15,15,0.65)", borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", alignItems: "center", justifyContent: "center", padding: 6, gap: 6 },
   tileLbl: { color: "#DDD", fontSize: 9, fontWeight: "700", letterSpacing: 0.5, textAlign: "center" },
 
-  postCard: { width: 220, borderRadius: 14, overflow: "hidden" },
+  postCard: { width: 170, borderRadius: 14, overflow: "hidden" },
   postCardGlass: { backgroundColor: "rgba(15,15,15,0.7)", padding: 12, borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" },
   postHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   postAvRing: { borderWidth: 2, borderRadius: 18, padding: 1 },

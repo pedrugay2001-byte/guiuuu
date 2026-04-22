@@ -86,14 +86,35 @@ export default function AdView() {
             </View>
           </TouchableOpacity>
 
-          {myDisc > 0 && <Text style={styles.priceOld}>{formatBRL(ad.price_full)}</Text>}
-          <Text style={styles.priceNew}>{formatBRL(final)}</Text>
-          {myDisc > 0 && (
-            <View style={styles.discBadge}>
-              <Ionicons name="pricetag" size={12} color="#4EE07F" />
-              <Text style={styles.discTxt}>−{myDisc}% automático por ser {tier.label}</Text>
+          {/* Preço cheio + tabela de preços por plano */}
+          <Text style={styles.priceLbl}>PREÇO (SEM DESCONTO)</Text>
+          <Text style={styles.priceNew}>{formatBRL(ad.price_full)}</Text>
+
+          <View style={styles.plansTable}>
+            <Text style={styles.plansTitle}>VALOR POR PLANO</Text>
+            <View style={styles.planRow}>
+              <View style={[styles.planDot, { backgroundColor: "#C8C8C8" }]} />
+              <Text style={styles.planName}>Silver</Text>
+              <Text style={styles.planDisc}>sem desconto</Text>
+              <Text style={styles.planPrice}>{formatBRL(ad.price_full)}</Text>
             </View>
-          )}
+            <View style={styles.planRow}>
+              <View style={[styles.planDot, { backgroundColor: "#D4AF37" }]} />
+              <Text style={styles.planName}>Gold</Text>
+              <Text style={styles.planDisc}>−15%</Text>
+              <Text style={[styles.planPrice, { color: "#D4AF37" }]}>{formatBRL(ad.price_full * 0.85)}</Text>
+            </View>
+            <View style={styles.planRow}>
+              <View style={[styles.planDot, { backgroundColor: "#7FD7E5" }]} />
+              <Text style={styles.planName}>Diamond</Text>
+              <Text style={styles.planDisc}>−30%</Text>
+              <Text style={[styles.planPrice, { color: "#7FD7E5" }]}>{formatBRL(ad.price_full * 0.7)}</Text>
+            </View>
+            <View style={styles.yourPriceBox}>
+              <Text style={styles.yourPriceLbl}>VOCÊ PAGA ({tier.label.toUpperCase()}):</Text>
+              <Text style={styles.yourPrice}>{formatBRL(final)}</Text>
+            </View>
+          </View>
 
           <Text style={styles.descLbl}>DESCRIÇÃO</Text>
           <Text style={styles.desc}>{ad.description}</Text>
@@ -125,10 +146,18 @@ const styles = StyleSheet.create({
   sellerAv: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   sellerName: { color: "#EEE", fontSize: 13, fontWeight: "800" },
   sellerTier: { fontSize: 9, fontWeight: "900", letterSpacing: 1.5, marginTop: 1 },
-  priceOld: { color: "#666", fontSize: 14, textDecorationLine: "line-through", marginTop: 16 },
+  priceLbl: { color: "#888", fontSize: 9, fontWeight: "900", letterSpacing: 2, marginTop: 16 },
   priceNew: { color: "#FFF", fontSize: 30, fontWeight: "900", marginTop: 4 },
-  discBadge: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", marginTop: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: "#4EE07F", backgroundColor: "rgba(78,224,127,0.08)" },
-  discTxt: { color: "#4EE07F", fontSize: 11, fontWeight: "800" },
+  plansTable: { marginTop: 14, padding: 14, backgroundColor: "#0F0F0F", borderRadius: 12, borderWidth: 1, borderColor: "#1A1A1A" },
+  plansTitle: { color: "#888", fontSize: 9, fontWeight: "900", letterSpacing: 2, marginBottom: 10 },
+  planRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 7, borderTopWidth: 1, borderTopColor: "#151515" },
+  planDot: { width: 8, height: 8, borderRadius: 4 },
+  planName: { color: "#DDD", fontSize: 12, fontWeight: "800", width: 70 },
+  planDisc: { flex: 1, color: "#888", fontSize: 11 },
+  planPrice: { color: "#EEE", fontSize: 13, fontWeight: "800" },
+  yourPriceBox: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#222", flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  yourPriceLbl: { color: "#D4AF37", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 },
+  yourPrice: { color: "#D4AF37", fontSize: 18, fontWeight: "900" },
   descLbl: { color: "#888", fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: 24, marginBottom: 8 },
   desc: { color: "#CCC", fontSize: 14, lineHeight: 21 },
   securityBox: { flexDirection: "row", gap: 10, marginTop: 20, padding: 12, backgroundColor: "#111", borderRadius: 10, borderWidth: 1, borderColor: "#1F1F1F" },

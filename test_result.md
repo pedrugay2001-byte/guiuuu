@@ -211,7 +211,31 @@ frontend:
             - /community/group/[id] com header colorido, estado vazio e envio de mensagens (validado via testID group-send).
             - Bug fixed: _public_member comparava datetime naive vs tz-aware quando heartbeat populava online_at (causava 500 em /community/members/{id} e na listagem quando havia membros online). Agora normaliza para UTC.
 
-  - task: "Rodada 4 — Polimento UX + Upload fixes + Logout + Labels"
+  - task: "Marketplace seeded + Ad detail com preço por plano + Home cards mais estreitos"
+    implemented: true
+    working: true
+    file: "backend/server.py, frontend/app/ads/[id].tsx, frontend/app/(tabs)/home.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: |
+            Rodada 5:
+            1) **Seed marketplace**: 91 anúncios realistas criados em 6 categorias (emagrecedores 22, peptídeos 35, hormônios 12, pré-treinos 8, suplementos 13, outros 4) sob 10 membros fictícios BLACK DIAMOND (Renato Black, Caio Diamond, Fábio King, Lucas Peak, Diego Prime, Marcelo Wolf, Vini Sharp, Ricardo Elite, André Stark, Thiago Ace). Todos os produtos da referência do usuário (RETATRUTIDA, TIRZEPATIDA, peptídeos, etc) com preços cheios.
+            2) **Endpoints de seed**: POST /api/admin/seed-marketplace (cria seed) e DELETE para resetar.
+            3) **Imagens naturais**: URLs Unsplash reais por categoria. Avatares Unsplash reais para os membros fictícios.
+            4) **Ad detail**: removido badge de "-30% automático". Adicionado TABELA de preços por plano:
+               - Silver: sem desconto (preço cheio)
+               - Gold: −15%
+               - Diamond: −30%
+               - Box destacado "VOCÊ PAGA (DIAMOND): R$ X" em dourado
+            5) **Home layout corrigido**:
+               - Destaque da Semana: marginHorizontal 18 (não corta mais no lado direito)
+               - Atividade do Clube: cards 170px (antes 220) — 2 cards lado a lado agora
+               - Preços sem centavos quando inteiros ("R$ 1.100" em vez de "R$ 1.100,00")
+            6) **Logo BLACKSCLUB no header**: componente BrandLogo (igual ao login) no canto superior esquerdo.
     implemented: true
     working: true
     file: "Multiple files"
