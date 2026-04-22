@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
+import { pickCompressedImage } from "../../src/imagepicker";
 import { api } from "../../src/api";
 import { useGate } from "../../src/gate";
 
@@ -17,12 +17,8 @@ export default function CreateStory() {
   const [loading, setLoading] = useState(false);
 
   const pick = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return;
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images" as any], quality: 0.65, base64: true, aspect: [9, 16] });
-    if (r.canceled || !r.assets?.length) return;
-    const a = r.assets[0];
-    if (a.base64) setImage(`data:image/jpeg;base64,${a.base64}`);
+    const uri = await pickCompressedImage({ aspect: [9, 16], quality: 0.3 });
+    if (uri) setImage(uri);
   };
 
   const submit = async () => {

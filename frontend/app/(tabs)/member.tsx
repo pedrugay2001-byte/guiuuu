@@ -7,12 +7,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useGate } from "../../src/gate";
+import { useAuth } from "../../src/auth";
 import { api, Product, formatBRL, setToken } from "../../src/api";
 import { theme, TIERS } from "../../src/theme";
 
 export default function Member() {
   const router = useRouter();
   const { member, clear, updateMember } = useGate();
+  const { user: authUser } = useAuth();
+  const isStaff = authUser?.role === "admin" || authUser?.role === "support";
   const [adminProducts, setAdminProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalMembers, setTotalMembers] = useState<number | null>(null);
@@ -35,28 +38,11 @@ export default function Member() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const lockClub = () => {
-    const doLogout = async () => {
-      await setToken(null);
-      await clear();
-      router.replace("/welcome");
-    };
-    if (Platform.OS === "web") {
-      // Alert.alert on web has flaky button callbacks; use native confirm
-      // eslint-disable-next-line no-alert
-      if (typeof window !== "undefined" && window.confirm("Sair do clube? Você precisará de um código válido para voltar.")) {
-        doLogout();
-      }
-      return;
-    }
-    Alert.alert(
-      "Sair do clube",
-      "Você precisará de um código válido e da pré-autorização para entrar novamente. Continuar?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Sair", style: "destructive", onPress: doLogout },
-      ],
-    );
+  const lockClub = async () => {
+    // Direct logout — more reliable across web and mobile
+    try { await setToken(null); } catch {}
+    try { await clear(); } catch {}
+    router.replace("/welcome");
   };
 
   const shareGeneric = async () => {
@@ -205,6 +191,7 @@ export default function Member() {
           </View>
         )}
 
+        {isStaff && (
         <View style={styles.adminSection}>
           <View style={styles.adminHeader}>
             <Text style={styles.sectionTitle}>GERENCIAR CATÁLOGO</Text>
@@ -234,6 +221,7 @@ export default function Member() {
             </View>
           )}
         </View>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>

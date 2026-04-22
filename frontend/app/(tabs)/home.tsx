@@ -9,6 +9,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api, Post, Ad, formatBRL } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
+import { BrandLogo } from "../../src/brand";
 
 const GOLD = "#D4AF37";
 const BG_IMAGE = "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=1400&q=80";
@@ -20,13 +21,13 @@ type Area = {
 
 const AREAS: Area[] = [
   { id: "ai", label: "BLACK AI", icon: { lib: "mci", name: "brain" }, route: "/ai" },
-  { id: "community", label: "Comunidade", icon: { lib: "ion", name: "chatbubbles" }, route: "/(tabs)/community" },
+  { id: "community", label: "Bate-papo", icon: { lib: "ion", name: "chatbubbles" }, route: "/(tabs)/community" },
   { id: "ads", label: "Marketplace", icon: { lib: "ion", name: "storefront" }, route: "/ads" },
-  { id: "negocios", label: "Negócios", icon: { lib: "mci", name: "diamond-stone" }, route: "/(tabs)/negocios" },
-  { id: "wallet", label: "BLACK Coins", icon: { lib: "ion", name: "wallet" }, route: "/(tabs)/wallet" },
+  { id: "planos", label: "Planos", icon: { lib: "mci", name: "diamond-stone" }, route: "/(tabs)/negocios" },
+  { id: "wallet", label: "Orçamento", icon: { lib: "ion", name: "wallet" }, route: "/(tabs)/wallet" },
   { id: "catalog", label: "Produtos", icon: { lib: "ion", name: "cube" }, route: "/(tabs)/catalog" },
   { id: "chat", label: "Suporte", icon: { lib: "ion", name: "headset" }, route: "/chat" },
-  { id: "alertas", label: "Alertas", icon: { lib: "ion", name: "notifications" }, route: "/(tabs)/notifications" },
+  { id: "profissionais", label: "Profissionais", icon: { lib: "mci", name: "stethoscope" }, route: "/ai" },
 ];
 
 function AreaIcon({ icon, size, color }: { icon: Area["icon"]; size: number; color: string }) {
@@ -68,9 +69,8 @@ export default function Home() {
       <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
         {/* Minimalist header */}
         <View style={styles.header}>
-          <View style={styles.logoRow}>
-            <View style={styles.logoDot} />
-            <Text style={styles.logoTxt}>BLACKSCLUB</Text>
+          <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
+            <BrandLogo size="sm" />
           </View>
           <TouchableOpacity style={styles.avBtn} onPress={() => router.push("/(tabs)/member")} testID="home-profile" activeOpacity={0.85}>
             {member?.avatar_base64 ? (
@@ -84,9 +84,8 @@ export default function Home() {
         </View>
 
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-          {/* Greeting */}
+          {/* Greeting (no gold kicker above name) */}
           <View style={styles.greet}>
-            <Text style={styles.greetKicker}>Membro {TIERS[member?.tier || "silver"].label.toUpperCase()}</Text>
             <Text style={styles.greetTitle}>Bem-vindo, {(member?.nickname || member?.name || "você").split(" ")[0]}.</Text>
           </View>
 
@@ -119,13 +118,15 @@ export default function Home() {
                 <Pressable
                   key={a.id}
                   onPress={() => { if (!a.soon && a.route) router.push(a.route as any); }}
-                  style={({ pressed }) => [styles.tile, pressed && { transform: [{ scale: 0.97 }], opacity: 0.85 }]}
+                  style={({ pressed }) => [styles.tile, pressed && { transform: [{ scale: 0.94 }] }]}
                   testID={`area-${a.id}`}
                 >
-                  <View style={styles.tileGlass}>
-                    <AreaIcon icon={a.icon} size={22} color="#EEE" />
-                    <Text style={styles.tileLbl}>{a.label}</Text>
-                  </View>
+                  {({ pressed }) => (
+                    <View style={[styles.tileGlass, pressed && { borderColor: GOLD, backgroundColor: "rgba(212,175,55,0.12)" }]}>
+                      <AreaIcon icon={a.icon} size={22} color={pressed ? GOLD : "#EEE"} />
+                      <Text style={[styles.tileLbl, pressed && { color: GOLD }]}>{a.label}</Text>
+                    </View>
+                  )}
                 </Pressable>
               ))}
             </View>

@@ -2466,7 +2466,7 @@ async def update_photos(member_id: str, data: PhotosUpdate):
     photos = [p for p in (data.photos or []) if isinstance(p, str) and p][:10]
     # enforce size
     total = sum(len(p) for p in photos)
-    if total > 10 * 1_300_000:
+    if total > 30 * 1_300_000:
         raise HTTPException(status_code=400, detail="Galeria muito grande (máx 10 fotos)")
     r = await db.members.update_one({"member_id": member_id}, {"$set": {"photos": photos}})
     if r.matched_count == 0:

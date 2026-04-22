@@ -380,5 +380,11 @@ export type GroupMsg = { gm_id?: string; group_id: string; member_id: string; te
 export type CommunityEvent = { event_id: string; title: string; description: string; city: string; place: string; when_label: string; icon: string; color: string };
 
 export function formatBRL(n: number) {
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  // Show without decimals when integer (premium minimal feel)
+  const isInt = Number.isFinite(n) && Math.abs(n - Math.round(n)) < 0.005;
+  const formatted = (isInt ? Math.round(n) : n).toLocaleString("pt-BR", {
+    minimumFractionDigits: isInt ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+  return `R$ ${formatted}`;
 }

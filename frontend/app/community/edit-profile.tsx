@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
+import { pickCompressedImage } from "../../src/imagepicker";
 import { api, CommunityMember } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
@@ -44,22 +44,14 @@ export default function EditProfile() {
   }, [member]);
 
   const pickAvatar = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert("Permissão necessária"); return; }
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images" as any], quality: 0.65, base64: true, allowsEditing: true, aspect: [1, 1] });
-    if (res.canceled || !res.assets?.length) return;
-    const a = res.assets[0];
-    if (a.base64) setAvatar(`data:image/jpeg;base64,${a.base64}`);
+    const uri = await pickCompressedImage({ aspect: [1, 1], quality: 0.4 });
+    if (uri) setAvatar(uri);
   };
 
   const addPhoto = async () => {
     if (photos.length >= 10) { Alert.alert("Limite", "Máximo de 10 fotos"); return; }
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return;
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images" as any], quality: 0.55, base64: true });
-    if (r.canceled || !r.assets?.length) return;
-    const a = r.assets[0];
-    if (a.base64) setPhotos([...photos, `data:image/jpeg;base64,${a.base64}`]);
+    const uri = await pickCompressedImage({ quality: 0.3 });
+    if (uri) setPhotos([...photos, uri]);
   };
 
   const save = async () => {

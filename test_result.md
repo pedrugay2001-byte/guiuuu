@@ -211,7 +211,31 @@ frontend:
             - /community/group/[id] com header colorido, estado vazio e envio de mensagens (validado via testID group-send).
             - Bug fixed: _public_member comparava datetime naive vs tz-aware quando heartbeat populava online_at (causava 500 em /community/members/{id} e na listagem quando havia membros online). Agora normaliza para UTC.
 
-  - task: "Home Premium Redesign + Logout fix + BLACK AI expandida"
+  - task: "Rodada 4 — Polimento UX + Upload fixes + Logout + Labels"
+    implemented: true
+    working: true
+    file: "Multiple files"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: |
+            Rodada 4 aplicando o feedback do usuário:
+            1) **Logo BLACK[S]CLUB**: Home agora usa <BrandLogo size="sm" /> — idêntico ao login
+            2) **Removido kicker amarelo** "Membro BLACK DIAMOND" acima do nome — fica só "Bem-vindo, Guilherme."
+            3) **formatBRL**: mostra sem centavos quando valor é inteiro (ex "R$ 1.200" em vez de "R$ 1.200,00")
+            4) **Upload de fotos corrigido**: criado helper `src/imagepicker.ts` com compressão agressiva (quality 0.3-0.4). edit-profile e create-story atualizados. Backend aumentou limite de galeria para 30MB.
+            5) **Logout direto**: removido Alert/confirm — clicar = logout imediato. Funciona em web e mobile.
+            6) **Catálogo admin-only**: seção "Gerenciar Catálogo" em /member agora tem guard `{isStaff && ...}` — escondida para membros comuns. Membros podem apenas publicar na Comunidade.
+            7) **Tiles da Home renomeados**:
+               - Comunidade → **Bate-papo**
+               - Negócios → **Planos** (route ainda /negocios)
+               - BLACK Coins → **Orçamento** (route /wallet)
+               - Alertas → **Profissionais** (agora route /ai — BLACK AI é onde ficam os profissionais)
+            8) **Press feedback nos tiles**: ao tocar, tile muda bgcolor para dourado-translúcido, borda dourada, ícone e texto ficam dourados — sinaliza que foi clicado e está carregando.
+            9) **MemberData type** inclui avatar_base64 pra exibir no header da home.
     implemented: true
     working: true
     file: "frontend/app/(tabs)/home.tsx, frontend/app/(tabs)/_layout.tsx, frontend/app/(tabs)/member.tsx, frontend/src/gate.tsx"
