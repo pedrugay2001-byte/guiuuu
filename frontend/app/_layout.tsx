@@ -3,13 +3,15 @@ import { StatusBar } from "expo-status-bar";
 import { AuthProvider } from "../src/auth";
 import { CartProvider } from "../src/cart";
 import { GateProvider } from "../src/gate";
+import { ErrorBoundary } from "../src/error-boundary";
 
 export default function RootLayout() {
   return (
-    <GateProvider>
-      <AuthProvider>
-        <CartProvider>
-          <StatusBar style="light" />
+    <ErrorBoundary>
+      <GateProvider>
+        <AuthProvider>
+          <CartProvider>
+            <StatusBar style="light" />
           <Stack
             screenOptions={{
               headerStyle: { backgroundColor: "#050505" },
@@ -47,5 +49,6 @@ export default function RootLayout() {
         </CartProvider>
       </AuthProvider>
     </GateProvider>
+    </ErrorBoundary>
   );
 }

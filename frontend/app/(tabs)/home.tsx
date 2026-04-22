@@ -21,11 +21,11 @@ type Area = {
 
 const AREAS: Area[] = [
   { id: "ai", label: "BLACK AI", icon: { lib: "mci", name: "brain" }, route: "/ai" },
-  { id: "community", label: "Bate-papo", icon: { lib: "ion", name: "chatbubbles" }, route: "/(tabs)/community" },
-  { id: "ads", label: "Marketplace", icon: { lib: "ion", name: "storefront" }, route: "/ads" },
+  { id: "community", label: "Comunidade", icon: { lib: "ion", name: "chatbubbles" }, route: "/(tabs)/community" },
+  { id: "marketplace", label: "Marketplace", icon: { lib: "ion", name: "storefront" }, route: "/(tabs)/catalog" },
   { id: "planos", label: "Planos", icon: { lib: "mci", name: "diamond-stone" }, route: "/(tabs)/negocios" },
-  { id: "wallet", label: "Orçamento", icon: { lib: "ion", name: "wallet" }, route: "/(tabs)/wallet" },
-  { id: "catalog", label: "Produtos", icon: { lib: "ion", name: "cube" }, route: "/(tabs)/catalog" },
+  { id: "wallet", label: "Banco", icon: { lib: "ion", name: "wallet" }, route: "/(tabs)/wallet" },
+  { id: "performance", label: "Performance", icon: { lib: "mci", name: "chart-line-variant" }, route: "/(tabs)/performance" },
   { id: "chat", label: "Suporte", icon: { lib: "ion", name: "headset" }, route: "/chat" },
   { id: "profissionais", label: "Profissionais", icon: { lib: "mci", name: "stethoscope" }, route: "/ai" },
 ];
@@ -89,23 +89,43 @@ export default function Home() {
             <Text style={styles.greetTitle}>Bem-vindo, {(member?.nickname || member?.name || "você").split(" ")[0]}.</Text>
           </View>
 
-          {/* Featured of the week */}
+          {/* Central de Performance — replaces "Destaque da Semana" */}
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => router.push("/ads")}
-            style={[styles.featured, { width: featW, height: featH, marginHorizontal: 18 }]}
-            testID="home-featured"
+            onPress={() => router.push("/(tabs)/performance")}
+            style={[styles.featured, { width: featW, marginHorizontal: 18 }]}
+            testID="home-performance"
           >
-            <View style={styles.featuredGlass}>
-              <View style={styles.featuredBadge}>
-                <MaterialCommunityIcons name="star-four-points" size={10} color={GOLD} />
-                <Text style={styles.featuredBadgeTxt}>DESTAQUE DA SEMANA</Text>
+            <View style={styles.perfCard}>
+              <View style={styles.perfGlow} />
+              <View style={styles.perfRow}>
+                <View style={styles.perfIconRing}>
+                  <MaterialCommunityIcons name="chart-line-variant" size={22} color={GOLD} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.perfKicker}>CENTRAL DE PERFORMANCE</Text>
+                  <Text style={styles.perfTitle}>Defina sua primeira meta</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={GOLD} />
               </View>
-              <Text style={styles.featuredTitle}>Marketplace{"\n"}entre membros.</Text>
-              <Text style={styles.featuredSub}>Compre de Black Diamonds verificados · Pagamento com escrow em BLACK Coins</Text>
-              <View style={styles.featuredCta}>
-                <Text style={styles.featuredCtaTxt}>Explorar</Text>
-                <Ionicons name="arrow-forward" size={13} color="#000" />
+              <Text style={styles.perfSub}>
+                Fitness, financeiro, hábitos e produtividade — tudo em um só lugar, com previsões inteligentes.
+              </Text>
+              <View style={styles.perfStats}>
+                <View style={styles.perfStat}>
+                  <Text style={styles.perfStatVal}>0</Text>
+                  <Text style={styles.perfStatLbl}>METAS</Text>
+                </View>
+                <View style={styles.perfDiv} />
+                <View style={styles.perfStat}>
+                  <Text style={styles.perfStatVal}>—</Text>
+                  <Text style={styles.perfStatLbl}>SCORE</Text>
+                </View>
+                <View style={styles.perfDiv} />
+                <View style={styles.perfStat}>
+                  <Text style={styles.perfStatVal}>0d</Text>
+                  <Text style={styles.perfStatLbl}>SEQUÊNCIA</Text>
+                </View>
               </View>
             </View>
           </TouchableOpacity>
@@ -232,6 +252,42 @@ const styles = StyleSheet.create({
   featuredSub: { color: "#BBB", fontSize: 11, lineHeight: 15 },
   featuredCta: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", backgroundColor: GOLD, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
   featuredCtaTxt: { color: "#000", fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
+
+  // Central de Performance card
+  perfCard: {
+    backgroundColor: "rgba(11,11,11,0.85)",
+    borderWidth: 1.5,
+    borderColor: "rgba(212,175,55,0.45)",
+    borderRadius: 18,
+    padding: 18,
+    position: "relative",
+    overflow: "hidden",
+  },
+  perfGlow: {
+    position: "absolute",
+    top: -60, right: -60,
+    width: 220, height: 220, borderRadius: 110,
+    backgroundColor: "rgba(212,175,55,0.07)",
+  },
+  perfRow: { flexDirection: "row", alignItems: "center" },
+  perfIconRing: {
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: "rgba(212,175,55,0.1)",
+    borderWidth: 1.2, borderColor: "rgba(212,175,55,0.4)",
+    alignItems: "center", justifyContent: "center",
+  },
+  perfKicker: { color: GOLD, fontSize: 9, fontWeight: "900", letterSpacing: 2.5 },
+  perfTitle: { color: "#FFF", fontSize: 16, fontWeight: "800", marginTop: 3 },
+  perfSub: { color: "#A3A3A3", fontSize: 12, lineHeight: 17, marginTop: 12 },
+  perfStats: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-around",
+    marginTop: 14, paddingTop: 12,
+    borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)",
+  },
+  perfStat: { alignItems: "center", flex: 1 },
+  perfStatVal: { color: "#FFF", fontSize: 18, fontWeight: "900" },
+  perfStatLbl: { color: "#666", fontSize: 9, fontWeight: "800", letterSpacing: 1.2, marginTop: 2 },
+  perfDiv: { width: 1, height: 24, backgroundColor: "rgba(255,255,255,0.08)" },
 
   gridWrap: { marginTop: 22 },
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 18 },

@@ -512,3 +512,38 @@ agent_communication:
         4) Navegação validada via screenshot: back button presente em /ads, /wallet/topup, etc.
         5) Wallet funcional (R$ 3.100 saldo, histórico de recargas visível, botões recarregar/sacar).
         6) Desconto por tier aplicado corretamente (30% para Diamond em todos os anúncios).
+
+    - agent: "main"
+      message: |
+        FASES 1 + 2 CONCLUÍDAS (revisão premium do app):
+        
+        FASE 1 — Bugs críticos:
+        - ErrorBoundary global criado em /app/frontend/src/error-boundary.tsx (app nunca mais fica "branco")
+        - Novo Stories Viewer reescrito do zero (estilo Instagram): barras de progresso, tap
+          lateral, swipe-down, navegação entre autores, sem crashes
+        - Limpeza profunda do banco: 10 avatares inválidos + 2 stories com base64 corrompido
+          + 1 story >1.3MB removidos. Causa raiz do crash "comunidade fechando sozinha" era
+          avatar_base64 inválido nos membros fake do seed.
+        - Novo helper universal /app/frontend/src/alerts.ts (window.alert no web, Alert.alert no mobile)
+        - pickCompressedImage reescrito para web com file input + canvas compression
+        
+        FASE 2 — Reestruturação:
+        - Catálogo removido como tab independente, renomeado e integrado como "Marketplace"
+        - Banner SAÚDE premium no topo do Marketplace (borda dourada, ícone pulso, destaque)
+        - Tab bar reorganizada: Início · Marketplace · Comunidade · Performance · Banco
+        - Alertas migraram para sininho no header com badge de contagem
+        - Avatar do perfil no header (dourado, clicável → /member)
+        - Nova tab Performance com placeholder premium (pronta para receber Fase 3)
+        - Card "Destaques da Semana" na Home substituído por card "CENTRAL DE PERFORMANCE"
+          com stats (0 metas / — score / 0d sequência) e CTA "Defina sua primeira meta"
+        - Edit Profile com universal notify, tela /member com avatar clicável + badge câmera
+          + botão dourado "EDITAR PERFIL PÚBLICO"
+        
+        VALIDADO VIA SCREENSHOT:
+        - Home nova com card gold premium ✓
+        - Marketplace com banner SAÚDE ✓
+        - Comunidade carrega com feed funcional e stories visíveis ✓
+        - Stories Viewer abre com foto + legenda + progress bars ✓
+        - Performance tab com placeholder premium ✓
+        
+        NÃO precisa retestar backend — nenhuma rota do backend foi alterada.
