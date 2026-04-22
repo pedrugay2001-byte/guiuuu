@@ -1882,6 +1882,494 @@ async def list_events():
     return await cur.to_list(length=100)
 
 
+# ============================================
+# PLANS + MARKETPLACE + WALLET + STORIES + FEED
+# ============================================
+
+PLANS = {
+    "silver": {
+        "id": "silver",
+        "name": "BLACK SILVER",
+        "price_monthly": 99,
+        "color": "#C8C8C8",
+        "discount": 0,
+        "can_sell": False,
+        "can_buy": True,
+        "features": [
+            "Acesso ao marketplace privado",
+            "Chat com vendedores verificados",
+            "Participar dos grupos e eventos",
+            "Consultoria com a BLACK AI",
+        ],
+    },
+    "gold": {
+        "id": "gold",
+        "name": "BLACK GOLD",
+        "price_monthly": 499,
+        "color": "#D4AF37",
+        "discount": 15,
+        "can_sell": False,
+        "can_buy": True,
+        "features": [
+            "Tudo do Silver",
+            "15% de desconto em todo marketplace",
+            "Selo Gold no perfil",
+            "Prioridade no suporte",
+            "Acesso a eventos exclusivos",
+        ],
+    },
+    "diamond": {
+        "id": "diamond",
+        "name": "BLACK DIAMOND",
+        "price_monthly": 999,
+        "color": "#7FD7E5",
+        "discount": 30,
+        "can_sell": True,
+        "can_buy": True,
+        "features": [
+            "Tudo do Gold",
+            "30% de desconto em todo marketplace",
+            "PODE VENDER no marketplace",
+            "Selo Diamond e verificação premium",
+            "Conta com especialistas 1:1",
+            "Acesso vitalício a novas funcionalidades",
+        ],
+    },
+}
+
+
+def _plan_discount(plan_id: str) -> int:
+    return PLANS.get(plan_id or "silver", PLANS["silver"])["discount"]
+
+
+def _can_sell(plan_id: str) -> bool:
+    return PLANS.get(plan_id or "silver", PLANS["silver"])["can_sell"]
+
+
+@api_router.get("/plans")
+async def list_plans():
+    return list(PLANS.values())
+
+
+@api_router.put("/admin/members/{member_id}/plan")
+async def admin_update_plan(member_id: str, body: dict, user=Depends(require_staff)):
+    plan_id = body.get("plan")
+    if plan_id not in PLANS:
+        raise HTTPException(status_code=400, detail="Plano inválido")
+    r = await db.members.update_one({"member_id": member_id}, {"$set": {"tier": plan_id}})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    return {"ok": True, "plan": plan_id}
+
+
+# ---------- MARKETPLACE ADS ----------
+
+class AdCreate(BaseModel):
+    seller_id: str
+    title: str
+    description: str
+    price_full: float  # preço cheio, desconto aplicado automaticamente na compra
+    category: str
+    images: List[str] = []  # base64
+    stock: int = 1
+
+
+@api_router.get("/ads")
+async def list_ads(category: Optional[str] = None, q: Optional[str] = None):
+    query: Dict[str, Any] = {"active": True}
+    if category and category != "all":
+        query["category"] = category
+    if q:
+        query["$or"] = [
+            {"title": {"$regex": q, "$options": "i"}},
+            {"description": {"$regex": q, "$options": "i"}},
+        ]
+    cur = db.ads.find(query, {"_id": 0}).sort("created_at", -1).limit(200)
+    ads = await cur.to_list(length=200)
+    # enrich with seller nickname + tier
+    for a in ads:
+        m = await db.members.find_one({"member_id": a.get("seller_id")}, {"_id": 0, "nickname": 1, "name": 1, "tier": 1, "avatar_base64": 1})
+        if m:
+            a["seller_nickname"] = m.get("nickname") or (m.get("name") or "Membro").split(" ")[0]
+            a["seller_tier"] = m.get("tier", "diamond")
+            a["seller_avatar"] = m.get("avatar_base64")
+    return ads
+
+
+@api_router.get("/ads/{ad_id}")
+async def get_ad(ad_id: str):
+    a = await db.ads.find_one({"ad_id": ad_id}, {"_id": 0})
+    if not a:
+        raise HTTPException(status_code=404, detail="Anúncio não encontrado")
+    m = await db.members.find_one({"member_id": a.get("seller_id")}, {"_id": 0, "nickname": 1, "name": 1, "tier": 1, "avatar_base64": 1})
+    if m:
+        a["seller_nickname"] = m.get("nickname") or (m.get("name") or "Membro").split(" ")[0]
+        a["seller_tier"] = m.get("tier", "diamond")
+        a["seller_avatar"] = m.get("avatar_base64")
+    return a
+
+
+@api_router.post("/ads")
+async def create_ad(data: AdCreate):
+    m = await db.members.find_one({"member_id": data.seller_id})
+    if not m:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    if not _can_sell(m.get("tier", "silver")):
+        raise HTTPException(status_code=403, detail="Apenas membros BLACK DIAMOND podem anunciar no marketplace.")
+    ad = {
+        "ad_id": f"ad_{uuid.uuid4().hex[:12]}",
+        "seller_id": data.seller_id,
+        "title": data.title[:120],
+        "description": data.description[:2000],
+        "price_full": float(data.price_full),
+        "category": data.category,
+        "images": [img for img in (data.images or []) if isinstance(img, str)][:6],
+        "stock": max(int(data.stock or 1), 1),
+        "active": True,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.ads.insert_one(ad.copy())
+    ad.pop("_id", None)
+    return ad
+
+
+@api_router.delete("/ads/{ad_id}")
+async def delete_ad(ad_id: str, seller_id: str):
+    r = await db.ads.update_one({"ad_id": ad_id, "seller_id": seller_id}, {"$set": {"active": False}})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Anúncio não encontrado")
+    return {"ok": True}
+
+
+@api_router.get("/ads/member/{member_id}")
+async def ads_by_member(member_id: str):
+    cur = db.ads.find({"seller_id": member_id, "active": True}, {"_id": 0}).sort("created_at", -1)
+    return await cur.to_list(length=100)
+
+
+# ---------- WALLET (BLACK COINS) ----------
+# 1 BLACK = R$ 1,00. Topup via mock Pix. Purchases go into ESCROW until buyer confirms.
+
+async def _wallet_get_or_create(member_id: str) -> dict:
+    w = await db.wallets.find_one({"member_id": member_id}, {"_id": 0})
+    if not w:
+        w = {"member_id": member_id, "balance": 0.0, "escrow_in": 0.0, "escrow_out": 0.0, "created_at": datetime.now(timezone.utc)}
+        await db.wallets.insert_one(w.copy())
+        w.pop("_id", None)
+    return w
+
+
+@api_router.get("/wallet/{member_id}")
+async def get_wallet(member_id: str):
+    w = await _wallet_get_or_create(member_id)
+    return w
+
+
+@api_router.get("/wallet/{member_id}/transactions")
+async def wallet_txs(member_id: str):
+    cur = db.wallet_txs.find({"$or": [{"from_id": member_id}, {"to_id": member_id}]}, {"_id": 0}).sort("created_at", -1).limit(50)
+    return await cur.to_list(length=50)
+
+
+class TopupRequest(BaseModel):
+    member_id: str
+    amount: float
+
+
+@api_router.post("/wallet/topup")
+async def wallet_topup(data: TopupRequest):
+    """Mock Pix: instantly credits member wallet. Replace with real Pix gateway when API keys are provided."""
+    amt = float(data.amount)
+    if amt <= 0 or amt > 100000:
+        raise HTTPException(status_code=400, detail="Valor inválido")
+    await _wallet_get_or_create(data.member_id)
+    await db.wallets.update_one({"member_id": data.member_id}, {"$inc": {"balance": amt}})
+    tx = {
+        "tx_id": f"tx_{uuid.uuid4().hex[:12]}",
+        "type": "topup",
+        "from_id": None,
+        "to_id": data.member_id,
+        "amount": amt,
+        "status": "settled",
+        "note": "Recarga via Pix (simulado)",
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.wallet_txs.insert_one(tx.copy())
+    tx.pop("_id", None)
+    return tx
+
+
+class WithdrawRequest(BaseModel):
+    member_id: str
+    amount: float
+    pix_key: Optional[str] = None
+
+
+@api_router.post("/wallet/withdraw")
+async def wallet_withdraw(data: WithdrawRequest):
+    w = await _wallet_get_or_create(data.member_id)
+    amt = float(data.amount)
+    if amt <= 0 or amt > w["balance"]:
+        raise HTTPException(status_code=400, detail="Saldo insuficiente")
+    await db.wallets.update_one({"member_id": data.member_id}, {"$inc": {"balance": -amt}})
+    tx = {
+        "tx_id": f"tx_{uuid.uuid4().hex[:12]}",
+        "type": "withdraw",
+        "from_id": data.member_id,
+        "to_id": None,
+        "amount": amt,
+        "status": "settled",
+        "note": f"Saque Pix {data.pix_key or ''} (simulado)",
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.wallet_txs.insert_one(tx.copy())
+    tx.pop("_id", None)
+    return tx
+
+
+class PurchaseRequest(BaseModel):
+    ad_id: str
+    buyer_id: str
+    qty: int = 1
+
+
+@api_router.post("/wallet/purchase")
+async def wallet_purchase(data: PurchaseRequest):
+    ad = await db.ads.find_one({"ad_id": data.ad_id, "active": True}, {"_id": 0})
+    if not ad:
+        raise HTTPException(status_code=404, detail="Anúncio não encontrado")
+    buyer = await db.members.find_one({"member_id": data.buyer_id})
+    if not buyer:
+        raise HTTPException(status_code=404, detail="Comprador não encontrado")
+    seller_id = ad["seller_id"]
+    if seller_id == data.buyer_id:
+        raise HTTPException(status_code=400, detail="Você não pode comprar seu próprio anúncio.")
+    disc = _plan_discount(buyer.get("tier", "silver"))
+    qty = max(int(data.qty or 1), 1)
+    final = round(float(ad["price_full"]) * (100 - disc) / 100, 2) * qty
+    wb = await _wallet_get_or_create(data.buyer_id)
+    if wb["balance"] < final:
+        raise HTTPException(status_code=400, detail=f"Saldo insuficiente. Você precisa de {final:.2f} BLACK Coins.")
+    await _wallet_get_or_create(seller_id)
+    # move buyer balance -> escrow_out ; seller escrow_in
+    await db.wallets.update_one({"member_id": data.buyer_id}, {"$inc": {"balance": -final, "escrow_out": final}})
+    await db.wallets.update_one({"member_id": seller_id}, {"$inc": {"escrow_in": final}})
+    tx = {
+        "tx_id": f"tx_{uuid.uuid4().hex[:12]}",
+        "type": "escrow",
+        "from_id": data.buyer_id,
+        "to_id": seller_id,
+        "ad_id": data.ad_id,
+        "ad_title": ad["title"],
+        "qty": qty,
+        "price_full": ad["price_full"],
+        "discount": disc,
+        "amount": final,
+        "status": "escrow",
+        "note": f"Compra aguardando entrega: {ad['title']}",
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.wallet_txs.insert_one(tx.copy())
+    tx.pop("_id", None)
+    # Also create a DM thread message so buyer can talk to seller
+    return tx
+
+
+@api_router.post("/wallet/confirm/{tx_id}")
+async def wallet_confirm(tx_id: str, body: dict):
+    buyer_id = body.get("buyer_id")
+    tx = await db.wallet_txs.find_one({"tx_id": tx_id})
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transação não encontrada")
+    if tx.get("status") != "escrow" or tx.get("from_id") != buyer_id:
+        raise HTTPException(status_code=400, detail="Transação não pode ser liberada")
+    amt = tx["amount"]
+    await db.wallets.update_one({"member_id": tx["from_id"]}, {"$inc": {"escrow_out": -amt}})
+    await db.wallets.update_one({"member_id": tx["to_id"]}, {"$inc": {"escrow_in": -amt, "balance": amt}})
+    await db.wallet_txs.update_one({"tx_id": tx_id}, {"$set": {"status": "settled", "settled_at": datetime.now(timezone.utc)}})
+    return {"ok": True}
+
+
+@api_router.post("/wallet/refund/{tx_id}")
+async def wallet_refund(tx_id: str, body: dict):
+    admin_request = bool(body.get("admin"))
+    tx = await db.wallet_txs.find_one({"tx_id": tx_id})
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transação não encontrada")
+    if tx.get("status") != "escrow":
+        raise HTTPException(status_code=400, detail="Transação já liberada")
+    amt = tx["amount"]
+    await db.wallets.update_one({"member_id": tx["from_id"]}, {"$inc": {"escrow_out": -amt, "balance": amt}})
+    await db.wallets.update_one({"member_id": tx["to_id"]}, {"$inc": {"escrow_in": -amt}})
+    await db.wallet_txs.update_one({"tx_id": tx_id}, {"$set": {"status": "refunded", "settled_at": datetime.now(timezone.utc)}})
+    return {"ok": True}
+
+
+# ---------- STORIES (24h) ----------
+
+class StoryCreate(BaseModel):
+    member_id: str
+    image_base64: Optional[str] = None
+    text: Optional[str] = None
+
+
+@api_router.post("/stories")
+async def create_story(data: StoryCreate):
+    if not data.image_base64 and not data.text:
+        raise HTTPException(status_code=400, detail="Adicione foto ou texto")
+    now = datetime.now(timezone.utc)
+    s = {
+        "story_id": f"st_{uuid.uuid4().hex[:12]}",
+        "member_id": data.member_id,
+        "image_base64": data.image_base64,
+        "text": (data.text or "")[:200],
+        "created_at": now,
+        "expires_at": now + timedelta(hours=24),
+        "views": 0,
+    }
+    await db.stories.insert_one(s.copy())
+    s.pop("_id", None)
+    return s
+
+
+@api_router.get("/stories")
+async def list_stories():
+    now = datetime.now(timezone.utc)
+    cur = db.stories.find({"expires_at": {"$gt": now}}, {"_id": 0}).sort("created_at", -1).limit(200)
+    items = await cur.to_list(length=200)
+    # group by member_id
+    grouped: Dict[str, Any] = {}
+    for s in items:
+        mid = s["member_id"]
+        if mid not in grouped:
+            m = await db.members.find_one({"member_id": mid}, {"_id": 0, "nickname": 1, "name": 1, "tier": 1, "avatar_base64": 1})
+            grouped[mid] = {
+                "member_id": mid,
+                "nickname": (m or {}).get("nickname") or ((m or {}).get("name", "Membro").split(" ")[0] if m else "Membro"),
+                "tier": (m or {}).get("tier", "silver"),
+                "avatar_base64": (m or {}).get("avatar_base64"),
+                "stories": [],
+            }
+        grouped[mid]["stories"].append(s)
+    return list(grouped.values())
+
+
+# ---------- FEED (posts) ----------
+
+class PostCreate(BaseModel):
+    member_id: str
+    text: str
+    image_base64: Optional[str] = None
+    tags: List[str] = []
+
+
+@api_router.post("/feed/posts")
+async def create_post(data: PostCreate):
+    now = datetime.now(timezone.utc)
+    p = {
+        "post_id": f"p_{uuid.uuid4().hex[:12]}",
+        "member_id": data.member_id,
+        "text": (data.text or "").strip()[:1000],
+        "image_base64": data.image_base64,
+        "tags": [t.strip()[:32] for t in (data.tags or []) if t.strip()][:8],
+        "reactions": {"fire": 0, "heart": 0, "muscle": 0},
+        "comments_count": 0,
+        "created_at": now,
+    }
+    await db.posts.insert_one(p.copy())
+    p.pop("_id", None)
+    return p
+
+
+@api_router.get("/feed/posts")
+async def list_posts(filter: str = "recent"):
+    cur = db.posts.find({}, {"_id": 0}).sort("created_at", -1).limit(50)
+    items = await cur.to_list(length=50)
+    # enrich with author info
+    for p in items:
+        m = await db.members.find_one({"member_id": p.get("member_id")}, {"_id": 0, "nickname": 1, "name": 1, "tier": 1, "avatar_base64": 1, "city": 1})
+        if m:
+            p["author_nickname"] = m.get("nickname") or (m.get("name") or "Membro").split(" ")[0]
+            p["author_tier"] = m.get("tier", "silver")
+            p["author_avatar"] = m.get("avatar_base64")
+            p["author_city"] = m.get("city")
+    return items
+
+
+@api_router.post("/feed/posts/{post_id}/react")
+async def react_post(post_id: str, body: dict):
+    kind = body.get("kind", "fire")
+    if kind not in ("fire", "heart", "muscle"):
+        raise HTTPException(status_code=400, detail="Reação inválida")
+    r = await db.posts.update_one({"post_id": post_id}, {"$inc": {f"reactions.{kind}": 1}})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Post não encontrado")
+    return {"ok": True}
+
+
+# ---------- PROFILE PHOTOS (up to 10) ----------
+
+class PhotosUpdate(BaseModel):
+    photos: List[str]  # data URLs
+
+
+@api_router.put("/members/{member_id}/photos")
+async def update_photos(member_id: str, data: PhotosUpdate):
+    photos = [p for p in (data.photos or []) if isinstance(p, str) and p][:10]
+    # enforce size
+    total = sum(len(p) for p in photos)
+    if total > 10 * 1_300_000:
+        raise HTTPException(status_code=400, detail="Galeria muito grande (máx 10 fotos)")
+    r = await db.members.update_one({"member_id": member_id}, {"$set": {"photos": photos}})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    return {"ok": True, "count": len(photos)}
+
+
+@api_router.get("/members/{member_id}/photos")
+async def get_photos(member_id: str):
+    m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "photos": 1})
+    return {"photos": (m or {}).get("photos", [])}
+
+
+# ---------- CUSTOM GROUPS (user-created with invites) ----------
+
+class CustomGroupCreate(BaseModel):
+    owner_id: str
+    name: str
+    description: Optional[str] = ""
+    color: Optional[str] = "#D4AF37"
+    icon: Optional[str] = "people"
+    invite_ids: List[str] = []
+
+
+@api_router.post("/community/groups/custom")
+async def create_custom_group(data: CustomGroupCreate):
+    gid = f"g_c_{uuid.uuid4().hex[:10]}"
+    g = {
+        "group_id": gid,
+        "name": data.name.strip()[:60],
+        "description": (data.description or "").strip()[:200],
+        "color": data.color or "#D4AF37",
+        "icon": data.icon or "people",
+        "members_count": 1 + len(data.invite_ids or []),
+        "is_custom": True,
+        "owner_id": data.owner_id,
+        "invited_ids": [data.owner_id] + list(data.invite_ids or []),
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.groups.insert_one(g.copy())
+    g.pop("_id", None)
+    # Each member joins
+    for mid in [data.owner_id] + list(data.invite_ids or []):
+        await db.group_members.update_one(
+            {"group_id": gid, "member_id": mid},
+            {"$setOnInsert": {"group_id": gid, "member_id": mid, "joined_at": datetime.now(timezone.utc)}},
+            upsert=True,
+        )
+    return g
+
+
 app.include_router(api_router)
 
 app.add_middleware(

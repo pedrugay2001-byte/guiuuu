@@ -1,255 +1,268 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, Image,
-  ActivityIndicator, RefreshControl, ScrollView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
+  FlatList, RefreshControl, ActivityIndicator,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { api, CommunityMember, Group, CommunityEvent } from "../../src/api";
+import { Ionicons } from "@expo/vector-icons";
+import { api, StoryGroup, Post, CommunityMember, Group } from "../../src/api";
 import { useGate } from "../../src/gate";
-import { theme, TIERS } from "../../src/theme";
+import { TIERS } from "../../src/theme";
+
+type Tab = "foryou" | "following" | "recent" | "workouts";
 
 export default function Community() {
   const router = useRouter();
   const { member } = useGate();
-  const [tab, setTab] = useState<"people" | "groups" | "events">("people");
+  const [tab, setTab] = useState<Tab>("foryou");
+  const [stories, setStories] = useState<StoryGroup[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [members, setMembers] = useState<CommunityMember[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [events, setEvents] = useState<CommunityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!member) return;
     try {
-      const [mems, grps, evts] = await Promise.all([
+      const [ss, pp, mm, gg] = await Promise.all([
+        api.listStories(),
+        api.listPosts(),
         api.communityMembers(member.member_id),
         api.groupsList(),
-        api.eventsList(),
       ]);
-      setMembers(mems); setGroups(grps); setEvents(evts);
+      setStories(ss); setPosts(pp); setMembers(mm); setGroups(gg);
     } finally { setLoading(false); setRefreshing(false); }
   }, [member]);
 
-  // Heartbeat: mark self online every minute while on this tab
   useFocusEffect(useCallback(() => {
     if (!member) return;
     let alive = true;
-    const ping = async () => { try { await api.heartbeat(member.member_id); } catch {} };
-    ping();
-    const t = setInterval(() => { if (alive) ping(); }, 60_000);
+    api.heartbeat(member.member_id).catch(() => {});
+    const t = setInterval(() => { if (alive) api.heartbeat(member.member_id).catch(() => {}); }, 60_000);
     load();
     return () => { alive = false; clearInterval(t); };
   }, [member, load]));
 
-  const onlineCount = members.filter(m => m.is_online).length;
+  const myStories = stories.find(s => s.member_id === member?.member_id);
+  const otherStories = stories.filter(s => s.member_id !== member?.member_id);
+
+  const filteredPosts = tab === "workouts" ? posts.filter(p => (p.tags || []).some(t => t.toLowerCase().includes("treino") || t.toLowerCase().includes("workout"))) : posts;
+
+  if (loading) return <View style={{ flex: 1, backgroundColor: "#050505", justifyContent: "center" }}><ActivityIndicator color="#FFF" /></View>;
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#1A1A1A" }}>
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        <TabBtn icon="people" label="MEMBROS" active={tab === "people"} onPress={() => setTab("people")} badge={onlineCount > 0 ? String(onlineCount) : undefined} testID="community-tab-people" />
-        <TabBtn icon="chatbubbles" label="GRUPOS" active={tab === "groups"} onPress={() => setTab("groups")} testID="community-tab-groups" />
-        <TabBtn icon="calendar" label="EVENTOS" active={tab === "events"} onPress={() => setTab("events")} testID="community-tab-events" />
+    <View style={{ flex: 1, backgroundColor: "#050505" }}>
+      {/* Header with actions */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Comunidade</Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.hBtn} onPress={() => router.push("/community/descobrir")} testID="go-discover">
+            <Ionicons name="compass" size={20} color="#EEE" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.hBtn} onPress={() => router.push("/community/messages")} testID="go-messages">
+            <Ionicons name="chatbubbles" size={20} color="#EEE" />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* My profile quick edit */}
-      {member && (
-        <TouchableOpacity style={styles.myRow} onPress={() => router.push("/community/edit-profile")} testID="community-edit-profile">
-          <View style={[styles.myAvatar, { borderColor: TIERS[member.tier].color }]}>
-            <Text style={styles.myAvatarTxt}>{(member.nickname || member.name || "M").substring(0, 1).toUpperCase()}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.myNick}>{member.nickname || member.name?.split(" ")[0] || "Você"}</Text>
-            <Text style={styles.myHint}>Tocar para editar seu perfil público</Text>
-          </View>
-          <Ionicons name="create-outline" size={18} color="#999" />
-        </TouchableOpacity>
-      )}
-
-      {loading ? (
-        <View style={{ padding: 40, alignItems: "center" }}><ActivityIndicator color="#FFF" /></View>
-      ) : (
-        <>
-          {tab === "people" && (
-            <FlatList
-              data={members}
-              keyExtractor={(m) => m.member_id}
-              refreshControl={<RefreshControl tintColor="#FFF" refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
-              contentContainerStyle={{ paddingVertical: 8, paddingBottom: 40 }}
-              ListHeaderComponent={
-                <Text style={styles.sectionHint}>
-                  {onlineCount > 0 ? `${onlineCount} online agora · ${members.length} no total` : `${members.length} membros`}
-                </Text>
+      <ScrollView refreshControl={<RefreshControl tintColor="#FFF" refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />} contentContainerStyle={{ paddingBottom: 40 }}>
+        {/* Stories strip */}
+        <View style={styles.storiesWrap}>
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 14, gap: 12 }}
+            data={[{ type: "me" }, ...otherStories.map(s => ({ type: "story", data: s }))] as any[]}
+            keyExtractor={(_, i) => String(i)}
+            renderItem={({ item }) => {
+              if (item.type === "me") {
+                return (
+                  <TouchableOpacity style={styles.storyItem} onPress={() => router.push("/community/create-story")} testID="create-story">
+                    <View style={[styles.storyRing, { borderColor: "#333", borderStyle: "dashed" }]}>
+                      <View style={styles.myStoryAvatar}>
+                        <Ionicons name="add" size={24} color="#D4AF37" />
+                      </View>
+                    </View>
+                    <Text style={styles.storyName}>Seu story</Text>
+                  </TouchableOpacity>
+                );
               }
-              renderItem={({ item }) => <MemberRow m={item} onPress={() => router.push(`/community/member/${item.member_id}`)} />}
-              ListEmptyComponent={<Text style={styles.empty}>Sem membros ainda.</Text>}
-            />
-          )}
+              const s: StoryGroup = item.data;
+              const tier = TIERS[s.tier] || TIERS.silver;
+              return (
+                <TouchableOpacity style={styles.storyItem} onPress={() => router.push(`/community/member/${s.member_id}`)}>
+                  <View style={[styles.storyRing, { borderColor: tier.color }]}>
+                    {s.avatar_base64 ? (
+                      <Image source={{ uri: s.avatar_base64 }} style={styles.storyAvatar} />
+                    ) : (
+                      <View style={[styles.storyAvatar, { backgroundColor: "#2A2A2A", alignItems: "center", justifyContent: "center" }]}>
+                        <Text style={{ color: "#EEE", fontWeight: "800" }}>{s.nickname.charAt(0).toUpperCase()}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.storyName} numberOfLines={1}>{s.nickname}</Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
 
-          {tab === "groups" && (
-            <FlatList
-              data={groups}
-              keyExtractor={(g) => g.group_id}
-              refreshControl={<RefreshControl tintColor="#FFF" refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
-              contentContainerStyle={{ paddingVertical: 8, paddingBottom: 40, paddingHorizontal: 16, gap: 8 }}
-              ListHeaderComponent={<Text style={styles.sectionHint}>Comunidades de assunto do clube</Text>}
-              renderItem={({ item }) => <GroupRow g={item} onPress={() => router.push(`/community/group/${item.group_id}`)} />}
-            />
-          )}
+        {/* Filter tabs */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+          <FilterChip label="Para você" active={tab === "foryou"} onPress={() => setTab("foryou")} />
+          <FilterChip label="Seguindo" active={tab === "following"} onPress={() => setTab("following")} />
+          <FilterChip label="Recentes" active={tab === "recent"} onPress={() => setTab("recent")} />
+          <FilterChip label="Treinos" active={tab === "workouts"} onPress={() => setTab("workouts")} />
+        </ScrollView>
 
-          {tab === "events" && (
-            <FlatList
-              data={events}
-              keyExtractor={(e) => e.event_id}
-              refreshControl={<RefreshControl tintColor="#FFF" refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
-              contentContainerStyle={{ paddingVertical: 8, paddingBottom: 40, paddingHorizontal: 16, gap: 10 }}
-              ListHeaderComponent={<Text style={styles.sectionHint}>Encontros e eventos privados</Text>}
-              renderItem={({ item }) => <EventRow e={item} />}
-            />
-          )}
-        </>
-      )}
+        {/* Create post shortcut */}
+        <TouchableOpacity style={styles.createPost} onPress={() => router.push("/community/create-post")} testID="create-post">
+          <View style={styles.cpAvatar}>
+            {member?.nickname ? <Text style={styles.cpInitial}>{member.nickname.charAt(0).toUpperCase()}</Text> : <Ionicons name="person" size={18} color="#EEE" />}
+          </View>
+          <Text style={styles.cpHint}>Compartilhe com a comunidade...</Text>
+          <Ionicons name="image" size={18} color="#D4AF37" />
+        </TouchableOpacity>
+
+        {/* Feed posts */}
+        {filteredPosts.length === 0 ? (
+          <View style={styles.emptyFeed}>
+            <Ionicons name="chatbubbles-outline" size={40} color="#444" />
+            <Text style={styles.emptyFeedTxt}>Sem publicações por aqui.</Text>
+            <Text style={styles.emptyFeedHint}>Seja o primeiro a postar!</Text>
+          </View>
+        ) : filteredPosts.map((p) => <PostCard key={p.post_id} post={p} onAuthor={() => router.push(`/community/member/${p.member_id}`)} />)}
+
+        {/* Groups teaser */}
+        <Text style={styles.sectionTitle}>GRUPOS EM DESTAQUE</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, gap: 10, paddingVertical: 6 }}>
+          {groups.slice(0, 5).map((g) => (
+            <TouchableOpacity key={g.group_id} style={[styles.groupChip, { borderColor: g.color + "66" }]} onPress={() => router.push(`/community/group/${g.group_id}`)}>
+              <View style={[styles.groupIc, { backgroundColor: g.color + "22" }]}>
+                <Ionicons name={g.icon as any} size={16} color={g.color} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.groupName} numberOfLines={1}>{g.name}</Text>
+                <Text style={styles.groupMembers}>{g.members_count} membros</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity style={styles.createGroupChip} onPress={() => router.push("/community/create-group")} testID="create-group">
+            <Ionicons name="add" size={22} color="#D4AF37" />
+            <Text style={styles.createGroupTxt}>Novo grupo</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </ScrollView>
     </View>
   );
 }
 
-function TabBtn({ icon, label, active, onPress, badge, testID }: any) {
+function FilterChip({ label, active, onPress }: any) {
   return (
-    <TouchableOpacity style={[styles.tabBtn, active && styles.tabBtnActive]} onPress={onPress} testID={testID} activeOpacity={0.85}>
-      <Ionicons name={icon} size={16} color={active ? "#D4AF37" : "#999"} />
-      <Text style={[styles.tabTxt, active && { color: "#D4AF37" }]}>{label}</Text>
-      {badge ? <View style={styles.tabBadge}><Text style={styles.tabBadgeTxt}>{badge}</Text></View> : null}
+    <TouchableOpacity style={[styles.chip, active && styles.chipActive]} onPress={onPress}>
+      <Text style={[styles.chipTxt, active && styles.chipTxtActive]}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-function MemberRow({ m, onPress }: { m: CommunityMember; onPress: () => void }) {
-  const tier = TIERS[m.tier] || TIERS.black;
+function PostCard({ post, onAuthor }: { post: Post; onAuthor: () => void }) {
+  const tier = TIERS[post.author_tier || "silver"];
+  const timeAgo = (() => {
+    const m = Math.floor((Date.now() - new Date(post.created_at).getTime()) / 60000);
+    if (m < 1) return "agora"; if (m < 60) return `${m}min`; const h = Math.floor(m / 60); if (h < 24) return `${h}h`; return `${Math.floor(h / 24)}d`;
+  })();
+  const [reactions, setReactions] = useState(post.reactions);
+  const react = async (kind: "fire" | "heart" | "muscle") => {
+    setReactions({ ...reactions, [kind]: reactions[kind] + 1 });
+    try { await api.reactPost(post.post_id, kind); } catch {}
+  };
+  const total = reactions.fire + reactions.heart + reactions.muscle;
   return (
-    <TouchableOpacity style={styles.mrow} onPress={onPress} activeOpacity={0.85} testID={`member-row-${m.member_id}`}>
-      <View style={styles.mavatarWrap}>
-        {m.avatar_base64 ? (
-          <Image source={{ uri: m.avatar_base64 }} style={styles.mavatar} />
-        ) : (
-          <View style={[styles.mavatar, { backgroundColor: "#2A2A2A", alignItems: "center", justifyContent: "center" }]}>
-            <Text style={{ color: "#DDD", fontSize: 17, fontWeight: "800" }}>{m.nickname.charAt(0).toUpperCase()}</Text>
-          </View>
-        )}
-        <View style={[styles.onlineDot, { backgroundColor: m.is_online ? "#4EE07F" : "#555" }]} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <View style={styles.mnameRow}>
-          <Text style={styles.mname}>{m.nickname}</Text>
-          <Ionicons name={tier.icon as any} size={11} color={tier.color} />
+    <View style={styles.post}>
+      <TouchableOpacity style={styles.postHeader} onPress={onAuthor}>
+        <View style={[styles.postAvRing, { borderColor: tier.color }]}>
+          {post.author_avatar ? <Image source={{ uri: post.author_avatar }} style={styles.postAv} /> : (
+            <View style={[styles.postAv, { backgroundColor: "#2A2A2A", alignItems: "center", justifyContent: "center" }]}>
+              <Text style={{ color: "#EEE", fontWeight: "800" }}>{(post.author_nickname || "?").charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
         </View>
-        <Text style={styles.mdesc} numberOfLines={1}>
-          {[m.profession, m.city, m.age ? `${m.age} anos` : null].filter(Boolean).join(" · ") || (m.bio || "Membro do clube")}
-        </Text>
-      </View>
-      <Ionicons name="chatbubble-ellipses-outline" size={18} color="#999" />
-    </TouchableOpacity>
-  );
-}
-
-function GroupRow({ g, onPress }: { g: Group; onPress: () => void }) {
-  return (
-    <TouchableOpacity style={[styles.grow, { borderLeftColor: g.color, borderLeftWidth: 3 }]} onPress={onPress} activeOpacity={0.85} testID={`group-${g.group_id}`}>
-      <View style={[styles.gicon, { backgroundColor: g.color + "20", borderColor: g.color + "66" }]}>
-        <Ionicons name={g.icon as any} size={22} color={g.color} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.gname}>{g.name}</Text>
-        <Text style={styles.gdesc} numberOfLines={2}>{g.description}</Text>
-        <Text style={styles.gcount}>{g.members_count} participantes</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color="#999" />
-    </TouchableOpacity>
-  );
-}
-
-function EventRow({ e }: { e: CommunityEvent }) {
-  return (
-    <View style={[styles.ev, { borderLeftColor: e.color, borderLeftWidth: 3 }]}>
-      <View style={[styles.gicon, { backgroundColor: e.color + "20", borderColor: e.color + "66" }]}>
-        <Ionicons name={e.icon as any} size={22} color={e.color} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.gname, { color: e.color }]}>{e.when_label.toUpperCase()}</Text>
-        <Text style={styles.etitle}>{e.title}</Text>
-        <Text style={styles.edesc}>{e.description}</Text>
-        <Text style={styles.eplace}>{e.place} · {e.city}</Text>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Text style={styles.postAuthor}>{post.author_nickname}</Text>
+            <Ionicons name={tier.icon as any} size={11} color={tier.color} />
+          </View>
+          <Text style={styles.postMeta}>{timeAgo} · {post.author_city || "BLACKSCLUB"}</Text>
+        </View>
+        <Ionicons name="ellipsis-horizontal" size={18} color="#666" />
+      </TouchableOpacity>
+      {post.text ? <Text style={styles.postText}>{post.text}</Text> : null}
+      {post.image_base64 ? <Image source={{ uri: post.image_base64 }} style={styles.postImg} /> : null}
+      <View style={styles.postActions}>
+        <TouchableOpacity style={styles.reactBtn} onPress={() => react("fire")} testID={`react-fire-${post.post_id}`}>
+          <Text style={styles.reactEmo}>🔥</Text><Text style={styles.reactCt}>{reactions.fire}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.reactBtn} onPress={() => react("heart")}>
+          <Text style={styles.reactEmo}>❤️</Text><Text style={styles.reactCt}>{reactions.heart}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.reactBtn} onPress={() => react("muscle")}>
+          <Text style={styles.reactEmo}>💪</Text><Text style={styles.reactCt}>{reactions.muscle}</Text>
+        </TouchableOpacity>
+        <View style={{ flex: 1 }} />
+        <Text style={styles.totalReacts}>{total} reações</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tabs: { flexDirection: "row", backgroundColor: "#0F0F0F", borderBottomWidth: 1, borderBottomColor: "#222" },
-  tabBtn: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
-    paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: "transparent",
-    position: "relative",
-  },
-  tabBtnActive: { borderBottomColor: "#D4AF37" },
-  tabTxt: { color: "#999", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 },
-  tabBadge: {
-    marginLeft: 4, paddingHorizontal: 5, paddingVertical: 1,
-    backgroundColor: "#4EE07F", borderRadius: 8, minWidth: 16, alignItems: "center",
-  },
-  tabBadgeTxt: { color: "#000", fontSize: 9, fontWeight: "900" },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingTop: 10, paddingBottom: 8 },
+  headerTitle: { flex: 1, color: "#FFF", fontSize: 24, fontWeight: "900" },
+  headerActions: { flexDirection: "row", gap: 10 },
+  hBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: "#141414", borderWidth: 1, borderColor: "#1F1F1F", alignItems: "center", justifyContent: "center" },
 
-  myRow: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    padding: 14, backgroundColor: "#141414",
-    borderBottomWidth: 1, borderBottomColor: "#222",
-  },
-  myAvatar: {
-    width: 44, height: 44, borderRadius: 22, borderWidth: 2,
-    backgroundColor: "#2A2A2A", alignItems: "center", justifyContent: "center",
-  },
-  myAvatarTxt: { color: "#EEE", fontSize: 16, fontWeight: "800" },
-  myNick: { color: "#EFEFEF", fontSize: 14, fontWeight: "800" },
-  myHint: { color: "#888", fontSize: 11, marginTop: 2 },
+  storiesWrap: { paddingVertical: 10 },
+  storyItem: { alignItems: "center", width: 72 },
+  storyRing: { width: 64, height: 64, borderRadius: 32, borderWidth: 2, padding: 2, alignItems: "center", justifyContent: "center" },
+  storyAvatar: { width: 56, height: 56, borderRadius: 28 },
+  myStoryAvatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: "#141414", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#333" },
+  storyName: { color: "#CCC", fontSize: 11, marginTop: 6, fontWeight: "700" },
 
-  sectionHint: { color: "#999", fontSize: 10, fontWeight: "800", letterSpacing: 2, paddingHorizontal: 16, paddingVertical: 10 },
+  filters: { paddingHorizontal: 14, paddingVertical: 8, gap: 8 },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: "#222", backgroundColor: "#0F0F0F" },
+  chipActive: { backgroundColor: "#D4AF37", borderColor: "#D4AF37" },
+  chipTxt: { color: "#CCC", fontSize: 12, fontWeight: "800" },
+  chipTxtActive: { color: "#000" },
 
-  mrow: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    paddingHorizontal: 16, paddingVertical: 10,
-  },
-  mavatarWrap: { position: "relative" },
-  mavatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#2A2A2A" },
-  onlineDot: {
-    position: "absolute", right: -1, bottom: -1,
-    width: 12, height: 12, borderRadius: 6,
-    borderWidth: 2, borderColor: "#1A1A1A",
-  },
-  mnameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  mname: { color: "#EFEFEF", fontSize: 14, fontWeight: "800" },
-  mdesc: { color: "#999", fontSize: 11, marginTop: 2 },
+  createPost: { flexDirection: "row", alignItems: "center", gap: 12, marginHorizontal: 14, marginTop: 8, marginBottom: 10, padding: 12, backgroundColor: "#0F0F0F", borderRadius: 14, borderWidth: 1, borderColor: "#1A1A1A" },
+  cpAvatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#222", alignItems: "center", justifyContent: "center" },
+  cpInitial: { color: "#EEE", fontSize: 14, fontWeight: "800" },
+  cpHint: { flex: 1, color: "#888", fontSize: 13 },
 
-  grow: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    padding: 14, borderRadius: 10,
-    backgroundColor: "#242424", borderWidth: 1, borderColor: "#2E2E2E",
-  },
-  gicon: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: "center", justifyContent: "center",
-    borderWidth: 1,
-  },
-  gname: { color: "#EFEFEF", fontSize: 14, fontWeight: "800" },
-  gdesc: { color: "#AAA", fontSize: 11, marginTop: 2, lineHeight: 16 },
-  gcount: { color: "#888", fontSize: 10, marginTop: 4, letterSpacing: 1 },
+  emptyFeed: { alignItems: "center", paddingVertical: 40, gap: 8 },
+  emptyFeedTxt: { color: "#888", fontSize: 14, fontWeight: "800" },
+  emptyFeedHint: { color: "#D4AF37", fontSize: 11 },
 
-  ev: {
-    flexDirection: "row", gap: 12, padding: 14,
-    borderRadius: 10, backgroundColor: "#242424", borderWidth: 1, borderColor: "#2E2E2E",
-  },
-  etitle: { color: "#F0F0F0", fontSize: 15, fontWeight: "800", marginTop: 4 },
-  edesc: { color: "#AAA", fontSize: 12, marginTop: 4, lineHeight: 17 },
-  eplace: { color: "#888", fontSize: 11, marginTop: 6, letterSpacing: 0.3 },
+  post: { marginHorizontal: 12, marginBottom: 10, padding: 14, backgroundColor: "#0E0E0E", borderRadius: 14, borderWidth: 1, borderColor: "#1A1A1A" },
+  postHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  postAvRing: { borderWidth: 2, borderRadius: 22, padding: 1 },
+  postAv: { width: 36, height: 36, borderRadius: 18 },
+  postAuthor: { color: "#EEE", fontSize: 13, fontWeight: "800" },
+  postMeta: { color: "#888", fontSize: 10, marginTop: 1 },
+  postText: { color: "#E5E5E5", fontSize: 14, lineHeight: 20, marginTop: 10 },
+  postImg: { width: "100%", aspectRatio: 1.3, borderRadius: 10, marginTop: 10, backgroundColor: "#1A1A1A" },
+  postActions: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#1A1A1A" },
+  reactBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: "#1A1A1A" },
+  reactEmo: { fontSize: 13 },
+  reactCt: { color: "#CCC", fontSize: 12, fontWeight: "700" },
+  totalReacts: { color: "#888", fontSize: 11 },
 
-  empty: { color: "#999", fontSize: 12, textAlign: "center", marginTop: 40 },
+  sectionTitle: { color: "#888", fontSize: 10, fontWeight: "900", letterSpacing: 2.5, paddingHorizontal: 16, marginTop: 20, marginBottom: 10 },
+  groupChip: { flexDirection: "row", alignItems: "center", gap: 10, width: 220, padding: 12, borderRadius: 12, borderWidth: 1, backgroundColor: "#0F0F0F" },
+  groupIc: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  groupName: { color: "#EEE", fontSize: 13, fontWeight: "800" },
+  groupMembers: { color: "#888", fontSize: 10, marginTop: 2 },
+  createGroupChip: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: "#D4AF37", borderStyle: "dashed" },
+  createGroupTxt: { color: "#D4AF37", fontSize: 12, fontWeight: "800", letterSpacing: 1 },
 });

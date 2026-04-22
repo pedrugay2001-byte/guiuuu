@@ -214,6 +214,133 @@ export const api = {
   groupSend: (group_id: string, member_id: string, text: string) =>
     request<GroupMsg>(`/community/groups/${group_id}/messages`, { method: "POST", body: JSON.stringify({ member_id, text }) }),
   eventsList: () => request<CommunityEvent[]>("/community/events"),
+
+  // ----- Plans & Marketplace -----
+  plans: () => request<Plan[]>("/plans"),
+  adminSetPlan: (member_id: string, plan: string) =>
+    request<{ ok: boolean; plan: string }>(`/admin/members/${member_id}/plan`, {
+      method: "PUT", body: JSON.stringify({ plan }),
+    }),
+  listAds: (params?: { category?: string; q?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.category && params.category !== "all") qs.set("category", params.category);
+    if (params?.q) qs.set("q", params.q);
+    const s = qs.toString();
+    return request<Ad[]>(`/ads${s ? "?" + s : ""}`);
+  },
+  getAd: (ad_id: string) => request<Ad>(`/ads/${ad_id}`),
+  createAd: (body: AdCreatePayload) =>
+    request<Ad>("/ads", { method: "POST", body: JSON.stringify(body) }),
+  deleteAd: (ad_id: string, seller_id: string) =>
+    request<{ ok: boolean }>(`/ads/${ad_id}?seller_id=${seller_id}`, { method: "DELETE" }),
+  myAds: (member_id: string) => request<Ad[]>(`/ads/member/${member_id}`),
+
+  // ----- Wallet (BLACK Coins) -----
+  getWallet: (member_id: string) => request<Wallet>(`/wallet/${member_id}`),
+  walletTxs: (member_id: string) => request<WalletTx[]>(`/wallet/${member_id}/transactions`),
+  walletTopup: (member_id: string, amount: number) =>
+    request<WalletTx>("/wallet/topup", { method: "POST", body: JSON.stringify({ member_id, amount }) }),
+  walletWithdraw: (member_id: string, amount: number, pix_key?: string) =>
+    request<WalletTx>("/wallet/withdraw", { method: "POST", body: JSON.stringify({ member_id, amount, pix_key }) }),
+  walletPurchase: (ad_id: string, buyer_id: string, qty = 1) =>
+    request<WalletTx>("/wallet/purchase", { method: "POST", body: JSON.stringify({ ad_id, buyer_id, qty }) }),
+  walletConfirm: (tx_id: string, buyer_id: string) =>
+    request<{ ok: boolean }>(`/wallet/confirm/${tx_id}`, { method: "POST", body: JSON.stringify({ buyer_id }) }),
+  walletRefund: (tx_id: string) =>
+    request<{ ok: boolean }>(`/wallet/refund/${tx_id}`, { method: "POST", body: JSON.stringify({ admin: true }) }),
+
+  // ----- Stories -----
+  listStories: () => request<StoryGroup[]>("/stories"),
+  createStory: (member_id: string, image_base64?: string, text?: string) =>
+    request<Story>("/stories", { method: "POST", body: JSON.stringify({ member_id, image_base64, text }) }),
+
+  // ----- Feed -----
+  listPosts: () => request<Post[]>("/feed/posts"),
+  createPost: (member_id: string, text: string, image_base64?: string, tags?: string[]) =>
+    request<Post>("/feed/posts", { method: "POST", body: JSON.stringify({ member_id, text, image_base64, tags }) }),
+  reactPost: (post_id: string, kind: "fire" | "heart" | "muscle") =>
+    request<{ ok: boolean }>(`/feed/posts/${post_id}/react`, { method: "POST", body: JSON.stringify({ kind }) }),
+
+  // ----- Profile Photos -----
+  updatePhotos: (member_id: string, photos: string[]) =>
+    request<{ ok: boolean; count: number }>(`/members/${member_id}/photos`, { method: "PUT", body: JSON.stringify({ photos }) }),
+  getPhotos: (member_id: string) => request<{ photos: string[] }>(`/members/${member_id}/photos`),
+
+  // ----- Custom groups -----
+  createCustomGroup: (body: { owner_id: string; name: string; description?: string; color?: string; icon?: string; invite_ids?: string[] }) =>
+    request<Group>("/community/groups/custom", { method: "POST", body: JSON.stringify(body) }),
+};
+
+export type Plan = {
+  id: "silver" | "gold" | "diamond";
+  name: string;
+  price_monthly: number;
+  color: string;
+  discount: number;
+  can_sell: boolean;
+  can_buy: boolean;
+  features: string[];
+};
+export type Ad = {
+  ad_id: string;
+  seller_id: string;
+  seller_nickname?: string;
+  seller_tier?: TierId;
+  seller_avatar?: string | null;
+  title: string;
+  description: string;
+  price_full: number;
+  category: string;
+  images: string[];
+  stock: number;
+  active: boolean;
+  created_at: string;
+};
+export type AdCreatePayload = {
+  seller_id: string;
+  title: string;
+  description: string;
+  price_full: number;
+  category: string;
+  images: string[];
+  stock: number;
+};
+export type Wallet = {
+  member_id: string;
+  balance: number;
+  escrow_in: number;
+  escrow_out: number;
+};
+export type WalletTx = {
+  tx_id: string;
+  type: "topup" | "withdraw" | "escrow";
+  from_id: string | null;
+  to_id: string | null;
+  amount: number;
+  status: "settled" | "escrow" | "refunded";
+  note?: string;
+  ad_id?: string;
+  ad_title?: string;
+  qty?: number;
+  price_full?: number;
+  discount?: number;
+  created_at: string;
+};
+export type Story = { story_id: string; member_id: string; image_base64?: string | null; text?: string; created_at: string; expires_at: string };
+export type StoryGroup = { member_id: string; nickname: string; tier: TierId; avatar_base64?: string | null; stories: Story[] };
+export type Post = {
+  post_id: string;
+  member_id: string;
+  text: string;
+  image_base64?: string | null;
+  tags: string[];
+  reactions: { fire: number; heart: number; muscle: number };
+  comments_count: number;
+  created_at: string;
+  author_nickname?: string;
+  author_tier?: TierId;
+  author_avatar?: string | null;
+  author_city?: string | null;
 };
 
 export type CommunityMember = {

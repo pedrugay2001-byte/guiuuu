@@ -211,15 +211,46 @@ frontend:
             - /community/group/[id] com header colorido, estado vazio e envio de mensagens (validado via testID group-send).
             - Bug fixed: _public_member comparava datetime naive vs tz-aware quando heartbeat populava online_at (causava 500 em /community/members/{id} e na listagem quando havia membros online). Agora normaliza para UTC.
 
+  - task: "BLACKSCLUB Marketplace V2 + Community V2 (full overhaul)"
+    implemented: true
+    working: true
+    file: "backend/server.py + frontend/app/**"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: |
+            Mudança estrutural MASSIVA entregue e validada visualmente no viewport 390x844:
+            1) **Planos** (Silver R$99 / Gold R$499 / Diamond R$999) com endpoint /api/plans + tela "Negócios" (nova tab).
+            2) **Marketplace P2P** — só Diamond anuncia: /api/ads (CRUD) + /ads screen (grid) + /ads/[id] (detalhe) + /ads/create (só Diamond). Desconto automático por tier (Diamond -30%, Gold -15%, Silver 0%).
+            3) **BLACK Coins Wallet** — 1 BLACK = R$ 1,00, com escrow. Endpoints: /wallet/{id}, /wallet/topup (Pix MOCK), /wallet/withdraw, /wallet/purchase (cria escrow), /wallet/confirm/{tx} (libera pro vendedor). UI nova em tab "Banco".
+            4) **Community V2** estilo Instagram/TikTok: strip de stories com "Seu story", filtros (Para você / Seguindo / Recentes / Treinos), create-post, feed com reações (🔥❤️💪), grupos em destaque + criar grupo.
+            5) **Stories 24h**: /api/stories create+list, screen de criação de story com foto.
+            6) **Posts do Feed**: /api/feed/posts + react endpoint.
+            7) **Descobrir** (/community/descobrir): Perfis em alta, Grupos em destaque, Eventos próximos.
+            8) **Mensagens** (/community/messages): lista moderna com stories no topo + busca.
+            9) **DM melhorado**: envio de foto (base64 marker) + emoji picker com 20 emojis.
+            10) **Grupos customizados**: /api/community/groups/custom — user cria com ícone/cor + convida amigos.
+            11) **Perfil com galeria** até 10 fotos: /api/members/{id}/photos (get/put) + UI em edit-profile + exibição em member/[id].
+            12) **Home redesign**: fundo cinematográfico masculino (atleta em academia, low-key), hero "Disciplina. Comunidade. Exclusividade.", removido carrossel de categorias.
+            13) **Catálogo redesign**: sidebar estreita só com ícones, destaque dourado da categoria ativa.
+            14) **Tab bar nova**: Início / Catálogo / Comunidade / Negócios / Banco.
+            
+            Seed inicial: Demo (Diamond) com R$ 3.000 de saldo BLACK + 2 anúncios (Ozempic, Stack).
+            
+            Pix real + voz BLACK AI + gravação de áudio no chat ficam para a próxima rodada (precisam de APIs externas).
+
 metadata:
   created_by: "main_agent"
-  version: "1.2"
-  test_sequence: 3
+  version: "2.0"
+  test_sequence: 4
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Community (MSN-style) — endpoints + UI fully working"
+    - "BLACKSCLUB Marketplace V2 + Community V2 (full overhaul)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"

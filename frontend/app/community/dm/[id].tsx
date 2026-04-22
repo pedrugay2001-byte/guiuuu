@@ -1,17 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Image,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Image, Alert, Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Stack, useRouter, useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { api, CommunityMember, DMMessage } from "../../../src/api";
 import { useGate } from "../../../src/gate";
-import { theme, TIERS } from "../../../src/theme";
+import { TIERS } from "../../../src/theme";
+
+const EMOJIS = ["🔥", "💪", "❤️", "🙌", "👊", "✨", "🏋️", "🥶", "😂", "😎", "🎉", "💀", "🍏", "🥊", "🦾", "☀️", "🌙", "💯", "👁️", "🥵"];
 
 export default function DMChat() {
-  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { member } = useGate();
   const [partner, setPartner] = useState<CommunityMember | null>(null);
@@ -19,6 +21,7 @@ export default function DMChat() {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const listRef = useRef<FlatList>(null);
 
   const load = useCallback(async () => {
@@ -32,7 +35,6 @@ export default function DMChat() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (msgs.length) setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80); }, [msgs]);
 
-  // Poll every 5s for new messages
   useEffect(() => {
     if (!member || !id) return;
     const t = setInterval(async () => {
@@ -41,42 +43,49 @@ export default function DMChat() {
     return () => clearInterval(t);
   }, [member, id]);
 
-  const send = async () => {
-    const t = text.trim();
-    if (!t || !member || !id || sending) return;
-    setSending(true); setText("");
+  const send = async (customText?: string) => {
+    const payload = (customText || text).trim();
+    if (!payload || !member || !id || sending) return;
+    setSending(true); setText(""); setEmojiOpen(false);
     try {
-      const m = await api.dmSend(member.member_id, id, t);
+      const m = await api.dmSend(member.member_id, id, payload);
       setMsgs(prev => [...prev, m]);
     } catch {}
     finally { setSending(false); }
   };
 
-  if (loading || !partner) {
-    return <View style={{ flex: 1, backgroundColor: "#1A1A1A", justifyContent: "center" }}><ActivityIndicator color="#FFF" /></View>;
-  }
+  const attachPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return;
+    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images" as any], quality: 0.55, base64: true });
+    if (r.canceled || !r.assets?.length) return;
+    const a = r.assets[0];
+    if (a.base64) {
+      const marker = `[IMG]data:image/jpeg;base64,${a.base64}[/IMG]`;
+      await send(marker);
+    }
+  };
 
-  const tier = TIERS[partner.tier] || TIERS.black;
+  const addEmoji = (e: string) => setText(prev => prev + e);
+
+  if (loading || !partner) return <View style={{ flex: 1, backgroundColor: "#050505", justifyContent: "center" }}><ActivityIndicator color="#FFF" /></View>;
+
+  const tier = TIERS[partner.tier] || TIERS.silver;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: "#1A1A1A" }}>
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: "#050505" }}>
       <Stack.Screen options={{
-        headerStyle: { backgroundColor: "#1A1A1A" },
-        headerTintColor: "#FFF",
+        headerStyle: { backgroundColor: "#050505" }, headerTintColor: "#FFF",
         headerTitle: () => (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            {partner.avatar_base64 ? (
-              <Image source={{ uri: partner.avatar_base64 }} style={styles.headerAv} />
-            ) : (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            {partner.avatar_base64 ? <Image source={{ uri: partner.avatar_base64 }} style={styles.headerAv} /> : (
               <View style={[styles.headerAv, { backgroundColor: "#2A2A2A", alignItems: "center", justifyContent: "center" }]}>
                 <Text style={{ color: "#EEE", fontWeight: "800" }}>{partner.nickname.charAt(0).toUpperCase()}</Text>
               </View>
             )}
             <View>
               <Text style={styles.headerName}>{partner.nickname}</Text>
-              <Text style={[styles.headerOnline, { color: partner.is_online ? "#4EE07F" : "#999" }]}>
-                {partner.is_online ? "Online agora" : "Offline"}
-              </Text>
+              <Text style={[styles.headerOnline, { color: partner.is_online ? "#4EE07F" : "#888" }]}>{partner.is_online ? "Online agora" : "Offline"}</Text>
             </View>
           </View>
         ),
@@ -84,9 +93,9 @@ export default function DMChat() {
       <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
         {msgs.length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="chatbubble-ellipses-outline" size={48} color="#666" />
+            <Ionicons name="chatbubble-ellipses-outline" size={44} color="#555" />
             <Text style={styles.emptyTxt}>Puxe conversa com {partner.nickname}!</Text>
-            <Text style={styles.emptyHint}>Mande a primeira mensagem aqui.</Text>
+            <Text style={styles.emptyHint}>Mande um emoji ou foto para quebrar o gelo.</Text>
           </View>
         ) : (
           <FlatList
@@ -96,10 +105,14 @@ export default function DMChat() {
             contentContainerStyle={{ padding: 12 }}
             renderItem={({ item }) => {
               const mine = item.from_id === member?.member_id;
+              const imgMatch = /\[IMG\](data:[^\[]+)\[\/IMG\]/.exec(item.text);
+              const imgUri = imgMatch?.[1];
+              const cleanText = item.text.replace(/\[IMG\][^\[]+\[\/IMG\]/, "").trim();
               return (
                 <View style={[styles.row, mine ? styles.rowMe : styles.rowOther]}>
-                  <View style={[styles.bubble, mine ? styles.bubbleMe : styles.bubbleOther]}>
-                    <Text style={[styles.bubbleTxt, mine ? { color: "#000" } : { color: "#EEE" }]}>{item.text}</Text>
+                  <View style={[styles.bubble, mine ? styles.bubbleMe : styles.bubbleOther, imgUri && { padding: 4 }]}>
+                    {imgUri && <Image source={{ uri: imgUri }} style={styles.attachImg} />}
+                    {cleanText ? <Text style={[styles.bubbleTxt, { color: mine ? "#000" : "#EEE", marginTop: imgUri ? 6 : 0, paddingHorizontal: imgUri ? 6 : 0, paddingBottom: imgUri ? 4 : 0 }]}>{cleanText}</Text> : null}
                   </View>
                 </View>
               );
@@ -107,21 +120,21 @@ export default function DMChat() {
           />
         )}
 
+        {emojiOpen && (
+          <View style={styles.emojiPanel}>
+            {EMOJIS.map((e, i) => (
+              <Pressable key={i} onPress={() => addEmoji(e)} style={styles.emojiBtn}>
+                <Text style={styles.emojiTxt}>{e}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
         <View style={styles.inputBar}>
-          <TextInput
-            style={styles.input}
-            value={text}
-            onChangeText={setText}
-            placeholder={`Mensagem para ${partner.nickname}...`}
-            placeholderTextColor="#666"
-            multiline
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, (!text.trim() || sending) && { opacity: 0.4 }]}
-            disabled={!text.trim() || sending}
-            onPress={send}
-            testID="dm-send"
-          >
+          <TouchableOpacity style={styles.iconBtn} onPress={attachPhoto} testID="dm-photo"><Ionicons name="image" size={22} color="#D4AF37" /></TouchableOpacity>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => setEmojiOpen(v => !v)} testID="dm-emoji"><Ionicons name={emojiOpen ? "close" : "happy"} size={22} color="#D4AF37" /></TouchableOpacity>
+          <TextInput style={styles.input} value={text} onChangeText={setText} placeholder={`Mensagem para ${partner.nickname}...`} placeholderTextColor="#666" multiline />
+          <TouchableOpacity style={[styles.sendBtn, (!text.trim() || sending) && { opacity: 0.4 }]} disabled={!text.trim() || sending} onPress={() => send()} testID="dm-send">
             <Ionicons name="send" size={16} color="#000" />
           </TouchableOpacity>
         </View>
@@ -131,33 +144,25 @@ export default function DMChat() {
 }
 
 const styles = StyleSheet.create({
-  headerAv: { width: 30, height: 30, borderRadius: 15 },
+  headerAv: { width: 32, height: 32, borderRadius: 16 },
   headerName: { color: "#FFF", fontSize: 14, fontWeight: "800" },
   headerOnline: { fontSize: 10, fontWeight: "700" },
-
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  emptyTxt: { color: "#DDD", fontSize: 14, fontWeight: "800", marginTop: 14 },
-  emptyHint: { color: "#888", fontSize: 12, marginTop: 6 },
-
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 10 },
+  emptyTxt: { color: "#DDD", fontSize: 14, fontWeight: "800" },
+  emptyHint: { color: "#888", fontSize: 12 },
   row: { marginVertical: 3 },
   rowMe: { alignItems: "flex-end" },
   rowOther: { alignItems: "flex-start" },
-  bubble: { maxWidth: "78%", padding: 10, borderRadius: 12 },
-  bubbleMe: { backgroundColor: "#D4AF37" },
-  bubbleOther: { backgroundColor: "#2A2A2A" },
+  bubble: { maxWidth: "78%", padding: 10, borderRadius: 14 },
+  bubbleMe: { backgroundColor: "#D4AF37", borderBottomRightRadius: 4 },
+  bubbleOther: { backgroundColor: "#1A1A1A", borderBottomLeftRadius: 4 },
   bubbleTxt: { fontSize: 14, lineHeight: 19 },
-
-  inputBar: {
-    flexDirection: "row", alignItems: "flex-end", gap: 6, padding: 8,
-    borderTopWidth: 1, borderTopColor: "#222",
-  },
-  input: {
-    flex: 1, backgroundColor: "#2A2A2A", borderRadius: 20,
-    paddingHorizontal: 14, paddingVertical: 10,
-    color: "#EEE", fontSize: 14, maxHeight: 120,
-  },
-  sendBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "#D4AF37", alignItems: "center", justifyContent: "center",
-  },
+  attachImg: { width: 220, height: 220, borderRadius: 10, backgroundColor: "#111" },
+  emojiPanel: { flexDirection: "row", flexWrap: "wrap", padding: 10, backgroundColor: "#0F0F0F", borderTopWidth: 1, borderTopColor: "#1A1A1A" },
+  emojiBtn: { width: "10%", paddingVertical: 8, alignItems: "center" },
+  emojiTxt: { fontSize: 22 },
+  inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 4, padding: 8, borderTopWidth: 1, borderTopColor: "#1A1A1A" },
+  iconBtn: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
+  input: { flex: 1, backgroundColor: "#141414", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10, color: "#EEE", fontSize: 14, maxHeight: 120, borderWidth: 1, borderColor: "#1F1F1F" },
+  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#D4AF37", alignItems: "center", justifyContent: "center" },
 });
