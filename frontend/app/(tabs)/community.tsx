@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  FlatList, RefreshControl, ActivityIndicator, Alert,
+  FlatList, RefreshControl, ActivityIndicator,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,6 +10,7 @@ import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
 import { notify } from "../../src/alerts";
 import CachedImage from "../../src/cached-image";
+import ActionSheet from "../../src/action-sheet";
 
 type Tab = "foryou" | "following" | "recent" | "workouts";
 
@@ -200,16 +201,11 @@ function PostCard({ post, onAuthor, currentMemberId, onDelete }: {
     try { await api.reactPost(post.post_id, kind); } catch {}
   };
   const isMine = post.member_id === currentMemberId;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const openMenu = () => {
     if (!isMine) return;
-    Alert.alert("Opções do post", undefined, [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Excluir", style: "destructive", onPress: () => {
-        Alert.alert("Excluir post?", "Esta ação não pode ser desfeita.", [
-          { text: "Cancelar" }, { text: "Excluir", style: "destructive", onPress: () => onDelete() },
-        ]);
-      } },
-    ]);
+    setMenuOpen(true);
   };
   const total = reactions.fire + reactions.heart + reactions.muscle;
   return (
@@ -248,6 +244,28 @@ function PostCard({ post, onAuthor, currentMemberId, onDelete }: {
         <View style={{ flex: 1 }} />
         <Text style={styles.totalReacts}>{total} reações</Text>
       </View>
+
+      {/* ActionSheet - menu do post */}
+      <ActionSheet
+        visible={menuOpen}
+        title="Opções do post"
+        onClose={() => setMenuOpen(false)}
+        actions={[
+          { label: "Excluir post", icon: "trash-outline", destructive: true,
+            onPress: () => { setMenuOpen(false); setTimeout(() => setConfirmOpen(true), 150); } },
+        ]}
+      />
+      {/* ActionSheet - confirmar exclusão */}
+      <ActionSheet
+        visible={confirmOpen}
+        title="Excluir post?"
+        subtitle="Esta ação não pode ser desfeita."
+        onClose={() => setConfirmOpen(false)}
+        actions={[
+          { label: "Sim, excluir", icon: "trash", destructive: true,
+            onPress: async () => { await onDelete(); } },
+        ]}
+      />
     </View>
   );
 }

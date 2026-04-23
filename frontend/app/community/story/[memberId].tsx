@@ -8,8 +8,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, Story, StoryGroup } from "../../../src/api";
 import { TIERS } from "../../../src/theme";
 import { useGate } from "../../../src/gate";
-import { Alert } from "react-native";
 import CachedImage from "../../../src/cached-image";
+import ActionSheet from "../../../src/action-sheet";
 
 const { width, height } = Dimensions.get("window");
 const STORY_DURATION = 5000;
@@ -39,6 +39,7 @@ export default function StoryViewer() {
   const [storyIdx, setStoryIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   // Cache local de imagens por story_id (evita fetch repetido)
   const [imageCache, setImageCache] = useState<Record<string, string | null>>({});
 
@@ -275,15 +276,7 @@ export default function StoryViewer() {
           <TouchableOpacity
             onPress={() => {
               setPaused(true);
-              Alert.alert("Excluir story?", "Esta ação não pode ser desfeita.", [
-                { text: "Cancelar", onPress: () => setPaused(false) },
-                { text: "Excluir", style: "destructive", onPress: async () => {
-                  try {
-                    await api.storyDelete(story.story_id, currentMember.member_id);
-                    router.back();
-                  } catch { setPaused(false); }
-                } },
-              ]);
+              setDeleteOpen(true);
             }}
             style={st.close}
             hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
@@ -315,6 +308,23 @@ export default function StoryViewer() {
         onPress={next}
         onLongPress={() => setPaused(true)}
         onPressOut={() => setPaused(false)}
+      />
+
+      {/* ActionSheet de exclusão */}
+      <ActionSheet
+        visible={deleteOpen}
+        title="Excluir story?"
+        subtitle="Esta ação não pode ser desfeita."
+        onClose={() => { setDeleteOpen(false); setPaused(false); }}
+        actions={[
+          { label: "Sim, excluir", icon: "trash", destructive: true,
+            onPress: async () => {
+              try {
+                await api.storyDelete(story.story_id, currentMember!.member_id);
+                router.back();
+              } catch { setPaused(false); }
+            } },
+        ]}
       />
     </View>
   );

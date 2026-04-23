@@ -793,3 +793,39 @@ agent_communication:
            - Delete de story próprio (🗑️ vermelho) + delete de post próprio
            - Member profile via community (galeria sem delete + PUXAR CONVERSA → DM)
 
+
+
+    - agent: "main"
+      message: |
+        [Sessão atual — Simplificação Home + Black AI Analysis + Cross-platform ActionSheet]
+
+        Mudanças no home.tsx:
+        1. Removido header duplicado (BrandLogo + profile) que aparecia no topo da home.tsx — a
+           logo BLACKSCLUB agora aparece APENAS no BottomBrandBar (rodapé).
+        2. Removido bloco "PREVISÃO DE RESULTADO" (forecast card + gráfico) da Central de Performance.
+        3. Removidas seções below-fold "ATIVIDADE DO CLUBE" e "MARKETPLACE EM ALTA" (os "modelos"
+           de posts/anúncios). Home agora é: Greeting → Central (sem forecast) → Acesso Rápido. FIM.
+        4. ACESSO RÁPIDO subiu naturalmente — agora logo após a Central de Performance.
+        5. Card do "ASSISTENTE BLACK AI" agora é TouchableOpacity que navega para /black-ai.
+
+        Criado /app/frontend/app/black-ai.tsx (nova rota):
+        - Tela dedicada combinando análise detalhada + chat com IA.
+        - Top: Hero + stats row (METAS/PROGRESSO/RITMO/SEMANA).
+        - Middle: PROJETOS DETALHADOS — cards clicáveis por meta com progress bar, ritmo, dias,
+          indicador de regressão.
+        - Bottom: CONVERSA COM A IA — chat com mensagem de boas-vindas contextual e envio integrado
+          ao endpoint /api/ai/chat (specialist_id="performance"). Contexto das metas é injetado
+          automaticamente na pergunta enviada à IA para respostas baseadas em dados reais.
+
+        Cross-platform ActionSheet replacement:
+        - /app/frontend/app/(tabs)/community.tsx PostCard → ActionSheet no menu de exclusão do post.
+        - /app/frontend/app/community/story/[memberId].tsx → ActionSheet no delete do story.
+        - Remove Alert.alert que quebrava na web.
+
+        Validação frontend (screenshot /home e /black-ai):
+        - Home renderiza limpa, sem header duplicado, sem "Previsão", sem "modelos" below-fold.
+        - Clique no Assistente Black AI leva corretamente para /black-ai.
+        - /black-ai mostra stats, card da meta "Perder 8kg" e chat com mensagem de boas-vindas.
+        - BottomBrandBar (logo + notif + profile) continua presente em todas as tabs.
+
+        Backend: Nenhuma mudança. Rotas inalteradas.
