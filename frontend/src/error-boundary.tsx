@@ -24,9 +24,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   reset = () => {
     this.setState({ hasError: false, error: undefined });
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      try { window.location.href = "/home"; } catch {}
-    }
+    // Navegação SPA — NÃO usamos window.location para evitar full reload.
+    // expo-router lida com a recuperação dentro do mesmo ciclo.
   };
 
   render() {

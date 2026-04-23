@@ -1,5 +1,7 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider } from "../src/auth";
 import { CartProvider } from "../src/cart";
 import { GateProvider } from "../src/gate";
@@ -7,11 +9,13 @@ import { ErrorBoundary } from "../src/error-boundary";
 
 export default function RootLayout() {
   return (
-    <ErrorBoundary>
-      <GateProvider>
-        <AuthProvider>
-          <CartProvider>
-            <StatusBar style="light" />
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#050505" }}>
+      <SafeAreaProvider>
+        <ErrorBoundary>
+          <GateProvider>
+            <AuthProvider>
+              <CartProvider>
+                <StatusBar style="light" />
           <Stack
             screenOptions={{
               headerStyle: { backgroundColor: "#050505" },
@@ -57,9 +61,11 @@ export default function RootLayout() {
             <Stack.Screen name="staff/inbox" options={{ title: "Caixa de Mensagens" }} />
             <Stack.Screen name="staff/chat/[member_id]" options={{ title: "Conversa" }} />
           </Stack>
-        </CartProvider>
-      </AuthProvider>
-    </GateProvider>
-    </ErrorBoundary>
+              </CartProvider>
+            </AuthProvider>
+          </GateProvider>
+        </ErrorBoundary>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

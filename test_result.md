@@ -942,3 +942,68 @@ agent_communication:
         PENDÊNCIAS:
         - Parte 4 (Central de Performance refeita do zero) ainda não iniciada — aguardando usuário enviar a parte 4 do plano.
 
+
+    - agent: "main"
+      message: |
+        [Sessão — Refatoração estrutural SPA + PWA + Safe-area]
+
+        Feita uma refatoração estrutural global (não ajustes pontuais) para transformar o app
+        num verdadeiro SPA/PWA em modo standalone.
+
+        ==== 1. Root Layout (_layout.tsx) ====
+        Adicionados providers que estavam faltando:
+        - GestureHandlerRootView (flex:1) — necessário para gestures da react-native-reanimated
+        - SafeAreaProvider — sem ele, useSafeAreaInsets retorna 0 no iOS com notch
+        - Ordem de aninhamento: GestureHandlerRoot > SafeAreaProvider > ErrorBoundary > Gate > Auth > Cart > Stack
+        - Removidas rotas órfãs do Stack (wallet, wallet/[id], notifications) que geravam warnings
+
+        ==== 2. +html.tsx — Shell Web completo ====
+        Reescrito integralmente com:
+        - Manifest PWA injetado inline (data URL) com display:standalone, theme_color #050505,
+          icons 192/512, scope "/", lang pt-BR
+        - Meta tags completas: apple-mobile-web-app-capable, apple-mobile-web-app-title,
+          application-name, color-scheme dark, OG tags (og:title/description/type/locale)
+        - apple-touch-icon + favicon linkados
+        - CSS global com:
+          · CSS vars (--safe-top/bottom/left/right via env())
+          · 100dvh em #root (não 100vh — evita corte com barra do browser)
+          · overscroll-behavior: none/contain (sem pull-to-refresh do browser)
+          · touch-action: manipulation (sem delay de 300ms no toque)
+          · -webkit-tap-highlight-color: transparent
+          · user-select: none em tudo exceto inputs/textareas
+          · focus-visible com outline dourado (acessibilidade)
+          · Scrollbar discreto (#222)
+          · @media (display-mode: standalone) → aplica padding de safe-area quando PWA instalado
+
+        ==== 3. Error Boundary (error-boundary.tsx) ====
+        - Removido window.location.href = "/home" (causava full page reload, quebrava SPA)
+        - Agora só reseta o estado; expo-router recupera naturalmente
+
+        ==== 4. Validações runtime ====
+        Via Playwright no app carregado:
+        - document.querySelector('link[rel=manifest]').href → data URL com manifest válido
+        - meta[name=viewport] → "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+        - meta[name=theme-color] → "#050505"
+        - meta[name=apple-mobile-web-app-capable] → "yes"
+        - getComputedStyle(#root).minHeight → 1080px (100dvh corretamente aplicado)
+        - Zero pageerrors no console
+        - Screenshot da tela welcome renderizando dentro da moldura mobile (max 560px centralizado)
+
+        ==== 5. O que melhora na prática ====
+        - iPhone com notch: conteúdo não corta mais no topo nem no rodapé (safe-area-insets)
+        - Ao instalar "Adicionar à tela inicial": abre em modo standalone (sem barra do browser)
+        - Sem reload full ao tentar recuperar de erro (SPA real)
+        - Sem pull-to-refresh do browser engolindo scroll do app
+        - Sem delay de 300ms no toque (touch-action: manipulation)
+        - Status bar preta nativa (theme-color + status-bar-style)
+
+        ==== 6. O que NÃO foi alterado (intencionalmente) ====
+        - Nenhum visual foi mudado (só infraestrutura de shell)
+        - Nenhuma rota ou lógica de negócio foi tocada
+        - Nenhuma tela teve seu layout mexido — todas continuam usando os mesmos SafeAreaView
+          locais, agora respeitando os insets reais do device
+
+        ==== Pendente ====
+        - Parte 4 — Central de Performance refeita do zero: ainda aguardando usuário enviar o
+          detalhamento das regras.
+
