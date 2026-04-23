@@ -631,3 +631,129 @@ agent_communication:
         AGUARDA:
         - Deep testing dos novos endpoints: daily-message, detail, patch, entries com mood/photo,
           dashboard com goals_summary, habit progress, behavior progress
+
+    - agent: "testing"
+      message: |
+        QA Frontend completo do BLACKSCLUB (iPhone 14 — 390x844) via demo@blacksclub.com / novasenha123.
+
+        ========== RESULTADOS POR CENÁRIO ==========
+
+        ## 1. HOME (/home)  ✅ PASS
+        - Header "CENTRAL DE PERFORMANCE" em prata: PASS
+        - Botão "MENSAGEM DO DIA" à direita é cinza escuro (rgb(42,42,42)), NÃO é mais amarelo: PASS
+        - Botão esquerdo mostra o NOME da meta ativa "Perder 8kg" com a cor da meta (verde): PASS
+        - Clicar MENSAGEM DO DIA vai para /daily-message?goalId=g_xxx: PASS
+        - Tab bar mostra os 5 itens sem corte (Início / Mercado / Social / Metas / Banco): PASS
+        - Cards extras visíveis: ASSISTENTE BLACK AI, METAS ATIVAS, PROGRESSO GERAL, RITMO ATUAL,
+          DIAS RESTANTES, PREVISÃO DE RESULTADO com chart dourado. Todos PASS visualmente.
+
+        ## 2. DAILY MESSAGE (/daily-message) ✅ PASS
+        - Carrega data PT-BR ("QUINTA-FEIRA, 23 DE ABRIL"): PASS
+        - Tag colorida "META: PERDER 8KG": PASS
+        - Headline variante ("Maturidade encontra-se na serenidade do equilíbrio"): PASS
+        - Foco body text: PASS
+        - Passagem bíblica ("Isaías 40:29" / "Josué 1:9" / "2 Timóteo 1:7" — variam): PASS
+        - Parábola (HISTÓRIA): PASS
+        - Fechamento dourado: PASS
+        - Botão voltar visível: PASS
+        - ⚠️ 1ª requisição ao endpoint POST /api/goals/{id}/daily-message às vezes aparece como
+          ERR_ABORTED na rede (React double-mount/strict-mode) e a tela fica "Preparando sua mensagem...".
+          Na 2ª carga resolve em <5s. Não é bloqueante, mas pode confundir o usuário no primeiro
+          acesso se a rede estiver lenta.
+
+        ## 3. PERFORMANCE (/performance) ✅ PASS (com observações)
+        - Chip de meta "Perder 8kg 0%" renderiza: PASS
+        - Card da meta com PROGRESSO 0%, RITMO 0.0%, FALTAM, IDEAL HOJE 95kg, INÍCIO 95kg, ATUAL
+          95kg, META 87kg, REGISTRAR PROGRESSO, ícone "..." (3 pontos), MENSAGEM DO DIA embutida:
+          PASS (confirmado nos screenshots).
+        - Botão "+" (círculo dourado no topo-direito) abre modal "NOVA META" com:
+          TIPO (Peso/Saúde, Financeiro, Hábitos, Comportamento, Produtividade), TÍTULO, INICIAL,
+          ATUAL, META, UNIDADE, DATA FINAL, COR DA META (7 cores), MOTIVO, DESCRIÇÃO, FOTO INICIAL,
+          CRIAR META: PASS
+        - Validação de título vazio dispara mensagem de erro: PASS
+        - ❌ NÃO FOI POSSÍVEL VALIDAR VIA AUTOMAÇÃO: abertura do menu "..." do card (clique posicional
+          em (347,268) não disparou o menu de "Editar meta / Arquivar meta"). Visualmente o ícone
+          está presente, mas sem data-testid o teste não conseguiu acionar. Recomendo o main agent
+          adicionar data-testid="goal-menu-btn" e similares para viabilizar automação.
+        - Tests não executados (limitação de 3 invocações de browser): clicar em "..." e verificar
+          "Editar meta" / "Arquivar meta"; clicar "Editar meta" e validar campos preenchidos;
+          alterar target_value e salvar; criar meta de HÁBITO 30; criar meta FINANCEIRA;
+          registrar progresso com foto; registrar check-in de hábito; excluir entry; verificar
+          pizza de RESUMO GERAL (só 1 meta ativa).
+
+        ## 4. COMUNIDADE (/community) ✅ PASS (parcial)
+        - Stories carregam: "Seu story" + "Guigui": PASS
+        - Abas "Para você", "Seguindo", "Recentes", "Treinos" visíveis: PASS
+        - Feed com posts + reações (🔥 ❤️ 💪) visível: PASS
+        - GRUPOS EM DESTAQUE (Cutting & Dieta, GLP-1, Hipertrofia, TRT, Mulheres, "Novo grupo"): PASS
+        - Tests não executados (requer interação profunda): abrir/fechar story (cache 2º acesso),
+          lixeira vermelha em story próprio, menu "..." em post próprio + excluir.
+
+        ## 5. EDIT-PROFILE (/community/edit-profile) ✅ PASS (limitado)
+        - Form carrega: APELIDO (Guilherme), BIO, IDADE (30), PROFISSÃO, ONDE MALHA, CIDADE (São Paulo),
+          GALERIA (0/10), ADICIONAR, SALVAR PERFIL. Aviso de privacidade visível.
+        - ⚠️ NÃO TESTADO: lightbox da galeria (0 fotos atualmente — sem foto para clicar).
+          Main agent precisa testar manualmente com galeria populada, OU subir fotos de demo
+          via seed para permitir teste automatizado.
+
+        ## 6. MEMBER PROFILE (/community/member/[id]) ⚠️ NÃO TESTADO
+        - Aba "Descobrir" não encontrada em /community com o texto literal. Estrutura pode ter
+          mudado (as abas atuais são "Para você", "Seguindo", "Recentes", "Treinos").
+          Main agent: confirmar se "Descobrir" foi renomeado ou se está em outro lugar.
+
+        ## 7. MARKETPLACE (/catalog) ✅ PASS (com observação)
+        - Lista carrega com 22 itens do catálogo oficial + seção MEMBROS BLACK DIAMOND: PASS
+        - Clicar num anúncio ("Ozempic 1mg lacrado") navega para /ads/{id}: PASS
+        - Detalhe mostra título, vendedor (@Guilherme, BLACK DIAMOND), PREÇO (R$ 1.200), VALOR POR
+          PLANO (Silver/Gold/Diamond com descontos), VOCÊ PAGA (R$ 840), DESCRIÇÃO: PASS
+        - Botão voltar funciona: PASS
+        - ⚠️ Botão "COMPRAR" NÃO visível no viewport 390x844 inicial do detail — aparentemente fica
+          abaixo da DESCRIÇÃO (precisa scroll). Não consegui confirmar se existe o botão. Main agent
+          deve verificar se o CTA COMPRAR está renderizado no fim do scroll OU se está faltando.
+
+        ## 8. NAVEGAÇÃO GERAL ✅ PASS
+        - Back arrow funciona em /ads/{id} → /catalog: PASS
+        - Tab bar persiste em home, performance, community, catalog: PASS
+        - Transições suaves sem tela branca: PASS
+
+        ## 9. ERROS/EDGE CASES ✅ PARCIAL
+        - Criar meta com título vazio → erro mostrado: PASS
+        - Demais casos não testados (limitação de invocações de browser)
+
+        ========== CONSOLE / REDE ==========
+        - [WARN minor] React: "Received `%s` for a non-boolean attribute `%s`" — warning cosmético,
+          não quebra nada.
+        - [WARN minor] Alguns GET images.unsplash.com → net::ERR_BLOCKED_BY_ORB (Cross-Origin Read
+          Blocking). Imagens externas não carregam em algumas posições (provavelmente placeholders
+          antigos). Visualmente aparecem ícones de "caixa" genéricos no lugar. Cosmético.
+        - [BUG leve] POST /api/goals/{id}/daily-message às vezes ERR_ABORTED no primeiro fetch da
+          página /daily-message (double-mount do React). Resolve no 2º fetch mas causa a tela ficar
+          em "Preparando sua mensagem..." indefinidamente em alguns casos.
+        - Todas as APIs principais retornam 200: /products, /ads, /ads/{id}, /wallet/{id}, /auth/me,
+          /notifications/{id}/count, /community/members, /stories, /community/groups, /feed/posts,
+          /heartbeat.
+
+        ========== BUGS CRÍTICOS ==========
+        - NENHUM bug crítico identificado. App está funcional em todos os fluxos principais testados.
+
+        ========== ITENS PARA MAIN AGENT ==========
+        1. [Melhoria testabilidade] Adicionar data-testid nos elementos interativos da tela
+           Performance: goal-menu-btn (os 3 pontos do card), create-goal-btn (+), goal-chip-{id},
+           registrar-progresso-btn, salvar-meta-btn. Sem isso, QA automatizado não consegue
+           simular o menu "Editar/Arquivar".
+        2. [Verificar] /ads/{id} — confirmar se o botão COMPRAR aparece após scroll da DESCRIÇÃO
+           (não foi visível no viewport 390x844 inicial).
+        3. [Verificar] Estrutura de tabs em /community — review mencionava aba "Descobrir" mas as
+           abas atuais são "Para você / Seguindo / Recentes / Treinos". Foi renomeado?
+        4. [Investigar race no 1º fetch de /daily-message] POST /api/goals/{id}/daily-message às
+           vezes é abortado no primeiro mount. Adicionar AbortController cleanup ou memoização
+           para evitar double-fetch no StrictMode.
+        5. [Testes não executados por limite de browser] Validar manualmente:
+           - Menu "..." do card de meta (Editar/Arquivar) + edição de target_value
+           - Criar metas de tipos diferentes (Hábito, Financeiro)
+           - Registrar progresso com foto + check-in de hábito
+           - Excluir entry e validar retorno ao valor inicial
+           - Lightbox da galeria em edit-profile (precisa foto seed)
+           - Delete de story próprio (🗑️ vermelho) + delete de post próprio
+           - Member profile via community (galeria sem delete + PUXAR CONVERSA → DM)
+

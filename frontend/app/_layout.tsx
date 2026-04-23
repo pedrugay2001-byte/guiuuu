@@ -34,6 +34,19 @@ export default function RootLayout() {
             <Stack.Screen name="chat" options={{ title: "Suporte BLACKSCLUB" }} />
             <Stack.Screen name="quote" options={{ title: "Chamados" }} />
             <Stack.Screen name="wallet" options={{ title: "Black Coins" }} />
+            <Stack.Screen name="wallet/topup" options={{ title: "Recarga BLACK Coins" }} />
+            <Stack.Screen name="wallet/[id]" options={{ title: "Transação" }} />
+            <Stack.Screen name="daily-message" options={{ headerShown: false }} />
+            <Stack.Screen name="ads/index" options={{ title: "Meus Anúncios" }} />
+            <Stack.Screen name="ads/create" options={{ title: "Novo Anúncio" }} />
+            <Stack.Screen name="ads/[id]" options={{ title: "Anúncio" }} />
+            <Stack.Screen name="community/create-post" options={{ title: "Novo Post" }} />
+            <Stack.Screen name="community/create-story" options={{ title: "Novo Story" }} />
+            <Stack.Screen name="community/create-group" options={{ title: "Novo Grupo" }} />
+            <Stack.Screen name="community/descobrir" options={{ title: "Descobrir Membros" }} />
+            <Stack.Screen name="community/messages" options={{ title: "Mensagens" }} />
+            <Stack.Screen name="community/story/[memberId]" options={{ headerShown: false }} />
+            <Stack.Screen name="notifications" options={{ title: "Notificações" }} />
             <Stack.Screen name="admin/edit" options={{ title: "Gerenciar Produto", presentation: "modal" }} />
             <Stack.Screen name="admin/members" options={{ title: "Membros autorizados" }} />
             <Stack.Screen name="staff/login" options={{ title: "Área da Equipe" }} />
