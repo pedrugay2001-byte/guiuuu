@@ -1,6 +1,5 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 
@@ -19,64 +18,59 @@ const ICONS: Record<string, { label: string; active: IconCfg; inactive: IconCfg 
 
 /**
  * Barra de navegação superior premium.
- * - Ícones à esquerda/direita distribuídos
- * - Nomes abaixo sempre visíveis (5 chars)
- * - Indicador dourado fino acima do ícone ativo
+ * NÃO aplica SafeAreaView próprio — isso é responsabilidade do (tabs)/_layout.tsx,
+ * que envolve toda a hierarquia num único SafeAreaView. Evita duplicação no iPhone.
  */
 export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
-  const insets = useSafeAreaInsets();
-  // Filtrar apenas rotas visíveis (que têm tabBarLabel / não são href:null)
   const visibleRoutes = state.routes.filter((r) => ICONS[r.name]);
 
   return (
-    <SafeAreaView edges={["top"]} style={st.safe}>
-      <View style={st.bar}>
-        {visibleRoutes.map((route) => {
-          const idx = state.routes.findIndex((r) => r.key === route.key);
-          const focused = state.index === idx;
-          const cfg = ICONS[route.name];
-          const col = focused ? GOLD : INACTIVE;
-          const onPress = () => {
-            const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
-            if (!focused && !event.defaultPrevented) navigation.navigate(route.name as never);
-          };
+    <View style={st.bar}>
+      {visibleRoutes.map((route) => {
+        const idx = state.routes.findIndex((r) => r.key === route.key);
+        const focused = state.index === idx;
+        const cfg = ICONS[route.name];
+        const col = focused ? GOLD : INACTIVE;
+        const onPress = () => {
+          const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
+          if (!focused && !event.defaultPrevented) navigation.navigate(route.name as never);
+        };
 
-          return (
-            <TouchableOpacity
-              key={route.key}
-              style={st.item}
-              onPress={onPress}
-              activeOpacity={0.75}
-              testID={`top-tab-${route.name}`}
-              accessibilityRole="button"
-              accessibilityState={focused ? { selected: true } : {}}
+        return (
+          <TouchableOpacity
+            key={route.key}
+            style={st.item}
+            onPress={onPress}
+            activeOpacity={0.75}
+            testID={`top-tab-${route.name}`}
+            accessibilityRole="button"
+            accessibilityState={focused ? { selected: true } : {}}
+          >
+            {focused && <View style={st.activeBar} />}
+            {cfg.active.ion ? (
+              <Ionicons
+                name={(focused ? cfg.active.ion : cfg.inactive.ion) as any}
+                size={22}
+                color={col}
+              />
+            ) : (
+              <MaterialCommunityIcons
+                name={(focused ? cfg.active.mat : cfg.inactive.mat) as any}
+                size={22}
+                color={col}
+              />
+            )}
+            <Text
+              numberOfLines={1}
+              allowFontScaling={false}
+              style={[st.lbl, { color: col, fontWeight: focused ? "800" : "600" }]}
             >
-              {focused && <View style={st.activeBar} />}
-              {cfg.active.ion ? (
-                <Ionicons
-                  name={(focused ? cfg.active.ion : cfg.inactive.ion) as any}
-                  size={22}
-                  color={col}
-                />
-              ) : (
-                <MaterialCommunityIcons
-                  name={(focused ? cfg.active.mat : cfg.inactive.mat) as any}
-                  size={22}
-                  color={col}
-                />
-              )}
-              <Text
-                numberOfLines={1}
-                allowFontScaling={false}
-                style={[st.lbl, { color: col, fontWeight: focused ? "800" : "600" }]}
-              >
-                {cfg.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    </SafeAreaView>
+              {cfg.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
   );
 }
 

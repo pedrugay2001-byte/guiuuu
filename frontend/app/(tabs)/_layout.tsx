@@ -1,5 +1,6 @@
 import { Tabs, useRouter } from "expo-router";
 import { View, ActivityIndicator } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
 import { useGate } from "../../src/gate";
 import { theme } from "../../src/theme";
@@ -16,7 +17,6 @@ export default function TabsLayout() {
     if (member === null) router.replace("/welcome");
   }, [member, router]);
 
-  // Notificações (badge da barra inferior)
   useEffect(() => {
     if (!member) return;
     let alive = true;
@@ -39,8 +39,17 @@ export default function TabsLayout() {
     );
   }
 
+  // ARQUITETURA (iPhone-safe):
+  // - UM único SafeAreaView cobrindo topo + fundo (edges=["top","bottom"]).
+  // - TopTabBar e BottomBrandBar como Views puros (não aplicam safe-area por conta própria).
+  // - Telas internas também como Views puros (edges=[] no SafeAreaView das telas, se houver).
+  // Isso elimina duplicação de padding no iPhone real e garante que o conteúdo ocupe
+  // EXATAMENTE o espaço entre a top bar e a bottom bar, sem corte nem sobreposição.
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.colors.bg }}
+      edges={["top", "bottom", "left", "right"]}
+    >
       <Tabs
         tabBar={(props) => <TopTabBar {...props} />}
         screenOptions={{
@@ -53,16 +62,12 @@ export default function TabsLayout() {
         <Tabs.Screen name="community" options={{ title: "Social" }} />
         <Tabs.Screen name="performance" options={{ title: "Metas" }} />
         <Tabs.Screen name="wallet" options={{ title: "Banco" }} />
-
-        {/* Hidden tabs (accessed only via direct navigation) */}
         <Tabs.Screen name="cart" options={{ href: null }} />
         <Tabs.Screen name="notifications" options={{ href: null }} />
         <Tabs.Screen name="negocios" options={{ href: null }} />
         <Tabs.Screen name="member" options={{ href: null }} />
       </Tabs>
-
-      {/* Rodapé fixo com logo BLACKSCLUB + perfil + notificações */}
       <BottomBrandBar unread={unread} />
-    </View>
+    </SafeAreaView>
   );
 }

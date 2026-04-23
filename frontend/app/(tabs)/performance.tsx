@@ -94,7 +94,7 @@ export default function PerformanceTab() {
   const hasGoals = (goals?.length || 0) > 0;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#050505" }} edges={["top"]}>
+    <View style={{ flex: 1, backgroundColor: "#050505" }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
 
         {/* HEADER */}
@@ -287,7 +287,7 @@ export default function PerformanceTab() {
             } },
         ] : []}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

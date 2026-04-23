@@ -1048,3 +1048,63 @@ agent_communication:
         - Parte 4 — Central de Performance refeita do zero: ainda aguardando usuário enviar o
           detalhamento das regras.
 
+
+    - agent: "main"
+      message: |
+        [Sessão — Consolidação de SafeAreaView (fix iPhone standalone)]
+
+        Usuário reportou que no iPhone 15 Pro Max real (principalmente em PWA standalone),
+        as telas internas cortavam conteúdo no topo/fundo, enquanto a tela inicial de acesso
+        (welcome) aparecia perfeita.
+
+        === CAUSA RAIZ identificada ===
+        A tela welcome funciona porque usa UM único SafeAreaView(edges=["top","bottom"]).
+        As telas internas estavam com TRIPLA aplicação de safe-area:
+          1. TopTabBar aplicava SafeAreaView(edges=["top"])
+          2. Cada tela interna (home, catalog, performance, etc.) aplicava SafeAreaView(edges=["top"])
+          3. BottomBrandBar aplicava SafeAreaView(edges=["bottom"])
+
+        No navegador Safari desktop, react-native-safe-area-context retorna insets = 0,
+        então o problema não aparece. No iPhone standalone, os insets são reais (47px top,
+        34px bottom) e são aplicados TRÊS vezes → padding dobrado no topo + conteúdo
+        empurrado para baixo da BottomBrandBar.
+
+        === CORREÇÃO ===
+        Consolidado em UMA única aplicação de safe-area (igual ao padrão welcome.tsx):
+
+        1. app/(tabs)/_layout.tsx:
+           - Substituído <View flex:1> por <SafeAreaView edges=["top","bottom","left","right"]>
+           - Agora a tab layout é a ÚNICA camada que aplica safe-area
+           - TopTabBar e BottomBrandBar ficam dentro dela (sem aplicar safe-area próprio)
+
+        2. src/top-tab-bar.tsx:
+           - REMOVIDO SafeAreaView(edges=["top"])
+           - Virou apenas <View style={st.bar}>
+
+        3. src/bottom-brand-bar.tsx:
+           - REMOVIDO SafeAreaView(edges=["bottom"])
+           - Virou apenas <View style={st.bar}>
+
+        4. Telas das tabs:
+           - app/(tabs)/home.tsx: <SafeAreaView edges=["top"]> → <View flex:1>
+           - app/(tabs)/catalog.tsx: 2 SafeAreaView → 2 <View>
+           - app/(tabs)/performance.tsx: <SafeAreaView edges=["top"]> → <View>
+           - app/(tabs)/community.tsx e wallet.tsx já estavam com <View>
+
+        === RESULTADO ESPERADO ===
+        - No navegador Safari / preview: comportamento idêntico (insets=0 em desktop)
+        - No iPhone real standalone: safe-area aplicada UMA vez → topo e rodapé
+          respeitando notch e home indicator sem dobrar padding
+        - Conteúdo ocupa EXATAMENTE o espaço entre TopTabBar e BottomBrandBar
+        - Sem cortes, sem sobreposições
+        - Usa o mesmo padrão da welcome.tsx (que já funcionava)
+
+        === ARQUITETURA FINAL ===
+        SafeAreaProvider (root _layout.tsx)
+          └── (tabs)/_layout.tsx
+              └── SafeAreaView(edges=["top","bottom","left","right"])  ← ÚNICA camada
+                    ├── <Tabs tabBar={TopTabBar}>
+                    │     └── TopTabBar (View puro)
+                    │     └── tela interna (View puro)
+                    └── BottomBrandBar (View puro)
+

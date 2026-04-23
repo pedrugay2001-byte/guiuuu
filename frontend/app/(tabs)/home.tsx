@@ -68,7 +68,7 @@ export default function Home() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
+      <View style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={{ paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
@@ -222,7 +222,7 @@ export default function Home() {
             ))}
           </View>
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </View>
   );
 }

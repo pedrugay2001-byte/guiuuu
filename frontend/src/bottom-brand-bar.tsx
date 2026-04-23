@@ -1,6 +1,5 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { BrandLogo } from "./brand";
@@ -13,49 +12,47 @@ type Props = {
 
 /**
  * Barra inferior premium: logo BLACKSCLUB à esquerda + ícones de perfil/notificações à direita.
- * Renderizada em todas as telas das tabs. Clique na logo → home.
+ * NÃO aplica SafeAreaView — o (tabs)/_layout.tsx já envolve toda a hierarquia num SafeAreaView.
  */
 export default function BottomBrandBar({ unread = 0 }: Props) {
   const router = useRouter();
 
   return (
-    <SafeAreaView edges={["bottom"]} style={st.safe}>
-      <View style={st.bar}>
+    <View style={st.bar}>
+      <TouchableOpacity
+        onPress={() => router.push("/(tabs)/home" as any)}
+        activeOpacity={0.85}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        testID="bottom-brand-home"
+      >
+        <BrandLogo size="sm" />
+      </TouchableOpacity>
+
+      <View style={st.right}>
         <TouchableOpacity
-          onPress={() => router.push("/(tabs)/home" as any)}
-          activeOpacity={0.85}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          testID="bottom-brand-home"
+          style={st.iconBtn}
+          onPress={() => router.push("/notifications" as any)}
+          activeOpacity={0.75}
+          testID="bottom-notifications"
         >
-          <BrandLogo size="sm" />
+          <Ionicons name="notifications-outline" size={22} color="#D8D8D8" />
+          {unread > 0 && (
+            <View style={st.badge}>
+              <Text style={st.badgeTxt}>{unread > 9 ? "9+" : String(unread)}</Text>
+            </View>
+          )}
         </TouchableOpacity>
 
-        <View style={st.right}>
-          <TouchableOpacity
-            style={st.iconBtn}
-            onPress={() => router.push("/notifications" as any)}
-            activeOpacity={0.75}
-            testID="bottom-notifications"
-          >
-            <Ionicons name="notifications-outline" size={22} color="#D8D8D8" />
-            {unread > 0 && (
-              <View style={st.badge}>
-                <Text style={st.badgeTxt}>{unread > 9 ? "9+" : String(unread)}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={st.profileBtn}
-            onPress={() => router.push("/(tabs)/member" as any)}
-            activeOpacity={0.85}
-            testID="bottom-profile"
-          >
-            <Ionicons name="person" size={18} color={GOLD} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={st.profileBtn}
+          onPress={() => router.push("/(tabs)/member" as any)}
+          activeOpacity={0.85}
+          testID="bottom-profile"
+        >
+          <Ionicons name="person" size={18} color={GOLD} />
+        </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

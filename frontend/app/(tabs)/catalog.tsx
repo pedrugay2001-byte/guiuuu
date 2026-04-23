@@ -66,7 +66,7 @@ export default function Marketplace() {
   // Black comum não acessa
   if (!hasMarketplaceAccess) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg }} edges={["top"]}>
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
         <View style={st.lockWrap}>
           <View style={st.lockIcon}>
             <Ionicons name="lock-closed" size={36} color={GOLD} />
@@ -88,7 +88,7 @@ export default function Marketplace() {
             <Text style={st.lockBtnTxt}>FALAR COM SUPORTE</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -97,7 +97,7 @@ export default function Marketplace() {
   const healthCats = categories.filter(c => (c as any).group === "saude");
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg }} edges={["top"]} testID="marketplace-screen">
+    <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="marketplace-screen">
       {/* Search */}
       <View style={st.searchRow}>
         <Ionicons name="search" size={16} color="#777" />
@@ -238,7 +238,7 @@ export default function Marketplace() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
