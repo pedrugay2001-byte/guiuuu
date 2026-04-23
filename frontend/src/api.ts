@@ -380,6 +380,39 @@ export type Group = { group_id: string; name: string; description: string; icon:
 export type GroupMsg = { gm_id?: string; group_id: string; member_id: string; text: string; created_at: string; nickname: string; avatar_base64?: string | null; tier: TierId };
 export type CommunityEvent = { event_id: string; title: string; description: string; city: string; place: string; when_label: string; icon: string; color: string };
 
+// --- Goals (Central de Performance) ---
+export type GoalType = "fitness" | "financial" | "habit" | "productivity";
+export type Goal = {
+  goal_id: string; member_id: string; type: GoalType; title: string;
+  initial_value: number; target_value: number; current_value: number;
+  unit: string; start_date: string; end_date: string; note?: string;
+  created_at: string; status: string; rhythm_status: string;
+  progress_pct: number; time_pct: number; rhythm: number;
+  days_elapsed: number; days_total: number; days_remaining: number;
+  forecast_days: number | null; direction: "increase" | "decrease";
+  entries_count: number;
+};
+export type GoalDashboard = {
+  has_goals: boolean; active_count: number; overall_progress: number;
+  avg_rhythm: number; days_left: number | null; score: number | null;
+  weekly_delta?: number; critical_goal: Goal | null; message: string;
+};
+export type GoalEntry = { entry_id: string; goal_id: string; value: number; note?: string; date: string };
+export type WhatToDoReply = { headline: string; actions: string[]; warning?: string };
+
+Object.assign(api as any, {
+  goalsDashboard: (member_id: string) => request<GoalDashboard>(`/goals/dashboard/${member_id}`),
+  goalsList: (member_id: string) => request<Goal[]>(`/goals/${member_id}`),
+  goalCreate: (body: { member_id: string; type: GoalType; title: string; current_value: number; target_value: number; unit?: string; end_date: string; note?: string }) =>
+    request<Goal>("/goals", { method: "POST", body: JSON.stringify(body) }),
+  goalArchive: (goal_id: string) => request<{ ok: boolean }>(`/goals/${goal_id}`, { method: "DELETE" }),
+  goalAddEntry: (goal_id: string, body: { value: number; note?: string; date?: string }) =>
+    request<{ ok: boolean; entry_id: string }>(`/goals/${goal_id}/entries`, { method: "POST", body: JSON.stringify(body) }),
+  goalEntries: (goal_id: string) => request<GoalEntry[]>(`/goals/${goal_id}/entries`),
+  goalWhatToDo: (goal_id: string) => request<WhatToDoReply>(`/goals/${goal_id}/what-to-do`, { method: "POST", body: "{}" }),
+});
+
+
 export function formatBRL(n: number) {
   // Show without decimals when integer (premium minimal feel)
   const isInt = Number.isFinite(n) && Math.abs(n - Math.round(n)) < 0.005;

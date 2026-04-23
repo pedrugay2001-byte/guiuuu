@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, { Circle, Path, Defs, LinearGradient, Stop, RadialGradient } from "react-native-svg";
-import { api, Post, Ad, formatBRL } from "../../src/api";
+import { api, Post, Ad, GoalDashboard, formatBRL } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
 import { BrandLogo } from "../../src/brand";
@@ -45,29 +45,43 @@ export default function Home() {
   const { width } = useWindowDimensions();
   const [posts, setPosts] = useState<Post[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
+  const [dashboard, setDashboard] = useState<GoalDashboard | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [pp, aa] = await Promise.all([api.listPosts().catch(() => []), api.listAds().catch(() => [])]);
+      const [pp, aa, dd] = await Promise.all([
+        api.listPosts().catch(() => []),
+        api.listAds().catch(() => []),
+        member ? api.goalsDashboard(member.member_id).catch(() => null) : Promise.resolve(null),
+      ]);
       setPosts(pp.slice(0, 6));
       setAds(aa.slice(0, 8));
+      setDashboard(dd);
     } catch {}
-  }, []);
+  }, [member]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const W = Math.min(width, 430);
   const name = (member?.nickname || member?.name || "você").split(" ")[0];
 
-  // MOCK data while backend goals module is not ready (Phase 3)
-  const hasGoals = false;
+  const hasGoals = !!dashboard?.has_goals;
   const stats = {
-    activeGoals: hasGoals ? 3 : 0,
-    progress: hasGoals ? 68 : 0,
-    weeklyDelta: hasGoals ? 8 : 0,
-    rhythm: hasGoals ? -12 : 0,
-    daysLeft: hasGoals ? 63 : 0,
+    activeGoals: dashboard?.active_count || 0,
+    progress: Math.round(dashboard?.overall_progress || 0),
+    weeklyDelta: dashboard?.weekly_delta || 0,
+    rhythm: Math.round(dashboard?.avg_rhythm || 0),
+    daysLeft: dashboard?.days_left ?? 0,
   };
+
+  const forecastGoal = dashboard?.critical_goal;
+  const forecastDate = (() => {
+    if (!forecastGoal?.end_date) return "";
+    try {
+      const d = new Date(forecastGoal.end_date);
+      return d.toLocaleDateString("pt-BR", { day: "numeric", month: "short", year: "numeric" });
+    } catch { return ""; }
+  })();
 
   const cardInnerW = W - 28 - 24; // padding estimates
   const forecastChartW = Math.round(cardInnerW * 0.52);
@@ -84,7 +98,11 @@ export default function Home() {
             testID="home-profile"
             activeOpacity={0.85}
           >
-            <Ionicons name="person" size={16} color={GOLD} />
+            {member?.avatar_base64 ? (
+              <Image source={{ uri: member.avatar_base64 }} style={s.profileImg} />
+            ) : (
+              <Ionicons name="person" size={16} color={GOLD} />
+            )}
           </TouchableOpacity>
         </View>
 
@@ -136,9 +154,9 @@ export default function Home() {
                   </View>
                 </View>
                 <Text style={s.aiMsg}>
-                  {hasGoals
+                  {dashboard?.message || (hasGoals
                     ? "Você está 12% abaixo do ritmo ideal para atingir sua meta."
-                    : "Defina sua primeira meta e a IA te guia."}
+                    : "Defina sua primeira meta e a IA te guia.")}
                 </Text>
                 <Text style={s.aiTip}>
                   {hasGoals ? "Consistência é a chave." : "Clique abaixo para começar."}
@@ -217,8 +235,8 @@ export default function Home() {
                   </Text>
                   {hasGoals && (
                     <>
-                      <Text style={s.forecastDaysBig}>{stats.daysLeft} dias</Text>
-                      <Text style={s.forecastDate}>16 de Ago de 2024</Text>
+                      <Text style={s.forecastDaysBig}>{forecastGoal?.forecast_days ?? stats.daysLeft} dias</Text>
+                      <Text style={s.forecastDate}>{forecastDate}</Text>
                     </>
                   )}
                 </View>
@@ -422,7 +440,9 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     backgroundColor: "#0A0A0A",
     borderWidth: 1.5, borderColor: GOLD,
+    overflow: "hidden",
   },
+  profileImg: { width: 33, height: 33, borderRadius: 16.5 },
 
   // Greeting centralizado
   greet: { alignItems: "center", marginTop: 16, marginBottom: 18 },

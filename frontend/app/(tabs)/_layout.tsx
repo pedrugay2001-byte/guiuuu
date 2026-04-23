@@ -73,12 +73,13 @@ export default function TabsLayout() {
           height: 78,
           paddingTop: 10,
           paddingBottom: 16,
-          paddingHorizontal: 4,
+          paddingHorizontal: 2,
         },
         tabBarActiveTintColor: GOLD,
         tabBarInactiveTintColor: "#6A6A6A",
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "700", letterSpacing: 0.3, marginTop: 4 },
-        tabBarItemStyle: { paddingHorizontal: 2 },
+        tabBarLabelStyle: { fontSize: 9.5, fontWeight: "700", letterSpacing: 0, marginTop: 4 },
+        tabBarLabelPosition: "below-icon",
+        tabBarItemStyle: { paddingHorizontal: 1 },
       }}
     >
       <Tabs.Screen

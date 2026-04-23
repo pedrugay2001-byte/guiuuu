@@ -515,7 +515,38 @@ agent_communication:
 
     - agent: "main"
       message: |
-        FASES 1 + 2 CONCLUÍDAS (revisão premium do app):
+        FASE 3 — Central de Performance completa (MVP funcional):
+        
+        BACKEND (novo, 7 endpoints /api/goals/*):
+        - POST /api/goals — criar meta (fitness/financial/habit/productivity)
+        - GET /api/goals/{member_id} — listar metas ativas
+        - GET /api/goals/dashboard/{member_id} — dashboard agregado pro card da Home
+        - POST /api/goals/{goal_id}/entries — registrar progresso
+        - GET /api/goals/{goal_id}/entries — histórico
+        - DELETE /api/goals/{goal_id} — arquivar
+        - POST /api/goals/{goal_id}/what-to-do — sugestão diária via GPT-4o
+        
+        Cálculos em _compute_goal_snapshot: progress_pct, time_pct, rhythm
+        (adiantado/no_ritmo/levemente_atrasado/atrasado), days_elapsed/total/remaining,
+        forecast_days baseado em pace. Score geral = 50 + avg_rhythm*2 clamped 0..100.
+        
+        FRONTEND:
+        - /(tabs)/performance.tsx: dashboard hero + lista metas + modal "criar meta"
+          com 4 tipos (fitness highlight) + modal "registrar progresso" + modal
+          "O QUE FAZER HOJE" com AI actions numeradas.
+        - Home card puxa api.goalsDashboard() — mensagem IA vem do backend,
+          "Guilherme" aparece à direita da central, stats reais, forecast com data real da meta.
+        - Tab bar com labels sem corte (fontSize 9.5, letterSpacing 0).
+        - Avatar real do membro aparece no botão de perfil do header quando avatar_base64 existe.
+        - Nova página /performance (raiz) removida — tudo na tab.
+        
+        VALIDADO:
+        - GET /api/goals/dashboard retorna has_goals=true após criar uma meta.
+        - Screenshots confirmam: Home card mostra dados reais, Performance tab abre
+          lista, botão HOJE aciona modal IA.
+        
+        BUG CORRIGIDO: _serialize_goal estava sobrescrevendo goal.status (active/archived)
+        com rhythm_status do snapshot. Renomeado para goal.rhythm_status.
         
         FASE 1 — Bugs críticos:
         - ErrorBoundary global criado em /app/frontend/src/error-boundary.tsx (app nunca mais fica "branco")
