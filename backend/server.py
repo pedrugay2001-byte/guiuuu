@@ -3149,9 +3149,11 @@ async def ai_transcribe(payload: Dict[str, Any]):
             raise HTTPException(status_code=400, detail="Formato de áudio inválido")
     import base64 as _b64
     try:
-        raw = _b64.b64decode(audio_b64)
+        raw = _b64.b64decode(audio_b64, validate=True)
     except Exception:
         raise HTTPException(status_code=400, detail="Base64 inválido")
+    if not raw or len(raw) < 200:
+        raise HTTPException(status_code=400, detail="Áudio vazio ou muito curto")
     if len(raw) > 25 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Áudio excede 25 MB (limite do Whisper)")
     mime = (payload or {}).get("mime") or "audio/webm"
