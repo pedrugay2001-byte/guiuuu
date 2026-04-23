@@ -75,19 +75,16 @@ export default function Home() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
-        {/* HEADER: logo menor + Guigui + avatar */}
+        {/* HEADER: apenas logo + perfil */}
         <View style={s.header}>
           <BrandLogo size="sm" goldS />
           <TouchableOpacity
             onPress={() => router.push("/(tabs)/member")}
-            style={s.headerRight}
+            style={s.profileBtn}
             testID="home-profile"
             activeOpacity={0.85}
           >
-            <Text style={s.headerName} numberOfLines={1}>{name}</Text>
-            <View style={s.profileBtn}>
-              <Ionicons name="person" size={15} color={GOLD} />
-            </View>
+            <Ionicons name="person" size={16} color={GOLD} />
           </TouchableOpacity>
         </View>
 
@@ -96,21 +93,28 @@ export default function Home() {
           showsVerticalScrollIndicator={false}
           testID="home-scroll"
         >
-          {/* CENTRAL DE PERFORMANCE — compact version */}
+          {/* GREETING — centralizado, limpo */}
+          <View style={s.greet}>
+            <Text style={s.greetHello}>Bem-vindo,</Text>
+            <Text style={s.greetSub}>Foco hoje, resultado amanhã.</Text>
+          </View>
+
+          {/* CENTRAL DE PERFORMANCE */}
           <View style={s.central}>
-            {/* Title row */}
+            {/* Title row with user name on right */}
             <View style={s.centralHead}>
               <View style={s.centralHeadIcon}>
-                <MaterialCommunityIcons name="chart-line-variant" size={12} color={GOLD} />
+                <MaterialCommunityIcons name="chart-line-variant" size={13} color={GOLD} />
               </View>
               <Text style={s.centralHeadTxt}>CENTRAL DE PERFORMANCE</Text>
+              <Text style={s.centralUser}>{name}</Text>
             </View>
 
             {/* ASSISTENTE BLACK sub-card */}
             <View style={s.aiCard}>
               <View style={s.aiLeft}>
                 <View style={s.aiBrainOval}>
-                  <Svg width={92} height={70} style={StyleSheet.absoluteFillObject}>
+                  <Svg width={96} height={72} style={StyleSheet.absoluteFillObject}>
                     <Defs>
                       <RadialGradient id="brainGlow" cx="50%" cy="50%" r="50%">
                         <Stop offset="0%" stopColor={GOLD} stopOpacity="0.55" />
@@ -118,9 +122,9 @@ export default function Home() {
                         <Stop offset="100%" stopColor={GOLD} stopOpacity="0" />
                       </RadialGradient>
                     </Defs>
-                    <Circle cx="46" cy="35" rx="42" ry="30" fill="url(#brainGlow)" />
+                    <Circle cx="48" cy="36" rx="44" ry="32" fill="url(#brainGlow)" />
                   </Svg>
-                  <MaterialCommunityIcons name="brain" size={36} color={GOLD} />
+                  <MaterialCommunityIcons name="brain" size={38} color={GOLD} />
                 </View>
               </View>
 
@@ -133,12 +137,15 @@ export default function Home() {
                 </View>
                 <Text style={s.aiMsg}>
                   {hasGoals
-                    ? "Você está 12% abaixo do ritmo ideal."
+                    ? "Você está 12% abaixo do ritmo ideal para atingir sua meta."
                     : "Defina sua primeira meta e a IA te guia."}
+                </Text>
+                <Text style={s.aiTip}>
+                  {hasGoals ? "Consistência é a chave." : "Clique abaixo para começar."}
                 </Text>
               </View>
 
-              <Ionicons name="chevron-forward" size={16} color={GOLD} style={s.aiChev} />
+              <Ionicons name="chevron-forward" size={18} color={GOLD} style={s.aiChev} />
             </View>
 
             {/* Buttons row */}
@@ -157,81 +164,89 @@ export default function Home() {
                 activeOpacity={0.9}
                 testID="btn-fazer-hoje"
               >
-                <MaterialCommunityIcons name="star-four-points" size={12} color="#000" />
+                <MaterialCommunityIcons name="star-four-points" size={13} color="#000" />
                 <Text style={s.btnPrimaryTxt}>O QUE FAZER HOJE?</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Divider */}
-            <View style={s.dividerH} />
-
-            {/* STATS — 4 columns */}
+            {/* STATS — 4 columns with vertical dividers */}
             <View style={s.statsRow}>
               <Stat
-                iconCircle={<MaterialCommunityIcons name="target" size={18} color="#EEE" />}
-                label="METAS"
+                iconCircle={<MaterialCommunityIcons name="target" size={20} color="#EEE" />}
+                label="METAS ATIVAS"
                 value={stats.activeGoals}
                 caption={hasGoals ? "ver metas" : "criar"}
                 captionColor={GOLD}
               />
+              <View style={s.statDividerV} />
               <Stat
-                iconCircle={<RingProgress size={36} stroke={3} progress={stats.progress} label={`${stats.progress}%`} />}
-                label="PROGRESSO"
+                iconCircle={<RingProgress size={42} stroke={3.5} progress={stats.progress} label={`${stats.progress}%`} />}
+                label="PROGRESSO GERAL"
                 value={`${stats.progress}%`}
-                caption={hasGoals ? `+${stats.weeklyDelta}%/sem` : "—"}
+                caption={hasGoals ? `+${stats.weeklyDelta}% essa semana` : "—"}
                 captionColor={GREEN}
               />
+              <View style={s.statDividerV} />
               <Stat
-                iconCircle={<Ionicons name="trending-up" size={18} color="#EEE" />}
-                label="RITMO"
+                iconCircle={<Ionicons name="trending-up" size={20} color="#EEE" />}
+                label="RITMO ATUAL"
                 value={hasGoals ? `${Math.abs(stats.rhythm)}%` : "—"}
-                caption={hasGoals ? "abaixo" : "—"}
+                caption={hasGoals ? "abaixo do ideal" : "sem dados"}
                 captionColor={hasGoals ? RED : "#777"}
               />
+              <View style={s.statDividerV} />
               <Stat
-                iconCircle={<MaterialCommunityIcons name="calendar-month" size={18} color="#EEE" />}
-                label="DIAS"
+                iconCircle={<MaterialCommunityIcons name="calendar-month" size={20} color="#EEE" />}
+                label="DIAS RESTANTES"
                 value={hasGoals ? stats.daysLeft : "—"}
-                caption={hasGoals ? "restantes" : "—"}
+                caption={hasGoals ? "para sua meta" : "—"}
                 captionColor="#888"
               />
             </View>
 
-            {/* Divider */}
-            <View style={s.dividerH} />
-
-            {/* Forecast row — compact summary only */}
-            <TouchableOpacity
-              style={s.forecastSummary}
-              onPress={() => router.push("/(tabs)/performance")}
-              activeOpacity={0.88}
-            >
-              <View style={s.forecastMini}>
-                <Svg width={70} height={28}>
-                  <Path
-                    d="M 0 22 Q 12 16, 22 14 T 44 9 L 60 4"
-                    stroke={GOLD} strokeWidth={1.6} fill="transparent" strokeLinecap="round"
-                  />
-                  <Circle cx="60" cy="4" r="3" fill={GOLD} />
-                </Svg>
+            {/* PREVISÃO DE RESULTADO — sub-card completo */}
+            <View style={s.forecastCard}>
+              <View style={s.forecastInner}>
+                <View style={s.forecastLeft}>
+                  <View style={s.forecastHead}>
+                    <Text style={s.forecastKicker}>PREVISÃO DE RESULTADO</Text>
+                    <Ionicons name="information-circle-outline" size={13} color={GOLD} style={{ marginLeft: 4 }} />
+                  </View>
+                  <Text style={s.forecastDesc}>
+                    {hasGoals ? "Se manter esse ritmo, você alcança sua meta em" : "Crie uma meta para ver sua projeção"}
+                  </Text>
+                  {hasGoals && (
+                    <>
+                      <Text style={s.forecastDaysBig}>{stats.daysLeft} dias</Text>
+                      <Text style={s.forecastDate}>16 de Ago de 2024</Text>
+                    </>
+                  )}
+                </View>
+                <View style={s.forecastRight}>
+                  <ForecastChart width={cardInnerW * 0.42} height={90} hasData={hasGoals} />
+                  <View style={s.forecastLabels}>
+                    <Text style={s.forecastLblTxt}>Hoje</Text>
+                    <Text style={s.forecastLblTxt}>Meta</Text>
+                  </View>
+                </View>
               </View>
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={s.forecastKicker}>PREVISÃO DE RESULTADO</Text>
-                <Text style={s.forecastSummaryTxt} numberOfLines={1}>
-                  {hasGoals
-                    ? `Meta em ${stats.daysLeft} dias · 16 Ago 2024`
-                    : "Crie uma meta para ver sua projeção"}
+              <TouchableOpacity
+                style={s.forecastBtn}
+                onPress={() => router.push("/(tabs)/performance")}
+                activeOpacity={0.85}
+              >
+                <Text style={s.forecastBtnTxt}>
+                  {hasGoals ? "Ver projeção detalhada" : "Começar agora"}
                 </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={GOLD} />
-            </TouchableOpacity>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* ACESSO RÁPIDO — no scroll needed */}
           <Text style={s.sectionLbl}>ACESSO RÁPIDO</Text>
           <View style={s.grid}>
             {AREAS.map((a) => {
-              const tileW = (W - 24 - 18) / 4; // 24 padding, 18 total gaps (6×3)
+              const tileW = (W - 24 - 18) / 4;
               return (
                 <TouchableOpacity
                   key={a.id}
@@ -400,110 +415,125 @@ function ForecastChart({ width: w, height: h, hasData }: { width: number; height
 const s = StyleSheet.create({
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 16, paddingTop: 6, paddingBottom: 14,
+    paddingHorizontal: 16, paddingTop: 6, paddingBottom: 6,
   },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  headerName: { color: "#EEE", fontSize: 13, fontWeight: "700", maxWidth: 120 },
   profileBtn: {
-    width: 34, height: 34, borderRadius: 17,
+    width: 36, height: 36, borderRadius: 18,
     alignItems: "center", justifyContent: "center",
     backgroundColor: "#0A0A0A",
-    borderWidth: 2, borderColor: GOLD,
+    borderWidth: 1.5, borderColor: GOLD,
   },
 
-  // Central — compacta
+  // Greeting centralizado
+  greet: { alignItems: "center", marginTop: 16, marginBottom: 18 },
+  greetHello: { color: "#FFF", fontSize: 22, fontWeight: "800" },
+  greetSub: { color: "#B8B8B8", fontSize: 13, marginTop: 6, fontWeight: "500" },
+
+  // Central
   central: {
     marginHorizontal: 12,
     backgroundColor: CARD_BG,
-    borderWidth: 1.5, borderColor: "rgba(245,193,80,0.5)",
+    borderWidth: 1, borderColor: "rgba(245,193,80,0.6)",
     borderRadius: 18,
     padding: 12,
   },
-  centralHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10, paddingHorizontal: 2 },
+  centralHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12, paddingHorizontal: 2 },
   centralHeadIcon: {
-    width: 24, height: 24, borderRadius: 12,
+    width: 26, height: 26, borderRadius: 13,
     alignItems: "center", justifyContent: "center",
     backgroundColor: "rgba(245,193,80,0.1)",
-    borderWidth: 1, borderColor: "rgba(245,193,80,0.35)",
+    borderWidth: 1, borderColor: "rgba(245,193,80,0.5)",
   },
-  centralHeadTxt: { color: GOLD, fontSize: 11, fontWeight: "900", letterSpacing: 2 },
+  centralHeadTxt: { color: GOLD, fontSize: 11, fontWeight: "900", letterSpacing: 2, flex: 1 },
+  centralUser: { color: "#9E9E9E", fontSize: 12, fontWeight: "600" },
 
-  // AI CARD compacto
+  // AI CARD
   aiCard: {
     position: "relative",
     flexDirection: "row",
     backgroundColor: INNER_CARD_BG,
     borderWidth: 1, borderColor: "rgba(255,255,255,0.05)",
-    borderRadius: 12, padding: 10, gap: 4,
+    borderRadius: 12, padding: 12, gap: 6,
   },
-  aiLeft: { width: 64, alignItems: "center", justifyContent: "center" },
+  aiLeft: { width: 72, alignItems: "center", justifyContent: "center" },
   aiBrainOval: {
-    width: 92, height: 70,
+    width: 96, height: 72,
     alignItems: "center", justifyContent: "center",
     position: "relative",
   },
   aiRight: { flex: 1, paddingRight: 22 },
-  aiLabelRow: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 4 },
+  aiLabelRow: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 5 },
   aiLabel: { color: GOLD, fontSize: 10.5, fontWeight: "900", letterSpacing: 1.3 },
   aiBadge: {
-    width: 18, height: 18, borderRadius: 9,
+    width: 20, height: 20, borderRadius: 10,
     alignItems: "center", justifyContent: "center",
     backgroundColor: GOLD,
   },
-  aiBadgeTxt: { color: "#000", fontSize: 8, fontWeight: "900", letterSpacing: 0.3 },
-  aiMsg: { color: "#FFF", fontSize: 12.5, fontWeight: "700", lineHeight: 16 },
-  aiTip: { color: "#AAA", fontSize: 11, marginTop: 3, fontWeight: "500" },
-  aiChev: { position: "absolute", top: "50%", right: 8, marginTop: -8 },
+  aiBadgeTxt: { color: "#000", fontSize: 8.5, fontWeight: "900", letterSpacing: 0.3 },
+  aiMsg: { color: "#FFF", fontSize: 13, fontWeight: "800", lineHeight: 16.5 },
+  aiTip: { color: "#BBB", fontSize: 11.5, marginTop: 5, fontWeight: "500" },
+  aiChev: { position: "absolute", top: "50%", right: 8, marginTop: -9 },
 
   aiBtnRow: { flexDirection: "row", gap: 8, marginTop: 10 },
   btnGhost: {
-    flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "rgba(245,193,80,0.5)",
+    flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.22)",
     backgroundColor: "transparent",
   },
-  btnGhostTxt: { color: "#EEE", fontSize: 10.5, fontWeight: "700" },
+  btnGhostTxt: { color: "#EEE", fontSize: 11, fontWeight: "700" },
   btnPrimary: {
-    flex: 1.15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    paddingVertical: 10, borderRadius: 10,
+    flex: 1.1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 11, borderRadius: 10,
     backgroundColor: GOLD,
   },
-  btnPrimaryTxt: { color: "#000", fontSize: 10.5, fontWeight: "900", letterSpacing: 0.8 },
+  btnPrimaryTxt: { color: "#000", fontSize: 11, fontWeight: "900", letterSpacing: 0.8 },
 
-  dividerH: { height: 1, backgroundColor: "rgba(255,255,255,0.06)", marginVertical: 12 },
-
-  // STATS compactos
-  statsRow: { flexDirection: "row", justifyContent: "space-between" },
+  // STATS — 4 columns with vertical dividers
+  statsRow: { flexDirection: "row", alignItems: "stretch", marginTop: 16, marginBottom: 16 },
   stat: { flex: 1, alignItems: "center", paddingHorizontal: 2 },
   statIcon: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 44, height: 44, borderRadius: 22,
     alignItems: "center", justifyContent: "center",
     backgroundColor: "#1C1C1C",
-    marginBottom: 7,
+    marginBottom: 8,
   },
-  statLabel: { color: "#B0B0B0", fontSize: 8, fontWeight: "900", letterSpacing: 1, textAlign: "center" },
-  statValue: { color: "#FFF", fontSize: 17, fontWeight: "900", marginTop: 3 },
-  statCaption: { fontSize: 9, fontWeight: "700", marginTop: 3, textAlign: "center" },
+  statLabel: { color: "#B0B0B0", fontSize: 8.5, fontWeight: "900", letterSpacing: 1, textAlign: "center", minHeight: 22 },
+  statValue: { color: "#FFF", fontSize: 20, fontWeight: "900", marginTop: 3 },
+  statCaption: { fontSize: 9.5, fontWeight: "700", marginTop: 4, textAlign: "center" },
+  statDividerV: { width: 1, backgroundColor: "rgba(255,255,255,0.06)", marginVertical: 6 },
 
-  // Forecast mini (atalho compacto)
-  forecastSummary: {
-    flexDirection: "row", alignItems: "center",
+  // FORECAST — sub-card completo
+  forecastCard: {
     backgroundColor: INNER_CARD_BG,
     borderWidth: 1, borderColor: "rgba(255,255,255,0.05)",
-    borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12,
+    borderRadius: 12, padding: 12,
   },
-  forecastMini: { width: 70, height: 28, alignItems: "center", justifyContent: "center" },
-  forecastKicker: { color: GOLD, fontSize: 9.5, fontWeight: "900", letterSpacing: 1.2 },
-  forecastSummaryTxt: { color: "#DDD", fontSize: 11.5, marginTop: 2, fontWeight: "600" },
+  forecastInner: { flexDirection: "row", gap: 10 },
+  forecastLeft: { flex: 1.1, justifyContent: "center" },
+  forecastRight: { flex: 1, alignItems: "flex-end", justifyContent: "center" },
+  forecastHead: { flexDirection: "row", alignItems: "center" },
+  forecastKicker: { color: GOLD, fontSize: 10.5, fontWeight: "900", letterSpacing: 1.2 },
+  forecastDesc: { color: "#C8C8C8", fontSize: 11.5, marginTop: 6, lineHeight: 15 },
+  forecastDaysBig: { color: GOLD, fontSize: 26, fontWeight: "900", marginTop: 5 },
+  forecastDate: { color: "#888", fontSize: 10.5, marginTop: 1, fontWeight: "500" },
+  forecastLabels: { flexDirection: "row", justifyContent: "space-between", width: "100%", marginTop: 2 },
+  forecastLblTxt: { color: "#888", fontSize: 9.5, fontWeight: "700" },
+  forecastBtn: {
+    marginTop: 12, paddingVertical: 10, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "rgba(245,193,80,0.55)",
+  },
+  forecastBtnTxt: { color: GOLD, fontSize: 11, fontWeight: "800" },
 
-  // Sections — destaque maior
-  sectionLbl: { color: "#B5B5B5", fontSize: 11, fontWeight: "900", letterSpacing: 2.5, marginTop: 18, marginBottom: 12, paddingHorizontal: 18 },
+  // SECTIONS
+  sectionLbl: { color: "#B5B5B5", fontSize: 11, fontWeight: "900", letterSpacing: 2.5, marginTop: 20, marginBottom: 12, paddingHorizontal: 18 },
   sectionLbl2: { color: "#E8E8E8", fontSize: 12, fontWeight: "900", letterSpacing: 2.2, paddingHorizontal: 18 },
   sectionLblGold: { color: GOLD, fontSize: 12, fontWeight: "900", letterSpacing: 2.2, paddingHorizontal: 18 },
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingRight: 18 },
   seeAllGrey: { color: "#888", fontSize: 11, fontWeight: "700" },
   seeAllGold: { color: GOLD, fontSize: 11, fontWeight: "800" },
 
-  // TILES 4x2 maiores — width calculated inline for precision
+  // TILES 4x2 — width calculated inline
   grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 6 },
   tile: {
     aspectRatio: 0.95,
