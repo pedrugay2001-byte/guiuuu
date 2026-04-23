@@ -8,7 +8,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, Story, StoryGroup } from "../../../src/api";
 import { TIERS } from "../../../src/theme";
 import { useGate } from "../../../src/gate";
-import CachedImage from "../../../src/cached-image";
 import ActionSheet from "../../../src/action-sheet";
 
 const { width, height } = Dimensions.get("window");
@@ -203,12 +202,15 @@ export default function StoryViewer() {
         if (img) {
           return (
             <>
-              <CachedImage
+              <Image
                 source={{ uri: img }}
                 style={st.media}
-                contentFit="cover"
+                resizeMode="cover"
                 onLoad={() => setImgLoaded(true)}
-                onError={() => { setImgLoaded(true); }}
+                onError={(e) => {
+                  console.log("[StoryViewer] image error", e?.nativeEvent);
+                  setImgLoaded(true);
+                }}
               />
               {!imgLoaded && (
                 <View style={st.mediaLoader}>

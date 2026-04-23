@@ -172,6 +172,22 @@ export const api = {
       open_quotes: number; total_quotes: number;
       open_orders: number; unread_messages: number;
     }>("/admin/stats"),
+  adminMetrics: () =>
+    request<{
+      supply: {
+        total_cents: number; available_cents: number;
+        escrow_out_cents: number; escrow_in_cents: number;
+        wallets_count: number; wallets_with_balance: number;
+      };
+      volume_30d: { total_cents: number; tx_count: number };
+      orders: { open: number; completed: number };
+      top_sellers: Array<{
+        member_id: string; name: string; nickname?: string | null;
+        tier: string; avatar_base64?: string | null;
+        total_cents: number; sales_count: number;
+        rating_avg: number; rating_count: number;
+      }>;
+    }>("/admin/metrics"),
   adminMembers: () => request<any[]>("/admin/members"),
   adminUpdateMember: (id: string, body: { name?: string; phone?: string; tier?: TierId; active?: boolean }) =>
     request<{ ok: boolean }>(`/admin/members/${id}`, { method: "PUT", body: JSON.stringify(body) }),

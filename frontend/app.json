@@ -1,27 +1,50 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "BLACKSCLUB",
+    "slug": "blacksclub",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
-    "userInterfaceStyle": "automatic",
+    "scheme": "blacksclub",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "description": "BLACKSCLUB — clube privado premium com marketplace, BLEX Token, BLACK AI e comunidade exclusiva.",
+    "primaryColor": "#D4AF37",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.blacksclub.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Tirar fotos de perfil e anexar ao chat",
+        "NSPhotoLibraryUsageDescription": "Selecionar imagens para perfil e anúncios",
+        "NSMicrophoneUsageDescription": "Gravar mensagens de áudio e usar assistente de voz"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.blacksclub.app",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "BLACKSCLUB",
+      "shortName": "BLACKSCLUB",
+      "description": "BLACKSCLUB — Clube Privado Premium",
+      "themeColor": "#050505",
+      "backgroundColor": "#050505",
+      "display": "standalone",
+      "startUrl": "/"
     },
     "plugins": [
       "expo-router",
@@ -34,7 +57,13 @@
           "backgroundColor": "#000"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Permitir gravar mensagens de áudio e usar o assistente por voz."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

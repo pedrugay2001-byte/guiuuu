@@ -861,6 +861,111 @@ async def admin_stats(staff: dict = Depends(require_staff)):
     }
 
 
+@api_router.get("/admin/metrics")
+async def admin_metrics(staff: dict = Depends(require_staff)):
+    """
+    Métricas executivas do ecossistema BLX:
+    - Supply total circulante (soma de balance_centavos de todas as carteiras)
+    - BLX em escrow (valor preso em transações pendentes)
+    - Top 10 sellers por volume de vendas liberadas (settled)
+    - Volume de transações dos últimos 30 dias
+    - Total de membros com saldo > 0
+    """
+    # --- Supply total circulante ---
+    supply_agg = await db.wallets.aggregate([
+        {"$group": {
+            "_id": None,
+            "total_balance": {"$sum": {"$ifNull": ["$balance_centavos", 0]}},
+            "total_escrow_out": {"$sum": {"$ifNull": ["$escrow_out", 0]}},
+            "total_escrow_in": {"$sum": {"$ifNull": ["$escrow_in", 0]}},
+            "wallets_count": {"$sum": 1},
+            "wallets_with_balance": {
+                "$sum": {"$cond": [{"$gt": [{"$ifNull": ["$balance_centavos", 0]}, 0]}, 1, 0]}
+            },
+        }}
+    ]).to_list(length=1)
+    supply = supply_agg[0] if supply_agg else {}
+    # escrow está em BLX float no schema antigo → converte para centavos
+    escrow_out_cents = int(round(float(supply.get("total_escrow_out") or 0) * 100))
+    escrow_in_cents = int(round(float(supply.get("total_escrow_in") or 0) * 100))
+
+    # --- Volume últimos 30 dias ---
+    since_30d = datetime.now(timezone.utc) - timedelta(days=30)
+    volume_agg = await db.wallet_txs.aggregate([
+        {"$match": {"created_at": {"$gte": since_30d}, "type": {"$in": ["escrow", "transfer", "settled"]}}},
+        {"$group": {
+            "_id": None,
+            "total_cents": {"$sum": {"$ifNull": ["$amount_centavos", 0]}},
+            "tx_count": {"$sum": 1},
+        }}
+    ]).to_list(length=1)
+    vol = volume_agg[0] if volume_agg else {}
+
+    # --- Top sellers (valor liberado/settled) ---
+    top_agg = await db.wallet_txs.aggregate([
+        {"$match": {"status": "settled", "type": "escrow", "to_id": {"$ne": None}}},
+        {"$group": {
+            "_id": "$to_id",
+            "total_cents": {"$sum": {"$ifNull": ["$amount_centavos", 0]}},
+            "sales_count": {"$sum": 1},
+        }},
+        {"$sort": {"total_cents": -1}},
+        {"$limit": 10},
+    ]).to_list(length=10)
+
+    # Enriquecer com nome/avatar/rating médio
+    top_sellers = []
+    for row in top_agg:
+        seller_id = row["_id"]
+        m = await db.members.find_one({"member_id": seller_id}, {"_id": 0, "member_id": 1, "name": 1, "nickname": 1, "tier": 1, "avatar_base64": 1})
+        if not m:
+            continue
+        # rating médio
+        rating_agg = await db.blx_ratings.aggregate([
+            {"$match": {"seller_id": seller_id}},
+            {"$group": {"_id": None, "avg": {"$avg": "$stars"}, "count": {"$sum": 1}}},
+        ]).to_list(length=1)
+        rating = rating_agg[0] if rating_agg else {}
+        top_sellers.append({
+            "member_id": seller_id,
+            "name": m.get("name") or m.get("nickname") or "Membro",
+            "nickname": m.get("nickname"),
+            "tier": m.get("tier", "silver"),
+            "avatar_base64": m.get("avatar_base64"),
+            "total_cents": int(row.get("total_cents") or 0),
+            "sales_count": int(row.get("sales_count") or 0),
+            "rating_avg": round(float(rating.get("avg") or 0), 2),
+            "rating_count": int(rating.get("count") or 0),
+        })
+
+    # --- Orders stats ---
+    orders_open = await db.orders.count_documents({"status": {"$in": ["pending", "escrow", "open"]}})
+    orders_completed = await db.orders.count_documents({"status": "completed"})
+
+    balance_cents = int(supply.get("total_balance") or 0)
+    total_supply = balance_cents + escrow_out_cents  # saldo livre + escrow pendente
+
+    return {
+        "supply": {
+            "total_cents": total_supply,
+            "available_cents": balance_cents,
+            "escrow_out_cents": escrow_out_cents,
+            "escrow_in_cents": escrow_in_cents,
+            "wallets_count": int(supply.get("wallets_count") or 0),
+            "wallets_with_balance": int(supply.get("wallets_with_balance") or 0),
+        },
+        "volume_30d": {
+            "total_cents": int(vol.get("total_cents") or 0),
+            "tx_count": int(vol.get("tx_count") or 0),
+        },
+        "orders": {
+            "open": orders_open,
+            "completed": orders_completed,
+        },
+        "top_sellers": top_sellers,
+    }
+
+
 # -------------- BLACK AI --------------
 BASE_GUARDRAILS = """
 REGRAS INEGOCIÁVEIS (para todos os especialistas):

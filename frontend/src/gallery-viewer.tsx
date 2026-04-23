@@ -1,10 +1,9 @@
 import React, { useState } from "react";
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity, FlatList, Dimensions,
-  StatusBar, Alert,
+  StatusBar, Alert, Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import CachedImage from "./cached-image";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
@@ -62,10 +61,10 @@ export default function GalleryViewer({ visible, onClose, photos, initialIndex =
           keyExtractor={(_, i) => String(i)}
           renderItem={({ item }) => (
             <View style={{ width: SCREEN_W, height: SCREEN_H, alignItems: "center", justifyContent: "center" }}>
-              <CachedImage
+              <Image
                 source={{ uri: item.startsWith("data:") ? item : `data:image/jpeg;base64,${item}` }}
                 style={{ width: SCREEN_W, height: SCREEN_H * 0.8 }}
-                contentFit="contain"
+                resizeMode="contain"
               />
             </View>
           )}

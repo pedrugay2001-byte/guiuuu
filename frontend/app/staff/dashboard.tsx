@@ -139,6 +139,26 @@ export default function StaffDashboard() {
           />
         </View>
 
+        {/* BLX Metrics CTA */}
+        {isAdmin && (
+          <TouchableOpacity
+            style={styles.metricsCard}
+            onPress={() => router.push("/staff/metrics" as any)}
+            testID="dashboard-metrics-card"
+            activeOpacity={0.9}
+          >
+            <View style={styles.metricsIcon}>
+              <Ionicons name="analytics" size={22} color="#D4AF37" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.metricsKicker}>PAINEL EXECUTIVO BLX</Text>
+              <Text style={styles.metricsTitle}>Métricas do ecossistema</Text>
+              <Text style={styles.metricsSub}>Supply em circulação, top sellers e volume 30d</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#888" />
+          </TouchableOpacity>
+        )}
+
         {/* Quick actions */}
         <Text style={[styles.kicker, { marginTop: 24 }]}>AÇÕES RÁPIDAS</Text>
         <View style={styles.actions}>
@@ -389,6 +409,21 @@ const styles = StyleSheet.create({
   preauthKicker: { color: "rgba(0,0,0,0.6)", fontSize: 9, fontWeight: "900", letterSpacing: 2 },
   preauthTitle: { color: theme.colors.bg, fontSize: 20, fontWeight: "900", letterSpacing: -0.5, lineHeight: 22, marginTop: 2 },
   preauthSub: { color: "rgba(0,0,0,0.7)", fontSize: 11, lineHeight: 15, marginTop: 6 },
+
+  metricsCard: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    padding: 16, borderRadius: 12, marginTop: 12,
+    backgroundColor: "#0B0B0B",
+    borderWidth: 1, borderColor: "rgba(212,175,55,0.3)",
+  },
+  metricsIcon: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: "rgba(212,175,55,0.12)",
+    alignItems: "center", justifyContent: "center",
+  },
+  metricsKicker: { color: "#D4AF37", fontSize: 9, fontWeight: "900", letterSpacing: 2 },
+  metricsTitle: { color: theme.colors.white, fontSize: 15, fontWeight: "800", marginTop: 3 },
+  metricsSub: { color: theme.colors.textMuted, fontSize: 11, marginTop: 3, lineHeight: 14 },
 
   label: { color: theme.colors.silver, fontSize: 10, fontWeight: "800", letterSpacing: 2, marginTop: 10, marginBottom: 6 },
   input: {

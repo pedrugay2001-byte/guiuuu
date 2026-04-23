@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { TierId } from "./theme";
 import { api } from "./api";
@@ -85,7 +85,12 @@ export function GateProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const refreshMember = useCallback(async () => {
+  // Throttle: ignora chamadas dentro de 20s
+  const lastRefreshRef = useRef<number>(0);
+  const refreshMember = useCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastRefreshRef.current < 20_000) return;
+    lastRefreshRef.current = now;
     try {
       const cur = await AsyncStorage.getItem(GATE_KEY);
       if (!cur) return;

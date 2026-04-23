@@ -29,10 +29,11 @@ export default function Member() {
   const [nickInput, setNickInput] = useState("");
 
   const load = useCallback(async () => {
+    if (!member) return;
     setLoading(true);
     try {
       const [products, stats] = await Promise.all([
-        api.listProducts().catch(() => []),
+        api.listProducts({ member_id: member.member_id }).catch(() => []),
         api.memberStats().catch(() => ({ total_members: 0 })),
       ]);
       setAdminProducts(products);
@@ -40,7 +41,7 @@ export default function Member() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [member]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
