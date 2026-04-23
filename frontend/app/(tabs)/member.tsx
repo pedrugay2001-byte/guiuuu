@@ -222,7 +222,54 @@ export default function Member() {
 
         {isStaff && (
         <View style={styles.adminSection}>
-          <View style={styles.adminHeader}>
+          {/* ATALHOS RÁPIDOS DE STAFF */}
+          <Text style={styles.sectionTitle}>ÁREA DA EQUIPE</Text>
+          <View style={{ gap: 8, marginTop: 8 }}>
+            <TouchableOpacity
+              style={[styles.quickAction, { backgroundColor: "#2ECC71" }]}
+              onPress={() => router.push("/admin/wallet" as any)}
+              testID="profile-admin-wallet"
+              activeOpacity={0.88}
+            >
+              <Ionicons name="wallet" size={18} color="#000" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.quickActionTitle, { color: "#000" }]}>CREDITAR BLACK COINS</Text>
+                <Text style={[styles.quickActionSub, { color: "#0A4D2E" }]}>Adicionar saldo a qualquer membro</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#000" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => router.push("/admin/members" as any)}
+              testID="profile-admin-members"
+              activeOpacity={0.88}
+            >
+              <Ionicons name="person-add" size={18} color="#FFF" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.quickActionTitle}>CADASTRAR MEMBRO</Text>
+                <Text style={styles.quickActionSub}>Pré-autorizar entrada no clube</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#888" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => router.push("/staff/dashboard" as any)}
+              testID="profile-admin-dashboard"
+              activeOpacity={0.88}
+            >
+              <Ionicons name="stats-chart" size={18} color="#FFF" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.quickActionTitle}>PAINEL COMPLETO</Text>
+                <Text style={styles.quickActionSub}>Dashboard, pedidos, chat staff</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#888" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Catálogo — mantém abaixo dos atalhos principais */}
+          <View style={[styles.adminHeader, { marginTop: 22 }]}>
             <Text style={styles.sectionTitle}>GERENCIAR CATÁLOGO</Text>
             <TouchableOpacity style={styles.addBtn} onPress={() => router.push("/admin/edit")} testID="admin-add-product">
               <Ionicons name="add" size={16} color={theme.colors.bg} />
@@ -396,6 +443,16 @@ const styles = StyleSheet.create({
   statLabel: { color: theme.colors.silver, fontSize: 10, fontWeight: "800", letterSpacing: 1.5, marginTop: 4 },
   adminSection: { marginTop: theme.spacing.md, paddingHorizontal: theme.spacing.lg },
   adminHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing.md },
+
+  // Atalhos rápidos da área de staff (botões grandes com ícone + título + subtítulo).
+  quickAction: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    backgroundColor: "#111", borderRadius: 12,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+  },
+  quickActionTitle: { color: "#FFF", fontSize: 12.5, fontWeight: "900", letterSpacing: 1 },
+  quickActionSub: { color: "#888", fontSize: 11, fontWeight: "500", marginTop: 2 },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.colors.white, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 6 },
   addBtnText: { color: theme.colors.bg, fontWeight: "900", fontSize: 11, letterSpacing: 1 },
   adminRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 8 },
