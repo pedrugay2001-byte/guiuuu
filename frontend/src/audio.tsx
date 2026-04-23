@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 
@@ -173,12 +173,16 @@ export function AudioPlayer({
   bgColor = "#1A1A1A",
   textColor = "#EEE",
   durationHintMs,
+  senderAvatar,
+  senderName,
 }: {
   src: string;
   accent?: string;
   bgColor?: string;
   textColor?: string;
   durationHintMs?: number;
+  senderAvatar?: string | null;
+  senderName?: string;
 }) {
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -228,12 +232,27 @@ export function AudioPlayer({
 
   return (
     <View style={[plStyles.box, { backgroundColor: bgColor }]}>
-      <TouchableOpacity style={[plStyles.playBtn, { backgroundColor: accent }]} onPress={toggle} testID="audio-player-toggle">
+      {/* Avatar do remetente (se fornecido) */}
+      {senderAvatar ? (
+        <Image source={{ uri: senderAvatar }} style={plStyles.avatar} resizeMode="cover" />
+      ) : senderName ? (
+        <View style={[plStyles.avatar, plStyles.avatarFallback]}>
+          <Text style={plStyles.avatarInitial}>{senderName.charAt(0).toUpperCase()}</Text>
+        </View>
+      ) : null}
+
+      {/* Play/Pause — BRILHANTE com glow dourado */}
+      <TouchableOpacity
+        style={[plStyles.playBtn, { backgroundColor: "#FFFFFF", shadowColor: accent }]}
+        onPress={toggle}
+        testID="audio-player-toggle"
+        activeOpacity={0.8}
+      >
         {loading ? <ActivityIndicator color="#000" size="small" /> : (
-          <Ionicons name={playing ? "pause" : "play"} size={16} color="#000" />
+          <Ionicons name={playing ? "pause" : "play"} size={18} color="#000" style={{ marginLeft: playing ? 0 : 2 }} />
         )}
       </TouchableOpacity>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, minWidth: 80 }}>
         <View style={plStyles.track}>
           <View style={[plStyles.fill, { width: `${Math.max(4, progress * 100)}%`, backgroundColor: accent }]} />
         </View>
@@ -260,11 +279,27 @@ const plStyles = StyleSheet.create({
   box: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingVertical: 8, paddingHorizontal: 10, borderRadius: 14,
-    minWidth: 180,
+    minWidth: 200,
   },
+  avatar: {
+    width: 36, height: 36, borderRadius: 18,
+    borderWidth: 1.5, borderColor: "#D4AF37",
+  },
+  avatarFallback: {
+    backgroundColor: "#2A2A2A", alignItems: "center", justifyContent: "center",
+  },
+  avatarInitial: { color: "#EEE", fontSize: 13, fontWeight: "900" },
   playBtn: {
-    width: 32, height: 32, borderRadius: 16,
+    width: 38, height: 38, borderRadius: 19,
     alignItems: "center", justifyContent: "center",
+    // Glow dourado para destaque
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 6,
+    // Borda sutil dourada
+    borderWidth: 1.5,
+    borderColor: "#D4AF37",
   },
   track: {
     height: 4, borderRadius: 2,

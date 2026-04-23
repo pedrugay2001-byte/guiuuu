@@ -101,9 +101,15 @@ export default function PerformanceTab() {
     <View style={{ flex: 1, backgroundColor: "#050505" }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
 
-        {/* HEADER */}
-        <View style={st.headerRow}>
-          <View style={{ flex: 1 }}>
+        {/* HEADER com imagem de modelo treinando em background */}
+        <View style={st.heroWrap}>
+          <Image
+            source={{ uri: "https://images.unsplash.com/photo-1582070763274-dbeb2ef35190?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxhdGhsZXRlJTIwc2lsaG91ZXR0ZSUyMGdyYXBofGVufDB8fHxibGFja3wxNzc2OTgzNjAwfDA&ixlib=rb-4.1.0&q=85&w=800&auto=format" }}
+            style={st.heroBg}
+            resizeMode="cover"
+          />
+          <View style={st.heroOverlay} />
+          <View style={st.heroContent}>
             <Text style={st.kicker}>CENTRAL DE PERFORMANCE</Text>
             <Text style={st.h1}>Foco hoje, resultado amanhã</Text>
           </View>
@@ -1081,8 +1087,35 @@ function ExplainRow({ icon, txt }: { icon: string; txt: string }) {
 const st = StyleSheet.create({
   loadWrap: { flex: 1, backgroundColor: "#050505", alignItems: "center", justifyContent: "center" },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 },
+  // HERO com imagem de modelo treinando em background
+  heroWrap: {
+    position: "relative",
+    marginHorizontal: -16, marginTop: -16, marginBottom: 20,
+    height: 140,
+    overflow: "hidden",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(212,175,55,0.2)",
+  },
+  heroBg: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    width: "100%", height: "100%",
+    opacity: 0.45,
+  },
+  heroOverlay: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(5,5,5,0.55)",
+  },
+  heroContent: {
+    flex: 1, justifyContent: "flex-end",
+    paddingHorizontal: 18, paddingBottom: 18, paddingTop: 28,
+  },
   kicker: { color: GOLD, fontSize: 10, fontWeight: "900", letterSpacing: 2.2 },
-  h1: { color: "#FFF", fontSize: 22, fontWeight: "900", marginTop: 4 },
+  h1: {
+    color: "#FFF", fontSize: 22, fontWeight: "900", marginTop: 6,
+    textShadowColor: "rgba(0,0,0,0.85)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
   addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: GOLD, alignItems: "center", justifyContent: "center" },
 
   sectionLbl: { color: "#BBB", fontSize: 10.5, fontWeight: "900", letterSpacing: 2.2, marginTop: 6, marginBottom: 10 },

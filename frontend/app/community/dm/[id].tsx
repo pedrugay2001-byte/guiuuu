@@ -120,6 +120,8 @@ export default function DMChat() {
                         accent={mine ? "#000" : "#D4AF37"}
                         bgColor={mine ? "rgba(0,0,0,0.15)" : "#0E0E0E"}
                         textColor={mine ? "#000" : "#EEE"}
+                        senderAvatar={mine ? (member as any)?.avatar_base64 : (partner as any)?.avatar_base64}
+                        senderName={mine ? (member?.nickname || member?.name) : (partner?.nickname || partner?.name)}
                       />
                     )}
                     {cleanText ? <Text style={[styles.bubbleTxt, { color: mine ? "#000" : "#EEE", marginTop: (imgUri || audUri) ? 6 : 0, paddingHorizontal: (imgUri || audUri) ? 6 : 0, paddingBottom: (imgUri || audUri) ? 4 : 0 }]}>{cleanText}</Text> : null}

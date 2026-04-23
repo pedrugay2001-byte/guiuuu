@@ -101,7 +101,7 @@ export default function Community() {
                 <TouchableOpacity style={styles.storyItem} onPress={() => router.push(`/community/story/${s.member_id}`)}>
                   <View style={[styles.storyRing, { borderColor: tier.color }]}>
                     {s.avatar_base64 ? (
-                      <CachedImage source={{ uri: s.avatar_base64 }} style={styles.storyAvatar} contentFit="cover" />
+                      <Image source={{ uri: s.avatar_base64 }} style={styles.storyAvatar} resizeMode="cover" />
                     ) : (
                       <View style={[styles.storyAvatar, { backgroundColor: "#2A2A2A", alignItems: "center", justifyContent: "center" }]}>
                         <Text style={{ color: "#EEE", fontWeight: "800" }}>{s.nickname.charAt(0).toUpperCase()}</Text>
@@ -212,7 +212,7 @@ function PostCardInner({ post, onAuthor, currentMemberId, onDelete }: {
     <View style={styles.post}>
       <TouchableOpacity style={styles.postHeader} onPress={onAuthor}>
         <View style={[styles.postAvRing, { borderColor: tier.color }]}>
-          {post.author_avatar ? <CachedImage source={{ uri: post.author_avatar }} style={styles.postAv} contentFit="cover" /> : (
+          {post.author_avatar ? <Image source={{ uri: post.author_avatar }} style={styles.postAv} resizeMode="cover" /> : (
             <View style={[styles.postAv, { backgroundColor: "#2A2A2A", alignItems: "center", justifyContent: "center" }]}>
               <Text style={{ color: "#EEE", fontWeight: "800" }}>{(post.author_nickname || "?").charAt(0).toUpperCase()}</Text>
             </View>
@@ -230,7 +230,7 @@ function PostCardInner({ post, onAuthor, currentMemberId, onDelete }: {
         </TouchableOpacity>
       </TouchableOpacity>
       {post.text ? <Text style={styles.postText}>{post.text}</Text> : null}
-      {post.image_base64 ? <CachedImage source={{ uri: post.image_base64 }} style={styles.postImg} contentFit="cover" /> : null}
+      {post.image_base64 ? <Image source={{ uri: post.image_base64 }} style={styles.postImg} resizeMode="cover" /> : null}
       <View style={styles.postActions}>
         <TouchableOpacity style={styles.reactBtn} onPress={() => react("fire")} testID={`react-fire-${post.post_id}`}>
           <Text style={styles.reactEmo}>🔥</Text><Text style={styles.reactCt}>{reactions.fire}</Text>
