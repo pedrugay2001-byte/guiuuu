@@ -162,20 +162,27 @@ export default function PerformanceTab() {
             {/* VISÃO GERAL — card consolidado quando nenhuma meta selecionada */}
             {!selectedGoal && <OverviewCard goals={goals} /> }
 
-            {/* MENSAGEM DO DIA - banner discreto (abre tela dedicada) */}
+            {/* ATALHO BLACK AI — substituiu a Mensagem do Dia */}
             {selectedGoal && (
               <TouchableOpacity
-                style={st.dmBanner}
-                onPress={() => router.push(`/daily-message?goalId=${selectedGoal.goal_id}` as any)}
+                style={st.aiBanner}
+                onPress={() => router.push(`/black-ai?goalId=${selectedGoal.goal_id}` as any)}
                 activeOpacity={0.85}
-                testID="perf-daily-banner"
+                testID="perf-blackai-banner"
               >
-                <MaterialCommunityIcons name="book-open-variant" size={20} color={selectedGoal.color || "#C0C0C0"} />
-                <View style={{ flex: 1 }}>
-                  <Text style={st.dmBannerTxt}>Mensagem do Dia</Text>
-                  <Text style={st.dmBannerSub}>Reflexão personalizada para hoje</Text>
+                <View style={st.aiBannerIcon}>
+                  <MaterialCommunityIcons name="brain" size={20} color="#E8E8E8" />
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#777" />
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={st.aiBannerTxt}>Assistente BLACK AI</Text>
+                    <View style={st.aiBannerBadge}>
+                      <Text style={st.aiBannerBadgeTxt}>AI</Text>
+                    </View>
+                  </View>
+                  <Text style={st.aiBannerSub}>Análise detalhada e insights da sua meta</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#9A9A9A" />
               </TouchableOpacity>
             )}
 
@@ -1052,7 +1059,7 @@ function EmptyExplainer() {
       <ExplainRow icon="target" txt="Definir metas com prazo e acompanhar progresso em tempo real" />
       <ExplainRow icon="speedometer" txt="Análise de ritmo automática: adiantado / no ritmo / atrasado" />
       <ExplainRow icon="chart-timeline-variant" txt="Gráficos de evolução e previsão inteligente" />
-      <ExplainRow icon="book-open" txt="Mensagem do Dia personalizada com passagem bíblica e parábola" />
+      <ExplainRow icon="brain" txt="Assistente BLACK AI com análise detalhada de cada meta" />
       <ExplainRow icon="chart-donut" txt="Resumo geral consolidado de todas as suas metas" />
     </View>
   );
@@ -1230,5 +1237,22 @@ const st = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
   inpDate: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   dateTxt: { color: "#FFF", fontSize: 13, fontWeight: "600" },
-  hintTiny: { color: "#666", fontSize: 10.5, marginTop: 6, fontStyle: "italic" },
+  // AI Banner — atalho BLACK AI (substitui o antigo Mensagem do Dia)
+  aiBanner: { flexDirection: "row", alignItems: "center", gap: 12,
+    paddingVertical: 14, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1,
+    borderColor: "rgba(200,200,200,0.18)", backgroundColor: "#0A0A0A", marginTop: 14,
+  },
+  aiBannerIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(232,232,232,0.06)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+  },
+  aiBannerTxt: { color: "#EEE", fontSize: 13.5, fontWeight: "800" },
+  aiBannerSub: { color: "#8A8A8A", fontSize: 11, fontWeight: "500", marginTop: 3 },
+  aiBannerBadge: {
+    paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 6,
+    backgroundColor: "#C0C0C0",
+  },
+  aiBannerBadgeTxt: { color: "#000", fontSize: 8.5, fontWeight: "900", letterSpacing: 0.8 },
 });

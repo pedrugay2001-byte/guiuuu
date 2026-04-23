@@ -573,6 +573,39 @@ test_plan:
         - PostCard envelopado em React.memo com custom comparator (post_id, text, image,
           reactions, currentMemberId) → evita re-renders em cascata quando outros posts mudam.
         - Trocado <Image> por <CachedImage> em: story avatars + post author avatars.
+
+    - agent: "main"
+      message: |
+        REFINOS UX (silver 3D + BLACK AI):
+
+        1. Ícones prateados metálicos 3D no ACESSO RÁPIDO:
+           - Novo componente SilverMetalChip em home.tsx usando react-native-svg com:
+             • Anel externo com LinearGradient cromado (#FFFFFF → #DDD → #8E → #3A3A3A)
+             • Miolo escuro inset com RadialGradient (#2A → #111 → #050505)
+             • Reflexo "glossy" semi-transparente no topo
+             • Shadow/elevation (iOS shadowOffset 3px, Android elevation 5)
+             • Ícone prateado claro (#E8E8E8) centralizado
+           - Chip 58x58px com efeito cromo realista
+           - Diferencia completamente dos ícones flat da Top Tab Bar (dourado)
+             e do Bottom Brand Bar (branco).
+
+        2. Substituído "Mensagem do Dia" por Assistente BLACK AI:
+           - performance.tsx: banner dmBanner → aiBanner com ícone brain prateado,
+             badge "AI" prata, subtitle "Análise detalhada e insights da sua meta",
+             rota /black-ai?goalId=X
+           - home.tsx: botão "MENSAGEM DO DIA" → "BLACK AI" com ícone brain,
+             rota /black-ai?goalId=X
+           - EmptyExplainer: trocado "Mensagem do Dia personalizada..." por
+             "Assistente BLACK AI com análise detalhada de cada meta"
+
+        3. Mensagem do Dia desativada:
+           - Todas as chamadas para /daily-message foram removidas do fluxo principal
+           - O arquivo /app/frontend/app/daily-message.tsx permanece no repo mas
+             não está mais linkado em nenhuma navegação.
+
+        Validado visualmente em iPhone 15 Pro Max (430x932). Zero erros no console.
+
+
           CachedImage usa expo-image com memory+disk cache, muito mais fluido em scroll.
         - Import React adicionado no topo.
 

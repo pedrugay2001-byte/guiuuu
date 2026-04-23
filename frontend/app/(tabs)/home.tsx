@@ -1,11 +1,11 @@
 import { useCallback, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import Svg, { Circle, Defs, Stop, RadialGradient } from "react-native-svg";
+import Svg, { Circle, Defs, Stop, RadialGradient, LinearGradient as SvgLinearGradient } from "react-native-svg";
 import { api, GoalDashboard } from "../../src/api";
 import { useGate } from "../../src/gate";
 
@@ -36,6 +36,70 @@ function AreaIcon({ icon, size, color }: { icon: Area["icon"]; size: number; col
   if (icon.lib === "mci") return <MaterialCommunityIcons name={icon.name as any} size={size} color={color} />;
   return <Ionicons name={icon.name as any} size={size} color={color} />;
 }
+
+/* Ícone prateado metálico "3D" — usado no Acesso Rápido para se diferenciar
+ * dos ícones das barras superior (dourado) e inferior (branco flat). */
+function SilverMetalChip({ icon, size = 58 }: { icon: Area["icon"]; size?: number }) {
+  const half = size / 2;
+  const inner = size - 10; // anel metálico externo de 5px
+  const innerHalf = inner / 2;
+  return (
+    <View style={[silverSt.wrap, { width: size, height: size }]}>
+      <Svg width={size} height={size}>
+        <Defs>
+          {/* Anel metálico externo: gradiente de cromo */}
+          <SvgLinearGradient id="chromeRing" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0%"   stopColor="#FFFFFF" stopOpacity="1" />
+            <Stop offset="25%"  stopColor="#DDDDDD" stopOpacity="1" />
+            <Stop offset="55%"  stopColor="#8E8E8E" stopOpacity="1" />
+            <Stop offset="100%" stopColor="#3A3A3A" stopOpacity="1" />
+          </SvgLinearGradient>
+          {/* Miolo escuro (inset) com leve vinheta */}
+          <RadialGradient id="insetDark" cx="50%" cy="40%" r="60%">
+            <Stop offset="0%"   stopColor="#2A2A2A" stopOpacity="1" />
+            <Stop offset="60%"  stopColor="#111111" stopOpacity="1" />
+            <Stop offset="100%" stopColor="#050505" stopOpacity="1" />
+          </RadialGradient>
+          {/* Reflexo sutil superior */}
+          <SvgLinearGradient id="glossy" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0%"  stopColor="#FFFFFF" stopOpacity="0.22" />
+            <Stop offset="60%" stopColor="#FFFFFF" stopOpacity="0" />
+          </SvgLinearGradient>
+        </Defs>
+        {/* Anel externo metálico */}
+        <Circle cx={half} cy={half} r={half - 0.5} fill="url(#chromeRing)" />
+        {/* Miolo escuro */}
+        <Circle cx={half} cy={half} r={innerHalf} fill="url(#insetDark)" />
+        {/* Reflexo "glossy" no topo */}
+        <Circle cx={half} cy={half} r={innerHalf} fill="url(#glossy)" />
+      </Svg>
+      {/* Ícone centralizado em cima do SVG */}
+      <View style={silverSt.iconCenter} pointerEvents="none">
+        <AreaIcon icon={icon} size={Math.round(size * 0.4)} color="#E8E8E8" />
+      </View>
+    </View>
+  );
+}
+
+const silverSt = StyleSheet.create({
+  wrap: {
+    alignItems: "center", justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.55,
+        shadowRadius: 4,
+      },
+      android: { elevation: 5 },
+      default: {},
+    }),
+  },
+  iconCenter: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: "center", justifyContent: "center",
+  },
+});
 
 export default function Home() {
   const router = useRouter();
@@ -126,7 +190,7 @@ export default function Home() {
               <Ionicons name="chevron-forward" size={18} color={SILVER} style={s.aiChev} />
             </TouchableOpacity>
 
-            {/* Buttons row — nome da meta ativa (cor da meta) + MENSAGEM DO DIA (cinza) */}
+            {/* Buttons row — nome da meta ativa + BLACK AI */}
             <View style={s.aiBtnRow}>
               <TouchableOpacity
                 style={[
@@ -153,13 +217,13 @@ export default function Home() {
                 style={s.btnPrimary}
                 onPress={() => {
                   const gid = forecastGoal?.goal_id;
-                  router.push(gid ? `/daily-message?goalId=${gid}` as any : "/daily-message" as any);
+                  router.push(gid ? `/black-ai?goalId=${gid}` as any : "/black-ai" as any);
                 }}
                 activeOpacity={0.9}
-                testID="btn-mensagem-dia"
+                testID="btn-black-ai"
               >
-                <MaterialCommunityIcons name="book-open-variant" size={13} color="#FFF" />
-                <Text style={s.btnPrimaryTxt}>MENSAGEM DO DIA</Text>
+                <MaterialCommunityIcons name="brain" size={13} color="#FFF" />
+                <Text style={s.btnPrimaryTxt}>BLACK AI</Text>
               </TouchableOpacity>
             </View>
 
@@ -199,7 +263,7 @@ export default function Home() {
             </View>
           </View>
 
-          {/* ACESSO RÁPIDO — agora logo após a Central */}
+          {/* ACESSO RÁPIDO — ícones prateados metálicos 3D */}
           <Text style={s.sectionLbl}>ACESSO RÁPIDO</Text>
           <View style={s.grid}>
             {AREAS.map((a) => (
@@ -207,10 +271,10 @@ export default function Home() {
                 key={a.id}
                 onPress={() => router.push(a.route as any)}
                 style={s.tile}
-                activeOpacity={0.85}
+                activeOpacity={0.82}
                 testID={`area-${a.id}`}
               >
-                <AreaIcon icon={a.icon} size={22} color="#FFF" />
+                <SilverMetalChip icon={a.icon} size={58} />
                 <Text style={s.tileLbl} numberOfLines={1}>{a.label}</Text>
               </TouchableOpacity>
             ))}
