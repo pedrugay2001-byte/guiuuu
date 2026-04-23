@@ -105,18 +105,16 @@ export default function PerformanceTab() {
           </View>
         </View>
 
-        {/* BOTÃO NOVA META — dourado destacado */}
-        {hasGoals && (
-          <TouchableOpacity
-            style={st.newGoalBtn}
-            onPress={() => setCreateOpen(true)}
-            activeOpacity={0.85}
-            testID="btn-nova-meta"
-          >
-            <Ionicons name="add-circle" size={18} color="#000" />
-            <Text style={st.newGoalTxt}>NOVA META</Text>
-          </TouchableOpacity>
-        )}
+        {/* BOTÃO NOVA META — sempre visível, dourado destacado */}
+        <TouchableOpacity
+          style={st.newGoalBtn}
+          onPress={() => setCreateOpen(true)}
+          activeOpacity={0.85}
+          testID="btn-nova-meta"
+        >
+          <Ionicons name="add-circle" size={18} color="#000" />
+          <Text style={st.newGoalTxt}>{hasGoals ? "NOVA META" : "CRIAR MINHA PRIMEIRA META"}</Text>
+        </TouchableOpacity>
 
         {!hasGoals && <EmptyExplainer />}
 
