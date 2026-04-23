@@ -52,6 +52,12 @@ api_router = APIRouter(prefix="/api")
 
 
 # -------------- Health checks (for Kubernetes liveness/readiness probes) --------------
+@app.get("/")
+async def root():
+    """Root endpoint — Kubernetes liveness probe hits GET / and expects 2xx."""
+    return {"status": "ok", "service": "blacksclub-api", "api": "/api"}
+
+
 @app.get("/health")
 async def health_check():
     """Liveness probe — always returns 200 if the process is up."""
