@@ -26,7 +26,7 @@ type AreaId = "ai" | "community" | "marketplace" | "planos" | "wallet" | "perfor
 type Area = { id: AreaId; label: string; icon: { lib: "ion" | "mci"; name: string }; route: string };
 
 const AREAS: Area[] = [
-  { id: "marketplace",   label: "Marketplace",   icon: { lib: "ion", name: "storefront" },         route: "/(tabs)/catalog" },
+  { id: "cart",          label: "Carrinho",      icon: { lib: "ion", name: "cart" },               route: "/(tabs)/cart" },
   { id: "planos",        label: "Planos",        icon: { lib: "mci", name: "diamond-stone" },      route: "/(tabs)/negocios" },
   { id: "chat",          label: "Suporte",       icon: { lib: "ion", name: "headset" },            route: "/chat" },
   { id: "profissionais", label: "Profissionais", icon: { lib: "mci", name: "stethoscope" },        route: "/ai" },
