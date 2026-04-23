@@ -17,10 +17,10 @@ const GREY = "#2A2A2A";
 const GREY_DIM = "rgba(160,160,160,0.35)";
 const GREEN = "#2ECC71";
 const RED = "#FF5B5B";
-const BG = "#000";
+const BG = "#050505";
 const CARD_BG = "#0C0C0C";
-const TILE_BG = "#1A1A1A";
-const INNER_CARD_BG = "#121212";
+const TILE_BG = "#0C0C0C";
+const INNER_CARD_BG = "#101010";
 
 type AreaId = "ai" | "community" | "marketplace" | "planos" | "wallet" | "performance" | "chat" | "profissionais";
 type Area = { id: AreaId; label: string; icon: { lib: "ion" | "mci"; name: string }; route: string };
@@ -68,12 +68,16 @@ export default function Home() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <View style={{ flex: 1 }}>
-        <ScrollView
-          contentContainerStyle={{ paddingBottom: 20, flexGrow: 1 }}
-          showsVerticalScrollIndicator={false}
-          testID="home-scroll"
-        >
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: "space-between",
+          paddingVertical: 8,
+        }}
+        showsVerticalScrollIndicator={false}
+        testID="home-scroll"
+      >
           {/* GREETING — centralizado, limpo */}
           <View style={s.greet}>
             <Text style={s.greetHello}>Bem-vindo,</Text>
@@ -222,7 +226,6 @@ export default function Home() {
             ))}
           </View>
         </ScrollView>
-      </View>
     </View>
   );
 }
@@ -396,15 +399,14 @@ const s = StyleSheet.create({
   seeAllGold: { color: GOLD, fontSize: 11, fontWeight: "800" },
 
   // TILES 4 col — flex robusto, 4 por linha
-  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 6, justifyContent: "space-between" },
+  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 4, justifyContent: "space-between" },
   tile: {
     flexBasis: "23.5%",
-    aspectRatio: 0.95,
-    backgroundColor: TILE_BG,
-    borderRadius: 14,
+    height: 78,
+    backgroundColor: "transparent",
     alignItems: "center", justifyContent: "center",
     gap: 6,
-    paddingHorizontal: 4, paddingVertical: 8,
+    paddingVertical: 6,
   },
   tileLbl: { color: "#F5F5F5", fontSize: 10, fontWeight: "700", textAlign: "center", letterSpacing: 0.2 },
 
