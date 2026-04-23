@@ -6,9 +6,11 @@ import { theme } from "./theme";
 export function BrandLogo({
   size = "md",
   style,
+  goldS = false,
 }: {
   size?: "sm" | "md" | "lg" | "xl";
   style?: ViewStyle;
+  goldS?: boolean;
 }) {
   const map = {
     sm: { fs: 13, sRadius: 9, gap: 3, spacing: 1 },
@@ -20,6 +22,7 @@ export function BrandLogo({
 
   const blackLetters = ["B", "L", "A", "C", "K"];
   const clubLetters = ["C", "L", "U", "B"];
+  const sBg = goldS ? "#F5C150" : theme.colors.white;
 
   return (
     <View
@@ -40,7 +43,7 @@ export function BrandLogo({
           width: sRadius * 2,
           height: sRadius * 2,
           borderRadius: sRadius,
-          backgroundColor: theme.colors.white,
+          backgroundColor: sBg,
           alignItems: "center",
           justifyContent: "center",
           marginHorizontal: gap,
