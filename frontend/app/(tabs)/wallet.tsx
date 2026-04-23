@@ -133,10 +133,10 @@ export default function WalletScreen() {
               </Text>
             </View>
             <TouchableOpacity style={styles.copyBtn} onPress={copyWallet} testID="blx-copy-wallet">
-              <Ionicons name="copy-outline" size={15} color="#0A0A0A" />
+              <Ionicons name="copy-outline" size={15} color="#FFF" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.copyBtn} onPress={shareWallet} testID="blx-share-wallet">
-              <Ionicons name="share-social-outline" size={15} color="#0A0A0A" />
+              <Ionicons name="share-social-outline" size={15} color="#FFF" />
             </TouchableOpacity>
           </View>
 
@@ -238,7 +238,7 @@ function ActionButton({
   return (
     <TouchableOpacity style={styles.actionBtn} onPress={onPress} activeOpacity={0.8} testID={testID}>
       <View style={styles.actionIcon}>
-        <Ionicons name={icon} size={22} color="#D4AF37" />
+        <Ionicons name={icon} size={22} color="#FFFFFF" />
       </View>
       <Text style={styles.actionLabel}>{label}</Text>
     </TouchableOpacity>
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#050505",
   },
   headerRow: { flexDirection: "row", alignItems: "center" },
-  bankName: { color: "#FFF", fontSize: 13, fontWeight: "900", letterSpacing: 2 },
+  bankName: { color: "#D4AF37", fontSize: 13, fontWeight: "900", letterSpacing: 2 },
   bankTag: { color: "#D4AF37", fontSize: 10, fontWeight: "700", letterSpacing: 2.5, marginTop: 3 },
   eyeBtn: {
     width: 36, height: 36, borderRadius: 18,
@@ -324,12 +324,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 16, marginTop: 6, padding: 20,
     backgroundColor: "#0E0E0E",
     borderRadius: 18,
-    borderWidth: 1, borderColor: "rgba(212,175,55,0.25)",
+    borderWidth: 1, borderColor: "#1F1F1F",
   },
   cardTopRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 18 },
   cardLogoBox: {
     width: 30, height: 30, borderRadius: 8,
-    backgroundColor: "#D4AF37",
+    backgroundColor: "#FFFFFF",
     alignItems: "center", justifyContent: "center",
   },
   cardBrand: { color: "#D4AF37", fontSize: 11, fontWeight: "900", letterSpacing: 2 },
@@ -349,7 +349,8 @@ const styles = StyleSheet.create({
   walletNumberValue: { color: "#FFF", fontSize: 16, fontWeight: "800", letterSpacing: 2, marginTop: 3 },
   copyBtn: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: "#D4AF37",
+    backgroundColor: "#1A1A1A",
+    borderWidth: 1, borderColor: "#2A2A2A",
     alignItems: "center", justifyContent: "center",
   },
   cardHolderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 14 },
@@ -364,7 +365,7 @@ const styles = StyleSheet.create({
   },
   actionIcon: {
     width: 42, height: 42, borderRadius: 21,
-    backgroundColor: "rgba(212,175,55,0.1)",
+    backgroundColor: "#1A1A1A",
     alignItems: "center", justifyContent: "center",
     marginBottom: 8,
   },
@@ -384,7 +385,7 @@ const styles = StyleSheet.create({
   section: { marginTop: 22, paddingHorizontal: 16 },
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   sectionLabel: { color: "#8A8A8A", fontSize: 10, fontWeight: "900", letterSpacing: 2.5 },
-  seeAll: { color: "#D4AF37", fontSize: 10, fontWeight: "900", letterSpacing: 1.8 },
+  seeAll: { color: "#EEE", fontSize: 10, fontWeight: "900", letterSpacing: 1.8 },
 
   emptyBox: {
     alignItems: "center", paddingVertical: 30, gap: 8,

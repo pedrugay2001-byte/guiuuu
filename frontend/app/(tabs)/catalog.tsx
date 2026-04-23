@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api, Category, Product, Ad, formatBRL } from "../../src/api";
+import { formatBLX } from "../../src/blx";
 import { useGate } from "../../src/gate";
 import { theme } from "../../src/theme";
 
@@ -295,7 +296,7 @@ function AdCard({ ad, onPress }: { ad: Ad; onPress: () => void }) {
         )}
       </View>
       <Text style={st.adName} numberOfLines={2}>{ad.title}</Text>
-      <Text style={st.adPrice}>{formatBRL(ad.price_full)}</Text>
+      <Text style={st.adPrice}>{formatBLX(Math.round(ad.price_full * 100))} BLX</Text>
     </TouchableOpacity>
   );
 }

@@ -5,7 +5,8 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { api, Ad, formatBRL } from "../../src/api";
+import { api, Ad } from "../../src/api";
+import { formatBLX } from "../../src/blx";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
 import ScreenHeader from "../../src/screen-header";
@@ -82,8 +83,8 @@ export default function AdsIndex() {
                     <Ionicons name={tier.icon as any} size={10} color={tier.color} />
                     <Text style={[styles.seller, { color: tier.color }]}>{item.seller_nickname}</Text>
                   </View>
-                  {myDisc > 0 && <Text style={styles.priceOld}>{formatBRL(item.price_full)}</Text>}
-                  <Text style={styles.priceNew}>{formatBRL(final)}</Text>
+                  {myDisc > 0 && <Text style={styles.priceOld}>{formatBLX(Math.round(item.price_full * 100))} BLX</Text>}
+                  <Text style={styles.priceNew}>{formatBLX(Math.round(final * 100))} BLX</Text>
                   {myDisc > 0 && <Text style={styles.disc}>−{myDisc}% aplicado</Text>}
                 </View>
               </TouchableOpacity>

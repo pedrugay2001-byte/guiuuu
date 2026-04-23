@@ -818,6 +818,12 @@ async def admin_reset_member_password(member_id: str, data: MemberPasswordReset,
         raise HTTPException(status_code=404, detail="Membro não encontrado")
     ph = bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     await db.members.update_one({"member_id": member_id}, {"$set": {"password_hash": ph}})
+    # Sincroniza a senha também na coleção `users` (login do portal admin)
+    # quando existir um usuário com mesmo email — necessário para o auto-login
+    # feito no login.tsx/enter.tsx detectar roles (admin/staff/financeiro).
+    email = (member.get("email") or "").lower().strip()
+    if email:
+        await db.users.update_one({"email": email}, {"$set": {"password_hash": ph}})
     return {"ok": True, "member_id": member_id, "email": member.get("email")}
 
 
@@ -2432,12 +2438,16 @@ async def wallet_purchase(data: PurchaseRequest):
     disc = _plan_discount(buyer.get("tier", "silver"))
     qty = max(int(data.qty or 1), 1)
     final = round(float(ad["price_full"]) * (100 - disc) / 100, 2) * qty
+    final_cents = int(round(final * 100))
     wb = await _wallet_get_or_create(data.buyer_id)
-    if wb["balance"] < final:
-        raise HTTPException(status_code=400, detail=f"Saldo insuficiente. Você precisa de {final:.2f} BLACK Coins.")
+    if int(wb.get("balance_centavos") or 0) < final_cents:
+        raise HTTPException(status_code=400, detail=f"Saldo BLX insuficiente. Você precisa de {final:.2f} BLX.")
     await _wallet_get_or_create(seller_id)
     # move buyer balance -> escrow_out ; seller escrow_in
-    await db.wallets.update_one({"member_id": data.buyer_id}, {"$inc": {"balance": -final, "escrow_out": final}})
+    await db.wallets.update_one(
+        {"member_id": data.buyer_id},
+        {"$inc": {"balance": -final, "balance_centavos": -final_cents, "escrow_out": final}},
+    )
     await db.wallets.update_one({"member_id": seller_id}, {"$inc": {"escrow_in": final}})
     tx = {
         "tx_id": f"tx_{uuid.uuid4().hex[:12]}",
@@ -2450,6 +2460,8 @@ async def wallet_purchase(data: PurchaseRequest):
         "price_full": ad["price_full"],
         "discount": disc,
         "amount": final,
+        "amount_centavos": final_cents,
+        "currency": "BLX",
         "status": "escrow",
         "note": f"Compra aguardando entrega: {ad['title']}",
         "created_at": datetime.now(timezone.utc),
@@ -2469,8 +2481,12 @@ async def wallet_confirm(tx_id: str, body: dict):
     if tx.get("status") != "escrow" or tx.get("from_id") != buyer_id:
         raise HTTPException(status_code=400, detail="Transação não pode ser liberada")
     amt = tx["amount"]
+    amt_cents = int(tx.get("amount_centavos") or round(float(amt) * 100))
     await db.wallets.update_one({"member_id": tx["from_id"]}, {"$inc": {"escrow_out": -amt}})
-    await db.wallets.update_one({"member_id": tx["to_id"]}, {"$inc": {"escrow_in": -amt, "balance": amt}})
+    await db.wallets.update_one(
+        {"member_id": tx["to_id"]},
+        {"$inc": {"escrow_in": -amt, "balance": amt, "balance_centavos": amt_cents}},
+    )
     await db.wallet_txs.update_one({"tx_id": tx_id}, {"$set": {"status": "settled", "settled_at": datetime.now(timezone.utc)}})
     return {"ok": True}
 
@@ -2484,7 +2500,11 @@ async def wallet_refund(tx_id: str, body: dict):
     if tx.get("status") != "escrow":
         raise HTTPException(status_code=400, detail="Transação já liberada")
     amt = tx["amount"]
-    await db.wallets.update_one({"member_id": tx["from_id"]}, {"$inc": {"escrow_out": -amt, "balance": amt}})
+    amt_cents = int(tx.get("amount_centavos") or round(float(amt) * 100))
+    await db.wallets.update_one(
+        {"member_id": tx["from_id"]},
+        {"$inc": {"escrow_out": -amt, "balance": amt, "balance_centavos": amt_cents}},
+    )
     await db.wallets.update_one({"member_id": tx["to_id"]}, {"$inc": {"escrow_in": -amt}})
     await db.wallet_txs.update_one({"tx_id": tx_id}, {"$set": {"status": "refunded", "settled_at": datetime.now(timezone.utc)}})
     return {"ok": True}
