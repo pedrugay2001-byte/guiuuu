@@ -451,10 +451,18 @@ Object.assign(api as any, {
   }) => request<{ ok: boolean; entry_id: string; goal: Goal }>(
     `/goals/${goal_id}/entries`, { method: "POST", body: JSON.stringify(body) }),
   goalEntries: (goal_id: string) => request<GoalEntry[]>(`/goals/${goal_id}/entries`),
+  goalDeleteEntry: (goal_id: string, entry_id: string) =>
+    request<{ ok: boolean; goal: Goal }>(`/goals/${goal_id}/entries/${entry_id}`, { method: "DELETE" }),
   goalDetail: (goal_id: string) => request<GoalDetail>(`/goals/${goal_id}/detail`),
   goalDailyMessage: (goal_id: string) =>
     request<DailyMessage>(`/goals/${goal_id}/daily-message`, { method: "POST", body: "{}" }),
   goalWhatToDo: (goal_id: string) => request<WhatToDoReply>(`/goals/${goal_id}/what-to-do`, { method: "POST", body: "{}" }),
+
+  // Delete content
+  postDelete: (post_id: string, member_id: string) =>
+    request<{ ok: boolean }>(`/feed/posts/${post_id}?member_id=${member_id}`, { method: "DELETE" }),
+  storyDelete: (story_id: string, member_id: string) =>
+    request<{ ok: boolean }>(`/stories/${story_id}?member_id=${member_id}`, { method: "DELETE" }),
 });
 
 

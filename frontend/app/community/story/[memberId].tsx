@@ -7,6 +7,8 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api, Story, StoryGroup } from "../../../src/api";
 import { TIERS } from "../../../src/theme";
+import { useGate } from "../../../src/gate";
+import { Alert } from "react-native";
 
 const { width, height } = Dimensions.get("window");
 const STORY_DURATION = 5000;
@@ -27,6 +29,7 @@ const STORY_DURATION = 5000;
 export default function StoryViewer() {
   const router = useRouter();
   const { memberId } = useLocalSearchParams<{ memberId: string }>();
+  const { member: currentMember } = useGate();
 
   // All groups (all members who have stories) — needed to advance across authors
   const [groups, setGroups] = useState<StoryGroup[]>([]);
@@ -221,6 +224,26 @@ export default function StoryViewer() {
           <Text style={st.name} numberOfLines={1}>{group.nickname || "Membro"}</Text>
           <Text style={st.time}>{timeAgo}</Text>
         </View>
+        {currentMember?.member_id === group.member_id ? (
+          <TouchableOpacity
+            onPress={() => {
+              setPaused(true);
+              Alert.alert("Excluir story?", "Esta ação não pode ser desfeita.", [
+                { text: "Cancelar", onPress: () => setPaused(false) },
+                { text: "Excluir", style: "destructive", onPress: async () => {
+                  try {
+                    await api.storyDelete(story.story_id, currentMember.member_id);
+                    router.back();
+                  } catch { setPaused(false); }
+                } },
+              ]);
+            }}
+            style={st.close}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+          >
+            <Ionicons name="trash-outline" size={22} color="#FF6B6B" />
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity onPress={() => router.back()} style={st.close} testID="story-close" hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}>
           <Ionicons name="close" size={28} color="#FFF" />
         </TouchableOpacity>

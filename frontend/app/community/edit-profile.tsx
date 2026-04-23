@@ -10,6 +10,7 @@ import { notify } from "../../src/alerts";
 import { api, CommunityMember } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
+import GalleryViewer from "../../src/gallery-viewer";
 
 export default function EditProfile() {
   const router = useRouter();
@@ -25,6 +26,8 @@ export default function EditProfile() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIdx, setViewerIdx] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -108,7 +111,9 @@ export default function EditProfile() {
         <View style={styles.galGrid}>
           {photos.map((p, i) => (
             <View key={i} style={styles.galItem}>
-              <Image source={{ uri: p }} style={styles.galImg} />
+              <TouchableOpacity onPress={() => { setViewerIdx(i); setViewerOpen(true); }} activeOpacity={0.85}>
+                <Image source={{ uri: p }} style={styles.galImg} />
+              </TouchableOpacity>
               <TouchableOpacity style={styles.galRemove} onPress={() => setPhotos(photos.filter((_, x) => x !== i))}>
                 <Ionicons name="close" size={14} color="#FFF" />
               </TouchableOpacity>
@@ -128,6 +133,16 @@ export default function EditProfile() {
 
         <Text style={styles.priv}>Seu nome real, telefone e e-mail continuam privados. Só o que você escreve aqui é visível para outros membros.</Text>
       </ScrollView>
+
+      <GalleryViewer
+        visible={viewerOpen}
+        photos={photos}
+        initialIndex={viewerIdx}
+        onClose={() => setViewerOpen(false)}
+        onDelete={async (index) => {
+          setPhotos(photos.filter((_, x) => x !== index));
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

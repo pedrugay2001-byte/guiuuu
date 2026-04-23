@@ -2455,6 +2455,28 @@ async def react_post(post_id: str, body: dict):
     return {"ok": True}
 
 
+@api_router.delete("/feed/posts/{post_id}")
+async def delete_post(post_id: str, member_id: str):
+    post = await db.posts.find_one({"post_id": post_id})
+    if not post:
+        raise HTTPException(status_code=404, detail="Post não encontrado")
+    if post.get("member_id") != member_id:
+        raise HTTPException(status_code=403, detail="Apenas o autor pode excluir")
+    await db.posts.delete_one({"post_id": post_id})
+    return {"ok": True}
+
+
+@api_router.delete("/stories/{story_id}")
+async def delete_story(story_id: str, member_id: str):
+    story = await db.stories.find_one({"story_id": story_id})
+    if not story:
+        raise HTTPException(status_code=404, detail="Story não encontrado")
+    if story.get("member_id") != member_id:
+        raise HTTPException(status_code=403, detail="Apenas o autor pode excluir")
+    await db.stories.delete_one({"story_id": story_id})
+    return {"ok": True}
+
+
 # ---------- PROFILE PHOTOS (up to 10) ----------
 
 class PhotosUpdate(BaseModel):
@@ -3268,6 +3290,31 @@ async def list_goal_entries(goal_id: str):
     for e in entries:
         e.pop("_id", None)
     return entries
+
+
+@api_router.delete("/goals/{goal_id}/entries/{entry_id}")
+async def delete_goal_entry(goal_id: str, entry_id: str):
+    goal = await db.goals.find_one({"goal_id": goal_id})
+    if not goal:
+        raise HTTPException(status_code=404, detail="meta não encontrada")
+    r = await db.goal_entries.delete_one({"goal_id": goal_id, "entry_id": entry_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="registro não encontrado")
+    # Recalcula current_value conforme tipo (igual ao add_goal_entry)
+    gtype = goal.get("type", "weight")
+    all_entries = await db.goal_entries.find({"goal_id": goal_id}).sort("date", 1).to_list(length=10000)
+    if gtype == "habit":
+        done = sum(1 for e in all_entries if float(e.get("value", 0)) >= 1)
+        new_cur = float(done)
+    elif gtype == "behavior":
+        vals = [float(e.get("value", 0)) for e in all_entries]
+        new_cur = round(sum(vals) / len(vals), 2) if vals else float(goal.get("initial_value", 0) or 0)
+    else:
+        # último valor registrado (ou initial se não houver mais entries)
+        new_cur = float(all_entries[-1]["value"]) if all_entries else float(goal.get("initial_value", goal.get("current_value", 0)) or 0)
+    await db.goals.update_one({"goal_id": goal_id}, {"$set": {"current_value": new_cur}})
+    goal = await db.goals.find_one({"goal_id": goal_id})
+    return {"ok": True, "goal": _serialize_goal(goal, all_entries)}
 
 
 @api_router.delete("/goals/{goal_id}")

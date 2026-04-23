@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  FlatList, RefreshControl, ActivityIndicator,
+  FlatList, RefreshControl, ActivityIndicator, Alert,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api, StoryGroup, Post, CommunityMember, Group } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
+import { notify } from "../../src/alerts";
 
 type Tab = "foryou" | "following" | "recent" | "workouts";
 
@@ -136,7 +137,21 @@ export default function Community() {
             <Text style={styles.emptyFeedTxt}>Sem publicações por aqui.</Text>
             <Text style={styles.emptyFeedHint}>Seja o primeiro a postar!</Text>
           </View>
-        ) : filteredPosts.map((p) => <PostCard key={p.post_id} post={p} onAuthor={() => router.push(`/community/member/${p.member_id}`)} />)}
+        ) : filteredPosts.map((p) => (
+          <PostCard
+            key={p.post_id}
+            post={p}
+            onAuthor={() => router.push(`/community/member/${p.member_id}`)}
+            currentMemberId={member?.member_id || ""}
+            onDelete={async () => {
+              try {
+                await api.postDelete(p.post_id, member?.member_id || "");
+                setPosts(prev => prev.filter(x => x.post_id !== p.post_id));
+                notify("Post excluído");
+              } catch (e: any) { notify("Erro", e?.message || "Falha ao excluir"); }
+            }}
+          />
+        ))}
 
         {/* Groups teaser */}
         <Text style={styles.sectionTitle}>GRUPOS EM DESTAQUE</Text>
@@ -170,7 +185,9 @@ function FilterChip({ label, active, onPress }: any) {
   );
 }
 
-function PostCard({ post, onAuthor }: { post: Post; onAuthor: () => void }) {
+function PostCard({ post, onAuthor, currentMemberId, onDelete }: {
+  post: Post; onAuthor: () => void; currentMemberId: string; onDelete: () => Promise<void> | void;
+}) {
   const tier = TIERS[post.author_tier || "silver"];
   const timeAgo = (() => {
     const m = Math.floor((Date.now() - new Date(post.created_at).getTime()) / 60000);
@@ -180,6 +197,18 @@ function PostCard({ post, onAuthor }: { post: Post; onAuthor: () => void }) {
   const react = async (kind: "fire" | "heart" | "muscle") => {
     setReactions({ ...reactions, [kind]: reactions[kind] + 1 });
     try { await api.reactPost(post.post_id, kind); } catch {}
+  };
+  const isMine = post.member_id === currentMemberId;
+  const openMenu = () => {
+    if (!isMine) return;
+    Alert.alert("Opções do post", undefined, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Excluir", style: "destructive", onPress: () => {
+        Alert.alert("Excluir post?", "Esta ação não pode ser desfeita.", [
+          { text: "Cancelar" }, { text: "Excluir", style: "destructive", onPress: () => onDelete() },
+        ]);
+      } },
+    ]);
   };
   const total = reactions.fire + reactions.heart + reactions.muscle;
   return (
@@ -199,7 +228,9 @@ function PostCard({ post, onAuthor }: { post: Post; onAuthor: () => void }) {
           </View>
           <Text style={styles.postMeta}>{timeAgo} · {post.author_city || "BLACKSCLUB"}</Text>
         </View>
-        <Ionicons name="ellipsis-horizontal" size={18} color="#666" />
+        <TouchableOpacity onPress={openMenu} hitSlop={10} disabled={!isMine}>
+          <Ionicons name="ellipsis-horizontal" size={18} color={isMine ? "#CCC" : "#666"} />
+        </TouchableOpacity>
       </TouchableOpacity>
       {post.text ? <Text style={styles.postText}>{post.text}</Text> : null}
       {post.image_base64 ? <Image source={{ uri: post.image_base64 }} style={styles.postImg} /> : null}

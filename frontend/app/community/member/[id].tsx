@@ -7,6 +7,7 @@ import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api, CommunityMember, Ad, formatBRL } from "../../../src/api";
 import { TIERS } from "../../../src/theme";
+import GalleryViewer from "../../../src/gallery-viewer";
 
 const { width } = Dimensions.get("window");
 const PHOTO_W = (width - 48) / 3;
@@ -18,6 +19,8 @@ export default function MemberProfile() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIdx, setViewerIdx] = useState(0);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -85,7 +88,10 @@ export default function MemberProfile() {
             <Text style={styles.sectionLbl}>GALERIA ({photos.length})</Text>
             <View style={styles.galGrid}>
               {photos.map((p, i) => (
-                <Image key={i} source={{ uri: p }} style={[styles.galImg, { width: PHOTO_W, height: PHOTO_W }]} />
+                <TouchableOpacity key={i} activeOpacity={0.85}
+                  onPress={() => { setViewerIdx(i); setViewerOpen(true); }}>
+                  <Image source={{ uri: p }} style={[styles.galImg, { width: PHOTO_W, height: PHOTO_W }]} />
+                </TouchableOpacity>
               ))}
             </View>
           </>
@@ -112,6 +118,13 @@ export default function MemberProfile() {
           <Text style={styles.ctaTxt}>PUXAR CONVERSA</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <GalleryViewer
+        visible={viewerOpen}
+        photos={photos}
+        initialIndex={viewerIdx}
+        onClose={() => setViewerOpen(false)}
+      />
     </View>
   );
 }

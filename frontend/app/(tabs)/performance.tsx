@@ -187,6 +187,14 @@ export default function PerformanceTab() {
               </View>
             )}
 
+            {/* HISTÓRICO DE REGISTROS */}
+            {selectedGoal && (
+              <EntriesHistory
+                goal={selectedGoal}
+                onDeleted={async () => { await load(); }}
+              />
+            )}
+
             {/* RESUMO GERAL - PIZZA */}
             {goals.length >= 1 && (
               <View style={st.card}>
@@ -692,6 +700,77 @@ function RegisterProgressForm({ goal, onClose, onSaved }:
   );
 }
 
+/* ----------------------- ENTRIES HISTORY ----------------------- */
+
+function EntriesHistory({ goal, onDeleted }:
+  { goal: Goal; onDeleted: () => Promise<void> | void }) {
+  const [entries, setEntries] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const color = goal.color || TYPE_META[goal.type].color;
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      const r = await api.goalEntries(goal.goal_id);
+      setEntries(r.slice().reverse()); // mais recentes no topo
+    } finally { setLoading(false); }
+  }, [goal.goal_id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const del = (entryId: string) => {
+    Alert.alert("Excluir registro?", "Esta ação não pode ser desfeita.", [
+      { text: "Cancelar" },
+      { text: "Excluir", style: "destructive", onPress: async () => {
+        try {
+          await api.goalDeleteEntry(goal.goal_id, entryId);
+          setEntries(prev => prev.filter(e => e.entry_id !== entryId));
+          await onDeleted();
+          notify("Registro excluído");
+        } catch (e: any) { notify("Erro", e?.message || "Falha ao excluir"); }
+      } },
+    ]);
+  };
+
+  if (loading) return (
+    <View style={st.card}><ActivityIndicator color={color} /></View>
+  );
+
+  return (
+    <View style={st.card}>
+      <View style={st.cardHead}>
+        <Text style={st.cardTitle}>HISTÓRICO DE REGISTROS</Text>
+        <Text style={st.cardSub}>{entries.length} {entries.length === 1 ? "registro" : "registros"}</Text>
+      </View>
+      {entries.length === 0 ? (
+        <Text style={{ color: "#666", fontSize: 12, paddingVertical: 10, textAlign: "center" }}>
+          Nenhum registro ainda.
+        </Text>
+      ) : (
+        entries.map(e => {
+          const d = new Date(e.date);
+          const label = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+          const valTxt = goal.type === "habit" ? "✓ Check-in"
+            : goal.type === "behavior" ? `Score ${e.value}/10`
+            : fmtVal(e.value, goal.unit);
+          return (
+            <View key={e.entry_id} style={st.entryRow}>
+              <View style={[st.entryDot, { backgroundColor: color }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={st.entryVal}>{valTxt}</Text>
+                <Text style={st.entryDate}>{label}{e.note ? ` · ${e.note}` : ""}</Text>
+              </View>
+              <TouchableOpacity onPress={() => del(e.entry_id)} hitSlop={10}>
+                <Ionicons name="trash-outline" size={16} color="#FF5B5B" />
+              </TouchableOpacity>
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
 /* ----------------------- EMPTY ----------------------- */
 
 function EmptyExplainer() {
@@ -813,4 +892,10 @@ const st = StyleSheet.create({
   scoreTxt: { color: "#CCC", fontSize: 13, fontWeight: "800" },
   moodBtn: { width: 52, height: 52, borderRadius: 26, borderWidth: 1, borderColor: "#2A2A2A",
     alignItems: "center", justifyContent: "center", backgroundColor: "#121212" },
+
+  entryRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" },
+  entryDot: { width: 8, height: 8, borderRadius: 4 },
+  entryVal: { color: "#EEE", fontSize: 13, fontWeight: "700" },
+  entryDate: { color: "#777", fontSize: 11, marginTop: 2 },
 });

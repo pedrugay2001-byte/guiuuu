@@ -194,7 +194,10 @@ export default function Home() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={s.btnPrimary}
-                onPress={() => router.push("/(tabs)/performance")}
+                onPress={() => {
+                  const gid = forecastGoal?.goal_id;
+                  router.push(gid ? `/daily-message?goalId=${gid}` as any : "/daily-message" as any);
+                }}
                 activeOpacity={0.9}
                 testID="btn-mensagem-dia"
               >
