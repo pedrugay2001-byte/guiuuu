@@ -62,7 +62,7 @@ export default function PerformanceTab() {
   const [dailyMsg, setDailyMsg] = useState<DailyMessage | null>(null);
   const [dailyLoading, setDailyLoading] = useState(false);
 
-  const load = useCallback(async (preserveSelection = true) => {
+  const load = useCallback(async () => {
     if (!member) return;
     try {
       const [d, g] = await Promise.all([
@@ -70,14 +70,12 @@ export default function PerformanceTab() {
         api.goalsList(member.member_id),
       ]);
       setDashboard(d); setGoals(g);
-      // manter/selecionar meta ativa
-      if (!preserveSelection || !selectedId || !g.find(x => x.goal_id === selectedId)) {
-        setSelectedId(g[0]?.goal_id ?? null);
-      }
+      // mantém seleção atual se existir, caso contrário seleciona a primeira
+      setSelectedId(prev => (prev && g.find(x => x.goal_id === prev)) ? prev : (g[0]?.goal_id ?? null));
     } catch (e: any) {
       console.log("performance load", e?.message);
     } finally { setLoading(false); }
-  }, [member, selectedId]);
+  }, [member]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -157,7 +155,7 @@ export default function PerformanceTab() {
                   try {
                     await api.goalArchive(selectedGoal.goal_id);
                     notify("Meta arquivada");
-                    await load(false);
+                    await load();
                   } catch {}
                 }}
               />
@@ -228,7 +226,7 @@ export default function PerformanceTab() {
           onSaved={async (g) => {
             setCreateOpen(false);
             setSelectedId(g.goal_id);
-            await load(false);
+            await load();
           }}
         />
       </Modal>
@@ -239,7 +237,7 @@ export default function PerformanceTab() {
           <RegisterProgressForm
             goal={progressModal}
             onClose={() => setProgressModal(null)}
-            onSaved={async () => { setProgressModal(null); await load(true); }}
+            onSaved={async () => { setProgressModal(null); await load(); }}
           />
         )}
       </Modal>

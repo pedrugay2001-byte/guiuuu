@@ -57,6 +57,25 @@ export default function TabsLayout() {
     </View>
   );
 
+  // Label premium que permite 2 linhas e evita cortes
+  const TabLabel = ({ focused, label }: { focused: boolean; label: string }) => (
+    <Text
+      numberOfLines={1}
+      allowFontScaling={false}
+      style={{
+        fontSize: 9.5,
+        fontWeight: focused ? "800" : "700",
+        letterSpacing: 0.1,
+        color: focused ? GOLD : "#6A6A6A",
+        textAlign: "center",
+        marginTop: 3,
+        includeFontPadding: false,
+      } as any}
+    >
+      {label}
+    </Text>
+  );
+
   return (
     <Tabs
       screenOptions={{
@@ -70,16 +89,16 @@ export default function TabsLayout() {
           backgroundColor: "#050505",
           borderTopColor: "#1A1A1A",
           borderTopWidth: 1,
-          height: 78,
-          paddingTop: 10,
-          paddingBottom: 16,
-          paddingHorizontal: 2,
+          height: 74,
+          paddingTop: 8,
+          paddingBottom: 14,
+          paddingHorizontal: 0,
         },
         tabBarActiveTintColor: GOLD,
         tabBarInactiveTintColor: "#6A6A6A",
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "700", letterSpacing: 0.2, marginTop: 4 },
         tabBarLabelPosition: "below-icon",
-        tabBarItemStyle: { paddingHorizontal: 0 },
+        tabBarItemStyle: { paddingHorizontal: 0, paddingVertical: 0 },
+        tabBarIconStyle: { marginTop: 2 },
       }}
     >
       <Tabs.Screen
@@ -87,8 +106,9 @@ export default function TabsLayout() {
         options={{
           title: "Início",
           headerShown: false,
+          tabBarLabel: ({ focused }) => <TabLabel focused={focused} label="Início" />,
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "home" : "home-outline"} color={color} size={size} />
+            <Ionicons name={focused ? "home" : "home-outline"} color={color} size={22} />
           ),
         }}
       />
@@ -98,8 +118,9 @@ export default function TabsLayout() {
           title: "Mercado",
           headerStyle: { backgroundColor: theme.colors.bg, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
           headerTitle: () => <Text style={styles.screenTitle}>MARKETPLACE</Text>,
+          tabBarLabel: ({ focused }) => <TabLabel focused={focused} label="Mercado" />,
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "storefront" : "storefront-outline"} color={color} size={size} />
+            <Ionicons name={focused ? "storefront" : "storefront-outline"} color={color} size={22} />
           ),
         }}
       />
@@ -108,8 +129,9 @@ export default function TabsLayout() {
         options={{
           title: "Social",
           headerShown: false,
+          tabBarLabel: ({ focused }) => <TabLabel focused={focused} label="Social" />,
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "people" : "people-outline"} color={color} size={size} />
+            <Ionicons name={focused ? "people" : "people-outline"} color={color} size={22} />
           ),
         }}
       />
@@ -119,11 +141,12 @@ export default function TabsLayout() {
           title: "Metas",
           headerStyle: { backgroundColor: theme.colors.bg, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
           headerTitle: () => <Text style={[styles.screenTitle, { color: GOLD }]}>PERFORMANCE</Text>,
+          tabBarLabel: ({ focused }) => <TabLabel focused={focused} label="Metas" />,
           tabBarIcon: ({ color, size, focused }) => (
             <MaterialCommunityIcons
               name={focused ? "chart-line-variant" : "chart-line"}
               color={color}
-              size={size}
+              size={22}
             />
           ),
         }}
@@ -133,8 +156,9 @@ export default function TabsLayout() {
         options={{
           title: "Banco",
           headerTitle: () => <Text style={styles.screenTitle}>BANCO</Text>,
+          tabBarLabel: ({ focused }) => <TabLabel focused={focused} label="Banco" />,
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "wallet" : "wallet-outline"} color={color} size={size} />
+            <Ionicons name={focused ? "wallet" : "wallet-outline"} color={color} size={22} />
           ),
         }}
       />
