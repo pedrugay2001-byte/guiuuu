@@ -4,10 +4,7 @@ import { type PropsWithChildren } from "react";
 
 /**
  * +html.tsx — Web shell global do BLACKSCLUB.
- *
- * PRINCÍPIO: O shell web NÃO aplica safe-area nem max-width. Cada tela usa SafeAreaView
- * (react-native-safe-area-context) e isso já resolve o iPhone com notch. Aplicar safe-area
- * AQUI + na tela = padding duplicado → conteúdo comprimido. NÃO FAZER.
+ * PRINCÍPIO: App ocupa 100% da tela SEMPRE. Safe-area é feita pelas telas via SafeAreaView.
  */
 export default function Root({ children }: PropsWithChildren) {
   return (
@@ -19,7 +16,6 @@ export default function Root({ children }: PropsWithChildren) {
           name="viewport"
           content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
         />
-        {/* PWA / Standalone */}
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -30,10 +26,6 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="google" content="notranslate" />
         <meta httpEquiv="Content-Language" content="pt-BR" />
         <meta name="description" content="BLACKSCLUB · Clube privado de performance, saúde e marketplace premium." />
-        <meta property="og:title" content="BLACKSCLUB" />
-        <meta property="og:description" content="Clube privado. Acesso restrito." />
-        <meta property="og:type" content="website" />
-        <meta property="og:locale" content="pt_BR" />
         <link rel="manifest" href={manifestDataUrl()} />
         <link rel="apple-touch-icon" href="/assets/images/icon.png" />
         <link rel="icon" type="image/png" href="/assets/images/favicon.png" />
@@ -67,13 +59,7 @@ function manifestDataUrl() {
 }
 
 /**
- * CSS global — MÍNIMO E NÃO-INVASIVO.
- *
- * - SEM max-width no #root (app ocupa 100% da tela em qualquer dispositivo)
- * - SEM padding de safe-area no #root (SafeAreaView local já faz isso)
- * - SEM position:relative redundante
- * - Altura via 100dvh em html/body/#root (fallback 100vh)
- * - overscroll-behavior: none e touch-action: manipulation para sensação de app nativo
+ * CSS global — ocupa 100% SEMPRE. Zero bordas, zero max-width, zero outlines.
  */
 const globalCss = `
 html, body {
@@ -91,6 +77,8 @@ html, body {
   overscroll-behavior: none;
   touch-action: manipulation;
   overflow-x: hidden;
+  border: none;
+  outline: none;
 }
 
 #root {
@@ -100,6 +88,8 @@ html, body {
   min-height: 100vh;
   min-height: 100dvh;
   background-color: #050505;
+  border: none;
+  outline: none;
 }
 
 #root > * {
@@ -107,23 +97,17 @@ html, body {
   width: 100%;
   min-height: 0;
   background-color: #050505;
+  border: none;
+  outline: none;
 }
 
-/*
- * Em telas >= 600px (desktop/tablet) centraliza o app dentro de uma moldura
- * de 430px (tamanho típico de mobile) para não esticar horizontalmente.
- * Em telas < 600px (mobile real), ocupa 100% naturalmente. NÃO adiciona padding
- * nem bordas — o app continua colado nas bordas do device real.
- */
-@media (min-width: 600px) {
-  #root { align-items: center; }
-  #root > * {
-    max-width: 430px;
-    min-height: 100dvh;
-  }
+/* Zera QUALQUER borda/outline em QUALQUER elemento filho — mata linhas fantasmas globais */
+div, section, main, header, footer, nav, article, aside {
+  border: 0;
+  outline: 0;
 }
 
-* { -webkit-user-select: none; user-select: none; }
+* { -webkit-user-select: none; user-select: none; box-sizing: border-box; }
 input, textarea, [contenteditable="true"] {
   -webkit-user-select: text; user-select: text;
 }
@@ -133,7 +117,8 @@ input, textarea, [contenteditable="true"] {
 
 img { -webkit-user-drag: none; }
 
-*::-webkit-scrollbar { width: 0; height: 0; }
+*::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none; }
 *::-webkit-scrollbar-thumb { background: transparent; }
 *::-webkit-scrollbar-track { background: transparent; }
+html { scrollbar-width: none; -ms-overflow-style: none; }
 `;
