@@ -25,14 +25,10 @@ const INNER_CARD_BG = "#101010";
 type AreaId = "ai" | "community" | "marketplace" | "planos" | "wallet" | "performance" | "chat" | "profissionais";
 type Area = { id: AreaId; label: string; icon: { lib: "ion" | "mci"; name: string }; route: string };
 
-// Grid 2x4 = 8 atalhos no estilo "quadrado cinza" da referência do usuário.
+// Grid de 4 atalhos em quadrados cinza (Carrinho, Planos, Suporte, Profissionais).
 const AREAS: Area[] = [
-  { id: "ai",            label: "BLACK AI",      icon: { lib: "mci", name: "brain" },              route: "/black-ai" },
-  { id: "community",     label: "Comunidade",    icon: { lib: "ion", name: "chatbubbles" },        route: "/(tabs)/community" },
-  { id: "marketplace",   label: "Marketplace",   icon: { lib: "ion", name: "storefront" },         route: "/ads" },
+  { id: "cart",          label: "Carrinho",      icon: { lib: "ion", name: "cart" },               route: "/(tabs)/cart" },
   { id: "planos",        label: "Planos",        icon: { lib: "mci", name: "diamond-stone" },      route: "/(tabs)/negocios" },
-  { id: "wallet",        label: "Banco",         icon: { lib: "ion", name: "wallet" },             route: "/(tabs)/wallet" },
-  { id: "performance",   label: "Performance",   icon: { lib: "mci", name: "chart-line-variant" }, route: "/(tabs)/performance" },
   { id: "chat",          label: "Suporte",       icon: { lib: "ion", name: "headset" },            route: "/chat" },
   { id: "profissionais", label: "Profissionais", icon: { lib: "mci", name: "stethoscope" },        route: "/ai" },
 ];
