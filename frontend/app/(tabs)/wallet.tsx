@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
   ActivityIndicator, Alert, Share, Platform,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Clipboard from "expo-clipboard";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -10,6 +11,12 @@ import { api, BlxWallet, BlxTx } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { formatBLX, formatBLXShort } from "../../src/blx";
 import { TIERS } from "../../src/theme";
+
+// Paleta dourada luxo — do brilhante ao âmbar queimado
+const GOLD_LIGHT = "#F4D47A";
+const GOLD = "#D4AF37";
+const GOLD_DARK = "#8C6F1E";
+const GOLD_DEEP = "#4A3810";
 
 export default function WalletScreen() {
   const router = useRouter();
@@ -96,81 +103,123 @@ export default function WalletScreen() {
               <Ionicons
                 name={hideBalance ? "eye-off-outline" : "eye-outline"}
                 size={18}
-                color="#FFF"
+                color={GOLD_LIGHT}
               />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Cartão principal com saldo */}
-        <View style={styles.card}>
-          <View style={styles.cardTopRow}>
-            <View style={styles.cardLogoBox}>
-              <MaterialCommunityIcons name="diamond-stone" size={18} color="#0A0A0A" />
-            </View>
-            <Text style={styles.cardBrand}>BLEX TOKEN</Text>
-            <View style={{ flex: 1 }} />
-            <View style={[styles.cardTierPill, { borderColor: tier.color }]}>
-              <Text style={[styles.cardTierText, { color: tier.color }]}>
-                {tier.label.toUpperCase()}
-              </Text>
-            </View>
-          </View>
+        {/* Cartão principal com saldo — gradiente dourado luxo */}
+        <View style={styles.cardWrap}>
+          {/* Glow externo dourado */}
+          <LinearGradient
+            colors={[GOLD_LIGHT, GOLD, GOLD_DARK]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.cardBorderGradient}
+          >
+            <LinearGradient
+              colors={["#1A1308", "#0B0906", "#050301"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.card}
+            >
+              {/* Textura sutil — diagonal gold shine */}
+              <View style={styles.cardShineWrap} pointerEvents="none">
+                <LinearGradient
+                  colors={["transparent", "rgba(212,175,55,0.18)", "transparent"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.cardShine}
+                />
+              </View>
 
-          <Text style={styles.cardLbl}>SALDO DISPONÍVEL</Text>
-          <View style={styles.balanceRow}>
-            <Text style={styles.balanceValue}>
-              {hideBalance ? "••••••" : balance}
-            </Text>
-            <Text style={styles.balanceUnit}>BLX</Text>
-          </View>
+              <View style={styles.cardTopRow}>
+                <LinearGradient
+                  colors={[GOLD_LIGHT, GOLD, GOLD_DARK]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.cardLogoBox}
+                >
+                  <MaterialCommunityIcons name="diamond-stone" size={18} color="#0A0A0A" />
+                </LinearGradient>
+                <Text style={styles.cardBrand}>BLEX TOKEN</Text>
+                <View style={{ flex: 1 }} />
+                <View style={[styles.cardTierPill, { borderColor: GOLD }]}>
+                  <Text style={[styles.cardTierText, { color: GOLD_LIGHT }]}>
+                    {tier.label.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
 
-          <View style={styles.walletNumberRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.walletNumberLbl}>NÚMERO DA CARTEIRA</Text>
-              <Text style={styles.walletNumberValue} numberOfLines={1}>
-                {w.wallet_number}
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.copyBtn} onPress={copyWallet} testID="blx-copy-wallet">
-              <Ionicons name="copy-outline" size={15} color="#FFF" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.copyBtn} onPress={shareWallet} testID="blx-share-wallet">
-              <Ionicons name="share-social-outline" size={15} color="#FFF" />
-            </TouchableOpacity>
-          </View>
+              <Text style={styles.cardLbl}>SALDO DISPONÍVEL</Text>
+              <View style={styles.balanceRow}>
+                <Text style={styles.balanceValue}>
+                  {hideBalance ? "••••••" : balance}
+                </Text>
+                <Text style={styles.balanceUnit}>BLX</Text>
+              </View>
 
-          <View style={styles.cardHolderRow}>
-            <Text style={styles.cardHolderLbl}>TITULAR</Text>
-            <Text style={styles.cardHolderValue}>
-              {(member.nickname || member.name).toUpperCase()}
-            </Text>
-          </View>
+              {/* Linha dourada divisória com fade */}
+              <LinearGradient
+                colors={["transparent", GOLD, "transparent"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.goldDivider}
+              />
+
+              <View style={styles.walletNumberRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.walletNumberLbl}>NÚMERO DA CARTEIRA</Text>
+                  <Text style={styles.walletNumberValue} numberOfLines={1}>
+                    {w.wallet_number}
+                  </Text>
+                </View>
+                <TouchableOpacity style={styles.copyBtn} onPress={copyWallet} testID="blx-copy-wallet">
+                  <Ionicons name="copy-outline" size={15} color={GOLD_LIGHT} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.copyBtn} onPress={shareWallet} testID="blx-share-wallet">
+                  <Ionicons name="share-social-outline" size={15} color={GOLD_LIGHT} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.cardHolderRow}>
+                <Text style={styles.cardHolderLbl}>TITULAR</Text>
+                <Text style={styles.cardHolderValue}>
+                  {(member.nickname || member.name).toUpperCase()}
+                </Text>
+              </View>
+            </LinearGradient>
+          </LinearGradient>
         </View>
 
-        {/* Ações rápidas */}
+        {/* Ações rápidas — premium cards gold */}
         <View style={styles.actionsRow}>
           <ActionButton
-            icon="arrow-up-circle"
+            icon="arrow-up"
             label="Enviar"
+            sub="Transferir BLX"
             onPress={() => router.push("/blx/send" as any)}
             testID="blx-action-send"
           />
           <ActionButton
-            icon="arrow-down-circle"
+            icon="arrow-down"
             label="Receber"
+            sub="Receber BLX"
             onPress={() => router.push("/blx/receive" as any)}
             testID="blx-action-receive"
           />
           <ActionButton
             icon="receipt-outline"
             label="Extrato"
+            sub="Histórico"
             onPress={() => router.push("/blx/history" as any)}
             testID="blx-action-history"
           />
           <ActionButton
             icon="bag-handle-outline"
             label="Compras"
+            sub="Pagar com BLX"
             onPress={() => router.push("/blx/orders" as any)}
             testID="blx-action-orders"
           />
@@ -219,28 +268,31 @@ export default function WalletScreen() {
             txs.map((tx) => <TxRow key={tx.tx_id} tx={tx} me={member.member_id} />)
           )}
         </View>
-
-        {/* Info rodapé */}
-        <View style={styles.footerInfo}>
-          <Ionicons name="shield-checkmark" size={13} color="#6B6B6B" />
-          <Text style={styles.footerInfoText}>
-            BLX é a moeda interna do clube. Transferências entre membros são instantâneas e definitivas.
-          </Text>
-        </View>
       </ScrollView>
     </View>
   );
 }
 
 function ActionButton({
-  icon, label, onPress, testID,
-}: { icon: any; label: string; onPress?: () => void; testID?: string }) {
+  icon, label, sub, onPress, testID,
+}: { icon: any; label: string; sub?: string; onPress?: () => void; testID?: string }) {
   return (
-    <TouchableOpacity style={styles.actionBtn} onPress={onPress} activeOpacity={0.8} testID={testID}>
-      <View style={styles.actionIcon}>
-        <Ionicons name={icon} size={22} color="#FFFFFF" />
-      </View>
-      <Text style={styles.actionLabel}>{label}</Text>
+    <TouchableOpacity style={styles.actionBtn} onPress={onPress} activeOpacity={0.85} testID={testID}>
+      {/* Borda dourada sutil via gradient */}
+      <LinearGradient
+        colors={[GOLD + "55", "transparent", GOLD_DARK + "33"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.actionBtnBorder}
+      >
+        <View style={styles.actionBtnInner}>
+          <View style={styles.actionIcon}>
+            <Ionicons name={icon} size={20} color={GOLD_LIGHT} />
+          </View>
+          <Text style={styles.actionLabel}>{label}</Text>
+          {sub ? <Text style={styles.actionSub}>{sub}</Text> : null}
+        </View>
+      </LinearGradient>
     </TouchableOpacity>
   );
 }
@@ -312,80 +364,110 @@ const styles = StyleSheet.create({
     backgroundColor: "#050505",
   },
   headerRow: { flexDirection: "row", alignItems: "center" },
-  bankName: { color: "#D4AF37", fontSize: 13, fontWeight: "900", letterSpacing: 2 },
-  bankTag: { color: "#D4AF37", fontSize: 10, fontWeight: "700", letterSpacing: 2.5, marginTop: 3 },
+  bankName: { color: GOLD_LIGHT, fontSize: 13, fontWeight: "900", letterSpacing: 2 },
+  bankTag: { color: GOLD_DARK, fontSize: 10, fontWeight: "700", letterSpacing: 2.5, marginTop: 3 },
   eyeBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "#121212",
+    backgroundColor: "#0E0B04",
     alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "#1F1F1F",
+    borderWidth: 1, borderColor: GOLD_DARK + "55",
+  },
+
+  cardWrap: {
+    marginHorizontal: 16, marginTop: 6,
+    shadowColor: GOLD,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  cardBorderGradient: {
+    borderRadius: 20, padding: 1.5,
   },
   card: {
-    marginHorizontal: 16, marginTop: 6, padding: 20,
-    backgroundColor: "#0E0E0E",
-    borderRadius: 18,
-    borderWidth: 1, borderColor: "#1F1F1F",
+    padding: 20, borderRadius: 19,
+    position: "relative", overflow: "hidden",
+  },
+  cardShineWrap: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    opacity: 0.6,
+  },
+  cardShine: {
+    position: "absolute", top: -40, left: -80, right: -80, height: 120,
+    transform: [{ rotate: "-18deg" }],
   },
   cardTopRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 18 },
   cardLogoBox: {
     width: 30, height: 30, borderRadius: 8,
-    backgroundColor: "#FFFFFF",
     alignItems: "center", justifyContent: "center",
   },
-  cardBrand: { color: "#D4AF37", fontSize: 11, fontWeight: "900", letterSpacing: 2 },
-  cardTierPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
+  cardBrand: { color: GOLD_LIGHT, fontSize: 11, fontWeight: "900", letterSpacing: 2 },
+  cardTierPill: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1,
+    backgroundColor: "rgba(212,175,55,0.08)",
+  },
   cardTierText: { fontSize: 8.5, fontWeight: "900", letterSpacing: 1.5 },
 
-  cardLbl: { color: "#8A8A8A", fontSize: 10, fontWeight: "800", letterSpacing: 2.5 },
+  cardLbl: { color: GOLD_DARK, fontSize: 10, fontWeight: "800", letterSpacing: 2.5 },
   balanceRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginTop: 6 },
-  balanceValue: { color: "#FFF", fontSize: 38, fontWeight: "900", letterSpacing: -1 },
-  balanceUnit: { color: "#D4AF37", fontSize: 14, fontWeight: "900", letterSpacing: 1.5, marginBottom: 9 },
+  balanceValue: { color: "#FFF", fontSize: 40, fontWeight: "900", letterSpacing: -1.2 },
+  balanceUnit: { color: GOLD_LIGHT, fontSize: 14, fontWeight: "900", letterSpacing: 1.5, marginBottom: 10 },
+
+  goldDivider: {
+    height: 1, marginTop: 18, marginBottom: 2,
+  },
 
   walletNumberRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: "#1A1A1A",
+    marginTop: 14,
   },
-  walletNumberLbl: { color: "#6B6B6B", fontSize: 9, fontWeight: "800", letterSpacing: 2 },
+  walletNumberLbl: { color: GOLD_DARK, fontSize: 9, fontWeight: "800", letterSpacing: 2 },
   walletNumberValue: { color: "#FFF", fontSize: 16, fontWeight: "800", letterSpacing: 2, marginTop: 3 },
   copyBtn: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: "#1A1A1A",
-    borderWidth: 1, borderColor: "#2A2A2A",
+    backgroundColor: "rgba(212,175,55,0.08)",
+    borderWidth: 1, borderColor: GOLD_DARK + "55",
     alignItems: "center", justifyContent: "center",
   },
   cardHolderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 14 },
-  cardHolderLbl: { color: "#6B6B6B", fontSize: 9, fontWeight: "800", letterSpacing: 2 },
-  cardHolderValue: { color: "#EEE", fontSize: 11.5, fontWeight: "800", letterSpacing: 1.2 },
+  cardHolderLbl: { color: GOLD_DARK, fontSize: 9, fontWeight: "800", letterSpacing: 2 },
+  cardHolderValue: { color: "#F0E3B8", fontSize: 11.5, fontWeight: "800", letterSpacing: 1.2 },
 
   actionsRow: { flexDirection: "row", paddingHorizontal: 16, marginTop: 18, gap: 8 },
-  actionBtn: {
-    flex: 1, alignItems: "center", paddingVertical: 14,
-    backgroundColor: "#0E0E0E", borderRadius: 12,
-    borderWidth: 1, borderColor: "#1A1A1A",
+  actionBtn: { flex: 1 },
+  actionBtnBorder: {
+    borderRadius: 14, padding: 1,
+  },
+  actionBtnInner: {
+    alignItems: "center", paddingVertical: 12, paddingHorizontal: 4,
+    backgroundColor: "#0B0906",
+    borderRadius: 13,
   },
   actionIcon: {
-    width: 42, height: 42, borderRadius: 21,
-    backgroundColor: "#1A1A1A",
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "rgba(212,175,55,0.1)",
+    borderWidth: 1, borderColor: GOLD_DARK + "55",
     alignItems: "center", justifyContent: "center",
     marginBottom: 8,
   },
-  actionLabel: { color: "#EEE", fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
+  actionLabel: { color: "#F0E3B8", fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
+  actionSub: { color: GOLD_DARK, fontSize: 8.5, fontWeight: "700", marginTop: 2, letterSpacing: 0.3 },
 
   escrowBox: {
     marginHorizontal: 16, marginTop: 18, padding: 14,
-    backgroundColor: "#0E0E0E", borderRadius: 12,
-    borderWidth: 1, borderColor: "#1A1A1A",
+    backgroundColor: "#0B0906", borderRadius: 12,
+    borderWidth: 1, borderColor: GOLD_DARK + "40",
   },
   escrowRow: { flexDirection: "row", marginTop: 10, alignItems: "center" },
   escrowItem: { flex: 1 },
-  escrowSep: { width: 1, alignSelf: "stretch", backgroundColor: "#1F1F1F", marginHorizontal: 10 },
-  escrowLbl: { color: "#6B6B6B", fontSize: 9, fontWeight: "800", letterSpacing: 1.8 },
+  escrowSep: { width: 1, alignSelf: "stretch", backgroundColor: GOLD_DARK + "40", marginHorizontal: 10 },
+  escrowLbl: { color: GOLD_DARK, fontSize: 9, fontWeight: "800", letterSpacing: 1.8 },
   escrowVal: { fontSize: 15, fontWeight: "900", marginTop: 4 },
 
   section: { marginTop: 22, paddingHorizontal: 16 },
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  sectionLabel: { color: "#8A8A8A", fontSize: 10, fontWeight: "900", letterSpacing: 2.5 },
-  seeAll: { color: "#EEE", fontSize: 10, fontWeight: "900", letterSpacing: 1.8 },
+  sectionLabel: { color: GOLD_DARK, fontSize: 10, fontWeight: "900", letterSpacing: 2.5 },
+  seeAll: { color: GOLD_LIGHT, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 },
 
   emptyBox: {
     alignItems: "center", paddingVertical: 30, gap: 8,
@@ -410,12 +492,4 @@ const styles = StyleSheet.create({
   txTitle: { color: "#EEE", fontSize: 13, fontWeight: "700" },
   txSub: { color: "#777", fontSize: 11, marginTop: 2 },
   txAmt: { fontSize: 13, fontWeight: "900" },
-
-  footerInfo: {
-    flexDirection: "row", alignItems: "flex-start", gap: 8,
-    marginHorizontal: 16, marginTop: 20, padding: 12,
-    backgroundColor: "#0A0A0A", borderRadius: 10,
-    borderWidth: 1, borderColor: "#141414",
-  },
-  footerInfoText: { flex: 1, color: "#8A8A8A", fontSize: 11, lineHeight: 15 },
 });
