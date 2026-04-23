@@ -14,7 +14,10 @@ import { theme, TIERS } from "../../src/theme";
 export default function Member() {
   const router = useRouter();
   const { member, clear, updateMember } = useGate();
-  const { user: authUser } = useAuth();
+  const { user: authUser, refreshUser } = useAuth();
+  // Revalida o role do usuário contra o backend quando a tela abre
+  // (caso o admin tenha promovido a conta, a UI atualiza sem precisar fazer logout).
+  useFocusEffect(useCallback(() => { refreshUser(); }, [refreshUser]));
   const isStaff = ["admin", "support", "financeiro"].includes(authUser?.role || "");
   const [adminProducts, setAdminProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
