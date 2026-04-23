@@ -15,11 +15,11 @@ import { AudioRecorderButton, AudioPlayer } from "../../../src/audio";
 const EMOJIS = ["🔥", "💪", "❤️", "🙌", "👊", "✨", "🏋️", "🥶", "😂", "😎", "🎉", "💀", "🍏", "🥊", "🦾", "☀️", "🌙", "💯", "👁️", "🥵"];
 
 export default function DMChat() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, msg } = useLocalSearchParams<{ id: string; msg?: string }>();
   const { member } = useGate();
   const [partner, setPartner] = useState<CommunityMember | null>(null);
   const [msgs, setMsgs] = useState<DMMessage[]>([]);
-  const [text, setText] = useState("");
+  const [text, setText] = useState(typeof msg === "string" ? msg : "");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);

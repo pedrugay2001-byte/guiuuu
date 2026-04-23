@@ -2518,6 +2518,164 @@ async def wallet_refund(tx_id: str, body: dict):
     return {"ok": True}
 
 
+# ---------- FAVORITES (marketplace) ----------
+
+
+class FavoriteToggle(BaseModel):
+    member_id: str
+    ad_id: str
+
+
+@api_router.post("/favorites/toggle")
+async def favorites_toggle(data: FavoriteToggle):
+    """Adiciona/remove um anúncio dos favoritos do membro. Retorna novo estado."""
+    key = {"member_id": data.member_id, "ad_id": data.ad_id}
+    existing = await db.favorites.find_one(key, {"_id": 1})
+    if existing:
+        await db.favorites.delete_one(key)
+        return {"favorited": False}
+    await db.favorites.insert_one({**key, "created_at": datetime.now(timezone.utc)})
+    return {"favorited": True}
+
+
+@api_router.get("/favorites/{member_id}")
+async def favorites_list(member_id: str):
+    """Retorna todos os anúncios favoritados pelo membro (enriquecido)."""
+    favs = await db.favorites.find({"member_id": member_id}, {"_id": 0}).sort("created_at", -1).to_list(length=200)
+    ad_ids = [f["ad_id"] for f in favs]
+    if not ad_ids:
+        return []
+    ads = await db.ads.find({"ad_id": {"$in": ad_ids}, "active": {"$ne": False}}, {"_id": 0}).to_list(length=200)
+    ad_map = {a["ad_id"]: a for a in ads}
+    out = []
+    for f in favs:
+        a = ad_map.get(f["ad_id"])
+        if a:
+            out.append(a)
+    return out
+
+
+@api_router.get("/favorites/{member_id}/ids")
+async def favorites_ids(member_id: str):
+    """Retorna apenas os ids favoritados (para pintar corações rapidamente)."""
+    favs = await db.favorites.find({"member_id": member_id}, {"_id": 0, "ad_id": 1}).to_list(length=500)
+    return [f["ad_id"] for f in favs]
+
+
+# ---------- CART (marketplace) ----------
+
+
+class CartItem(BaseModel):
+    member_id: str
+    ad_id: str
+    qty: int = 1
+
+
+@api_router.post("/cart/add")
+async def cart_add(data: CartItem):
+    """Adiciona um item ao carrinho (ou incrementa qty)."""
+    existing = await db.carts.find_one({"member_id": data.member_id, "ad_id": data.ad_id})
+    qty = max(int(data.qty or 1), 1)
+    if existing:
+        new_qty = int(existing.get("qty", 1)) + qty
+        await db.carts.update_one({"_id": existing["_id"]}, {"$set": {"qty": new_qty}})
+        return {"qty": new_qty}
+    await db.carts.insert_one({
+        "member_id": data.member_id,
+        "ad_id": data.ad_id,
+        "qty": qty,
+        "created_at": datetime.now(timezone.utc),
+    })
+    return {"qty": qty}
+
+
+@api_router.post("/cart/update")
+async def cart_update(data: CartItem):
+    """Atualiza qty ou remove (qty<=0)."""
+    if int(data.qty or 0) <= 0:
+        await db.carts.delete_one({"member_id": data.member_id, "ad_id": data.ad_id})
+        return {"removed": True}
+    await db.carts.update_one(
+        {"member_id": data.member_id, "ad_id": data.ad_id},
+        {"$set": {"qty": int(data.qty)}},
+        upsert=True,
+    )
+    return {"qty": int(data.qty)}
+
+
+@api_router.delete("/cart/{member_id}/{ad_id}")
+async def cart_remove(member_id: str, ad_id: str):
+    await db.carts.delete_one({"member_id": member_id, "ad_id": ad_id})
+    return {"ok": True}
+
+
+@api_router.get("/cart/{member_id}")
+async def cart_list(member_id: str):
+    """Retorna carrinho agrupado por vendedor para facilitar checkout."""
+    items = await db.carts.find({"member_id": member_id}, {"_id": 0}).sort("created_at", -1).to_list(length=200)
+    if not items:
+        return {"items": [], "groups": [], "total_centavos": 0, "count": 0}
+    ad_ids = [i["ad_id"] for i in items]
+    ads = await db.ads.find({"ad_id": {"$in": ad_ids}}, {"_id": 0}).to_list(length=200)
+    ad_map = {a["ad_id"]: a for a in ads}
+    # Busca nomes de vendedores
+    seller_ids = list({a.get("seller_id") for a in ads if a.get("seller_id")})
+    sellers: Dict[str, Dict[str, Any]] = {}
+    if seller_ids:
+        async for m in db.members.find({"member_id": {"$in": seller_ids}}, {"_id": 0, "member_id": 1, "nickname": 1, "name": 1, "tier": 1, "avatar_base64": 1}):
+            sellers[m["member_id"]] = m
+    enriched: List[Dict[str, Any]] = []
+    groups_map: Dict[str, Dict[str, Any]] = {}
+    total_full_cents = 0
+    for i in items:
+        a = ad_map.get(i["ad_id"])
+        if not a:
+            continue
+        qty = int(i.get("qty", 1))
+        price = float(a.get("price_full", 0))
+        subtotal_cents = int(round(price * 100)) * qty
+        total_full_cents += subtotal_cents
+        sid = a.get("seller_id")
+        seller = sellers.get(sid or "", {})
+        item = {
+            "ad_id": a["ad_id"],
+            "title": a.get("title"),
+            "image": (a.get("images") or [None])[0],
+            "category": a.get("category"),
+            "price_full": price,
+            "price_full_centavos": int(round(price * 100)),
+            "qty": qty,
+            "subtotal_centavos": subtotal_cents,
+            "seller_id": sid,
+            "seller_name": seller.get("nickname") or seller.get("name"),
+            "seller_tier": seller.get("tier", "black"),
+            "seller_avatar": seller.get("avatar_base64"),
+        }
+        enriched.append(item)
+        g = groups_map.setdefault(sid or "_", {
+            "seller_id": sid,
+            "seller_name": item["seller_name"],
+            "seller_avatar": item["seller_avatar"],
+            "seller_tier": item["seller_tier"],
+            "items": [],
+            "subtotal_centavos": 0,
+        })
+        g["items"].append(item)
+        g["subtotal_centavos"] += subtotal_cents
+    return {
+        "items": enriched,
+        "groups": list(groups_map.values()),
+        "total_centavos": total_full_cents,
+        "count": sum(i["qty"] for i in enriched),
+    }
+
+
+@api_router.delete("/cart/{member_id}")
+async def cart_clear(member_id: str):
+    await db.carts.delete_many({"member_id": member_id})
+    return {"ok": True}
+
+
 # ---------- BLEX TOKEN (BLX) — P2P Transfer, Lookup, Extrato ----------
 # Transferência instantânea entre membros usando saldo em centavos.
 

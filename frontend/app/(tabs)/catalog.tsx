@@ -121,7 +121,7 @@ export default function Marketplace() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="marketplace-screen">
-      {/* Search */}
+      {/* Search + ações (carrinho e favoritos) */}
       <View style={st.searchRow}>
         <Ionicons name="search" size={16} color="#777" />
         <TextInput
@@ -137,6 +137,13 @@ export default function Marketplace() {
             <Ionicons name="close-circle" size={16} color="#666" />
           </TouchableOpacity>
         )}
+        <TouchableOpacity
+          style={st.headerIconBtn}
+          onPress={() => router.push("/cart" as any)}
+          testID="marketplace-cart"
+        >
+          <Ionicons name="bag-handle-outline" size={18} color="#EEE" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -325,6 +332,12 @@ const st = StyleSheet.create({
     backgroundColor: "#101010", borderRadius: 10, borderWidth: 1, borderColor: "#1C1C1C",
   },
   searchInput: { flex: 1, color: "#EEE", fontSize: 13.5, padding: 0 },
+  headerIconBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: "#1A1A1A", borderWidth: 1, borderColor: "#2A2A2A",
+    alignItems: "center", justifyContent: "center",
+    marginLeft: 4,
+  },
 
   // Área Saúde (Diamond) — alinhada à esquerda, compacta
   saudeSection: { marginTop: 12, marginBottom: 4, paddingLeft: 14 },

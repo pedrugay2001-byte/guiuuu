@@ -288,6 +288,33 @@ export const api = {
       body: JSON.stringify({ audio_base64, mime }),
     }),
 
+  // ----- Favorites -----
+  favToggle: (member_id: string, ad_id: string) =>
+    request<{ favorited: boolean }>("/favorites/toggle", {
+      method: "POST",
+      body: JSON.stringify({ member_id, ad_id }),
+    }),
+  favList: (member_id: string) => request<Ad[]>(`/favorites/${member_id}`),
+  favIds: (member_id: string) => request<string[]>(`/favorites/${member_id}/ids`),
+
+  // ----- Cart -----
+  cartAdd: (member_id: string, ad_id: string, qty = 1) =>
+    request<{ qty: number }>("/cart/add", {
+      method: "POST",
+      body: JSON.stringify({ member_id, ad_id, qty }),
+    }),
+  cartUpdate: (member_id: string, ad_id: string, qty: number) =>
+    request<{ qty?: number; removed?: boolean }>("/cart/update", {
+      method: "POST",
+      body: JSON.stringify({ member_id, ad_id, qty }),
+    }),
+  cartRemove: (member_id: string, ad_id: string) =>
+    request<{ ok: boolean }>(`/cart/${member_id}/${ad_id}`, { method: "DELETE" }),
+  cartList: (member_id: string) =>
+    request<CartResponse>(`/cart/${member_id}`),
+  cartClear: (member_id: string) =>
+    request<{ ok: boolean }>(`/cart/${member_id}`, { method: "DELETE" }),
+
   // ----- Stories -----
   listStories: () => request<StoryGroup[]>("/stories"),
   createStory: (member_id: string, image_base64?: string, text?: string) =>
@@ -413,6 +440,37 @@ export type BlxOrder = BlxTx & {
   } | null;
   i_rated: boolean;
   ad_image?: string;
+};
+
+export type CartItem = {
+  ad_id: string;
+  title: string;
+  image?: string | null;
+  category?: string;
+  price_full: number;
+  price_full_centavos: number;
+  qty: number;
+  subtotal_centavos: number;
+  seller_id: string;
+  seller_name?: string | null;
+  seller_tier: TierId;
+  seller_avatar?: string | null;
+};
+
+export type CartGroup = {
+  seller_id: string;
+  seller_name?: string | null;
+  seller_avatar?: string | null;
+  seller_tier: TierId;
+  items: CartItem[];
+  subtotal_centavos: number;
+};
+
+export type CartResponse = {
+  items: CartItem[];
+  groups: CartGroup[];
+  total_centavos: number;
+  count: number;
 };
 export type WalletTx = {
   tx_id: string;
