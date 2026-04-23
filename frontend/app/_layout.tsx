@@ -33,9 +33,7 @@ export default function RootLayout() {
             <Stack.Screen name="ai/[specialist]" options={{ title: "" }} />
             <Stack.Screen name="chat" options={{ title: "Suporte BLACKSCLUB" }} />
             <Stack.Screen name="quote" options={{ title: "Chamados" }} />
-            <Stack.Screen name="wallet" options={{ title: "Black Coins" }} />
             <Stack.Screen name="wallet/topup" options={{ title: "Recarga BLACK Coins" }} />
-            <Stack.Screen name="wallet/[id]" options={{ title: "Transação" }} />
             <Stack.Screen name="daily-message" options={{ headerShown: false }} />
             <Stack.Screen name="ads/index" options={{ title: "Meus Anúncios" }} />
             <Stack.Screen name="ads/create" options={{ title: "Novo Anúncio" }} />
