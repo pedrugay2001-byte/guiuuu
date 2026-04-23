@@ -25,13 +25,16 @@ const GREEN = "#2ECC71";
 const ORANGE = "#F39C12";
 const RED = "#FF5B5B";
 
+// Cor neutra para TODOS os tipos de meta (usuário pediu: tudo cinza,
+// cores apenas para status positivo/negativo via GREEN/RED/ORANGE).
+const NEUTRAL = "#9A9A9A";
 const TYPE_META: Record<GoalType, { label: string; icon: string; color: string; unitHint: string; description: string }> = {
-  weight:       { label: "Peso / Saúde",   icon: "scale-bathroom", color: "#2ECC71", unitHint: "kg",     description: "Acompanhe peso, medidas ou saúde física" },
-  fitness:      { label: "Peso / Saúde",   icon: "scale-bathroom", color: "#2ECC71", unitHint: "kg",     description: "Acompanhe peso, medidas ou saúde física" },
-  financial:    { label: "Financeiro",     icon: "cash-multiple",  color: "#F5C150", unitHint: "R$",     description: "Patrimônio, faturamento ou economia" },
-  habit:        { label: "Hábitos",        icon: "repeat-variant", color: "#5DADE2", unitHint: "dias",   description: "Frequência e consistência diária" },
-  behavior:     { label: "Comportamento",  icon: "meditation",     color: "#A569BD", unitHint: "/10",    description: "Equilíbrio emocional e disciplina" },
-  productivity: { label: "Produtividade",  icon: "briefcase",      color: "#E67E22", unitHint: "h",      description: "Entregas, marcos e carreira" },
+  weight:       { label: "Peso / Saúde",   icon: "scale-bathroom", color: NEUTRAL, unitHint: "kg",     description: "Acompanhe peso, medidas ou saúde física" },
+  fitness:      { label: "Peso / Saúde",   icon: "scale-bathroom", color: NEUTRAL, unitHint: "kg",     description: "Acompanhe peso, medidas ou saúde física" },
+  financial:    { label: "Financeiro",     icon: "cash-multiple",  color: NEUTRAL, unitHint: "R$",     description: "Patrimônio, faturamento ou economia" },
+  habit:        { label: "Hábitos",        icon: "repeat-variant", color: NEUTRAL, unitHint: "dias",   description: "Frequência e consistência diária" },
+  behavior:     { label: "Comportamento",  icon: "meditation",     color: NEUTRAL, unitHint: "/10",    description: "Equilíbrio emocional e disciplina" },
+  productivity: { label: "Produtividade",  icon: "briefcase",      color: NEUTRAL, unitHint: "h",      description: "Entregas, marcos e carreira" },
 };
 
 const PALETTE = ["#F5C150", "#2ECC71", "#5DADE2", "#A569BD", "#E67E22", "#FF6B9D", "#FFFFFF"]; void PALETTE;
@@ -135,7 +138,7 @@ export default function PerformanceTab() {
               />
               {goals.map(g => {
                 const meta = TYPE_META[g.type];
-                const color = g.color || meta.color;
+                const color = NEUTRAL; // cor neutra para mini-stories
                 return (
                   <MiniStory
                     key={g.goal_id}
@@ -196,7 +199,7 @@ export default function PerformanceTab() {
                 <LineChart
                   width={W - 20}
                   height={170}
-                  color={selectedGoal.color || TYPE_META[selectedGoal.type].color}
+                  color={NEUTRAL}
                   real={(selectedGoal.history || []).map(h => ({ date: h.date, value: h.value }))}
                   ideal={(selectedGoal.ideal_series || []).map(i => ({ date: i.date, ideal: i.ideal }))}
                 />
@@ -223,13 +226,13 @@ export default function PerformanceTab() {
                     size={140}
                     data={goals.map(g => ({
                       label: g.title, value: g.progress_pct,
-                      color: g.color || TYPE_META[g.type].color,
+                      color: NEUTRAL /* tipo-cor removida */,
                     }))}
                   />
                   <View style={{ flex: 1, gap: 10 }}>
                     {goals.map(g => (
                       <View key={g.goal_id} style={st.legRow}>
-                        <View style={[st.legColor, { backgroundColor: g.color || TYPE_META[g.type].color }]} />
+                        <View style={[st.legColor, { backgroundColor: NEUTRAL /* tipo-cor removida */ }]} />
                         <Text style={st.legName} numberOfLines={1}>{g.title}</Text>
                         <Text style={st.legPct}>{Math.round(g.progress_pct)}%</Text>
                       </View>
@@ -394,12 +397,12 @@ function OverviewCard({ goals }: { goals: Goal[] }) {
             size={130}
             data={goals.map(g => ({
               label: g.title, value: Math.max(g.progress_pct, 1),
-              color: g.color || TYPE_META[g.type].color,
+              color: NEUTRAL /* tipo-cor removida */,
             }))}
           />
           <View style={{ flex: 1, gap: 10 }}>
             {goals.map(g => {
-              const color = g.color || TYPE_META[g.type].color;
+              const color = NEUTRAL /* tipo-cor removida */;
               const statusColor = g.rhythm_status === "behind" ? RED
                 : g.rhythm_status === "slightly_behind" ? ORANGE : GREEN;
               return (
@@ -424,28 +427,138 @@ function OverviewCard({ goals }: { goals: Goal[] }) {
 
 /* ----------------------- GOAL DETAIL CARD ----------------------- */
 
+/** Formata número no padrão pt-BR com vírgula como decimal. */
+function fmtBR(n: number, decimals = 1): string {
+  const abs = Math.abs(n);
+  const s = abs.toFixed(decimals).replace(".", ",");
+  return s;
+}
+
+/** Calcula progresso concreto de uma meta de forma agnóstica ao tipo.
+ * - achieved: quanto já foi conquistado (positivo, em kg/R$/dias/etc.)
+ * - remaining: quanto ainda falta até o alvo (positivo, em kg/R$/dias)
+ * - isRegressing: true se o membro está piorando (indo contra a meta)
+ * - unit/verb: textos dinâmicos por tipo ("kg perdidos", "R$ acumulados", etc.)
+ */
+type GoalDelta = {
+  achieved: number;
+  remaining: number;
+  currentLabel: string;       // valor atual formatado (e.g. "72,5 kg")
+  achievedLabel: string;      // "2,5 kg perdidos" / "R$ 2.500 acumulados"
+  remainingLabel: string;     // "5,5 kg p/ meta" / "R$ 37.500 faltam"
+  isRegressing: boolean;      // indo na direção errada
+  isComplete: boolean;        // meta já atingida
+  verbAchieved: string;       // "PERDIDOS" / "GANHOS" / "ACUMULADOS" / "FEITOS"
+  verbRemaining: string;      // "P/ META" / "FALTAM"
+  unit: string;               // "kg" / "R$" / "dias" / etc.
+};
+
+function computeGoalDelta(g: Goal): GoalDelta {
+  const t = g.type;
+  if (t === "habit") {
+    const done = g.done_count ?? 0;
+    const expected = g.expected_count ?? g.target_value ?? 0;
+    const remaining = Math.max(0, expected - done);
+    return {
+      achieved: done,
+      remaining,
+      currentLabel: `${done}`,
+      achievedLabel: `${done} feitos`,
+      remainingLabel: `${remaining} p/ meta`,
+      isRegressing: false,
+      isComplete: done >= expected && expected > 0,
+      verbAchieved: "FEITOS",
+      verbRemaining: "P/ META",
+      unit: "",
+    };
+  }
+  if (t === "behavior") {
+    const cur = g.current_value ?? 0;
+    const init = g.initial_value ?? 0;
+    const tgt = g.target_value ?? 0;
+    const achieved = Math.max(0, cur - init);
+    const remaining = Math.max(0, tgt - cur);
+    return {
+      achieved,
+      remaining,
+      currentLabel: fmtBR(cur, 1),
+      achievedLabel: `+${fmtBR(achieved, 1)} pts`,
+      remainingLabel: `${fmtBR(remaining, 1)} pts p/ alvo`,
+      isRegressing: cur < init,
+      isComplete: cur >= tgt,
+      verbAchieved: "GANHOS",
+      verbRemaining: "P/ ALVO",
+      unit: "/10",
+    };
+  }
+  // weight / fitness / financial / productivity
+  const cur = g.current_value ?? 0;
+  const init = g.initial_value ?? 0;
+  const tgt = g.target_value ?? 0;
+  const losing = tgt < init; // weight loss, debt reduction
+  const achieved = losing ? Math.max(0, init - cur) : Math.max(0, cur - init);
+  const remaining = losing ? Math.max(0, cur - tgt) : Math.max(0, tgt - cur);
+  const isRegressing = losing ? cur > init : cur < init;
+  const isComplete = losing ? cur <= tgt : cur >= tgt;
+  const unit = g.unit || TYPE_META[t].unitHint;
+  let verbAchieved = "PROGRESSO";
+  let verbRemaining = "P/ META";
+  if (t === "weight" || t === "fitness") {
+    verbAchieved = losing ? "PERDIDOS" : "GANHOS";
+    verbRemaining = losing ? "P/ PERDER" : "P/ GANHAR";
+  } else if (t === "financial") {
+    verbAchieved = "ACUMULADOS";
+    verbRemaining = "FALTAM";
+  } else if (t === "productivity") {
+    verbAchieved = "FEITAS";
+    verbRemaining = "FALTAM";
+  }
+  const isBRL = t === "financial";
+  const fmtUnit = (v: number) => isBRL ? `R$ ${fmtBR(v, 0)}` : `${fmtBR(v, 1)} ${unit}`;
+  return {
+    achieved,
+    remaining,
+    currentLabel: fmtUnit(cur),
+    achievedLabel: fmtUnit(achieved),
+    remainingLabel: fmtUnit(remaining),
+    isRegressing,
+    isComplete,
+    verbAchieved,
+    verbRemaining,
+    unit,
+  };
+}
+
 function GoalDetailCard({ goal, width, onRegister, onMenu }:
   { goal: Goal; width: number; onRegister: () => void; onMenu: () => void }) {
   const meta = TYPE_META[goal.type];
-  const color = goal.color || meta.color;
+  const color = meta.color; // sempre cinza agora (color dos tipos removida)
   const stt = statusLabel(goal.rhythm_status);
   const gtype = goal.type;
+  const delta = useMemo(() => computeGoalDelta(goal), [goal]);
 
+  // Cor do círculo e dos indicadores segue lógica verde/vermelho com base em progresso real
+  const progressColor = delta.isComplete ? GREEN
+    : delta.isRegressing ? RED
+    : delta.achieved > 0 ? GREEN
+    : NEUTRAL;
+
+  // Valor central do círculo: quanto já foi conquistado (com vírgula)
   const centerValue = useMemo(() => {
-    if (gtype === "habit") return `${goal.done_count ?? 0}/${goal.expected_count ?? goal.target_value}`;
-    if (gtype === "behavior") return `${goal.avg_score ?? goal.current_value}`;
-    return `${Math.round(goal.progress_pct)}%`;
-  }, [goal]);
+    if (gtype === "habit") return `${delta.achieved}`;
+    if (gtype === "financial") return fmtBR(delta.achieved, 0);
+    return fmtBR(delta.achieved, 1);
+  }, [goal, delta]);
 
   return (
-    <View style={[st.card, { borderColor: `${color}35` }]}>
+    <View style={[st.card, { borderColor: "rgba(255,255,255,0.08)" }]}>
       <View style={st.cardHead}>
-        <View style={[st.goalIcon, { backgroundColor: `${color}20`, borderColor: `${color}55` }]}>
-          <MaterialCommunityIcons name={meta.icon as any} size={18} color={color} />
+        <View style={[st.goalIcon, { backgroundColor: "rgba(154,154,154,0.15)", borderColor: "rgba(154,154,154,0.4)" }]}>
+          <MaterialCommunityIcons name={meta.icon as any} size={18} color={NEUTRAL} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={st.cardTitle} numberOfLines={1}>{goal.title.toUpperCase()}</Text>
-          <Text style={st.cardSub}>{meta.label} · {stt.text}</Text>
+          <Text style={[st.cardSub, { color: stt.color }]}>{meta.label} · {stt.text}</Text>
         </View>
         <TouchableOpacity onPress={onMenu} hitSlop={14} testID="goal-menu-btn">
           <Ionicons name="ellipsis-horizontal" size={20} color="#AAA" />
@@ -456,40 +569,45 @@ function GoalDetailCard({ goal, width, onRegister, onMenu }:
         <CircularProgress
           size={width * 0.42}
           progress={goal.progress_pct}
-          color={color}
+          color={progressColor}
           centerValue={centerValue}
-          centerSub={gtype === "habit" ? "CHECK-INS" : gtype === "behavior" ? "MÉDIA" : "PROGRESSO"}
+          centerSub={delta.verbAchieved}
         />
         <View style={{ flex: 1, gap: 8 }}>
-          <Stat label="Ritmo" value={`${goal.rhythm > 0 ? "+" : ""}${goal.rhythm.toFixed(1)}%`}
-            color={goal.rhythm >= 0 ? GREEN : RED} />
+          {/* AINDA FALTAM — em vermelho */}
+          <Stat
+            label={`Ainda ${delta.verbRemaining.toLowerCase()}`}
+            value={delta.remainingLabel}
+            color={delta.remaining > 0 ? RED : GREEN}
+          />
+          {/* JÁ CONQUISTADO — em verde */}
+          <Stat
+            label={`Já ${delta.verbAchieved.toLowerCase()}`}
+            value={delta.achievedLabel}
+            color={delta.achieved > 0 ? GREEN : NEUTRAL}
+          />
+          {/* DIAS restantes — neutro */}
           <Stat label="Faltam" value={`${goal.days_remaining} dias`} />
-          <Stat label={gtype === "habit" ? "Sequência" : gtype === "behavior" ? "Alvo" : "Ideal hoje"}
-            value={
-              gtype === "habit" ? `${goal.streak ?? 0}🔥 (rec ${goal.best_streak ?? 0})` :
-              gtype === "behavior" ? `${goal.target_score ?? goal.target_value}` :
-              fmtVal(goal.ideal_today ?? 0, goal.unit)
-            } />
         </View>
       </View>
 
       {/* Indicador visual de PROGRESSÃO vs REGRESSÃO (só para tipos contínuos) */}
       {(gtype === "weight" || gtype === "fitness" || gtype === "financial" || gtype === "productivity") &&
         goal.delta_from_start !== undefined && goal.delta_from_start !== 0 && (
-        <View style={[st.deltaBox, { backgroundColor: goal.is_regressing ? "rgba(255,91,91,0.12)" : "rgba(46,204,113,0.12)",
-          borderColor: goal.is_regressing ? "rgba(255,91,91,0.35)" : "rgba(46,204,113,0.35)" }]}>
+        <View style={[st.deltaBox, { backgroundColor: delta.isRegressing ? "rgba(255,91,91,0.12)" : "rgba(46,204,113,0.12)",
+          borderColor: delta.isRegressing ? "rgba(255,91,91,0.35)" : "rgba(46,204,113,0.35)" }]}>
           <Ionicons
-            name={goal.is_regressing ? "trending-down" : "trending-up"}
+            name={delta.isRegressing ? "trending-down" : "trending-up"}
             size={18}
-            color={goal.is_regressing ? RED : GREEN}
+            color={delta.isRegressing ? RED : GREEN}
           />
           <View style={{ flex: 1 }}>
-            <Text style={[st.deltaLbl, { color: goal.is_regressing ? RED : GREEN }]}>
-              {goal.is_regressing ? "REGRESSÃO" : "PROGRESSO"}
+            <Text style={[st.deltaLbl, { color: delta.isRegressing ? RED : GREEN }]}>
+              {delta.isRegressing ? "REGRESSÃO" : "PROGRESSO"}
             </Text>
             <Text style={st.deltaVal}>
-              {goal.is_regressing ? "Você afastou-se " : "Você avançou "}
-              {fmtVal(Math.abs(goal.delta_from_start), goal.unit)}
+              {delta.isRegressing ? "Você afastou-se " : "Você avançou "}
+              {delta.achievedLabel}
               {" desde o início"}
             </Text>
           </View>
@@ -513,7 +631,7 @@ function GoalDetailCard({ goal, width, onRegister, onMenu }:
         ) : (
           <>
             <NumBlock label="INÍCIO" value={fmtVal(goal.initial_value, goal.unit)} />
-            <NumBlock label="ATUAL" value={fmtVal(goal.current_value, goal.unit)} color={color} />
+            <NumBlock label="ATUAL" value={fmtVal(goal.current_value, goal.unit)} color={progressColor} />
             <NumBlock label="META" value={fmtVal(goal.target_value, goal.unit)} />
           </>
         )}
@@ -529,7 +647,7 @@ function GoalDetailCard({ goal, width, onRegister, onMenu }:
         </View>
       ) : null}
 
-      <TouchableOpacity style={[st.registerBtn, { backgroundColor: color }]}
+      <TouchableOpacity style={[st.registerBtn, { backgroundColor: GOLD }]}
         onPress={onRegister} activeOpacity={0.9}>
         <Ionicons name="add-circle" size={16} color="#000" />
         <Text style={st.registerTxt}>REGISTRAR PROGRESSO</Text>
@@ -863,7 +981,7 @@ function CreateGoalForm({ memberId, onClose, onSaved }:
 function RegisterProgressForm({ goal, onClose, onSaved }:
   { goal: Goal; onClose: () => void; onSaved: () => void }) {
   const gtype = goal.type;
-  const color = goal.color || TYPE_META[gtype].color;
+  const color = NEUTRAL; // cor neutra para todos os tipos
   const initialVal = gtype === "habit" ? "1" : gtype === "behavior" ? "7" : String(goal.current_value);
   const [val, setVal] = useState(initialVal);
   const [note, setNote] = useState("");
@@ -980,7 +1098,7 @@ function EntriesHistory({ goal, onDeleted }:
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const color = goal.color || TYPE_META[goal.type].color;
+  const color = NEUTRAL; // cor neutra para todos os tipos
 
   const load = useCallback(async () => {
     try {

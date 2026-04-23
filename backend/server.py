@@ -3349,6 +3349,7 @@ async def goals_dashboard(member_id: str):
     return {
         "has_goals": True,
         "active_count": len(active),
+        "completed_count": len([g for g in goals if g["status"] == "completed"]),
         "overall_progress": overall,
         "avg_rhythm": avg_rhythm,
         "days_left": critical["days_remaining"],

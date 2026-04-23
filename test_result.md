@@ -603,6 +603,52 @@ test_plan:
            - O arquivo /app/frontend/app/daily-message.tsx permanece no repo mas
              não está mais linkado em nenhuma navegação.
 
+
+    - agent: "main"
+      message: |
+        REFACTOR KPI CONTEXTUAL + NEUTRALIZAÇÃO DE CORES:
+
+        Backend:
+        - GoalDashboard agora retorna completed_count (metas batidas).
+
+        Frontend — Home (stats row reestruturada):
+        - "METAS ATIVAS" → "METAS" com caption "+N batidas" (verde) quando há metas
+          concluídas, caso contrário mostra "ativas" neutro.
+        - "PROGRESSO GERAL" substituído por "JÁ PERDEU/GANHOU/ACUMULOU/FEITOS" (dinâmico
+          por tipo): mostra kg/R$/dias já conquistados. Verde quando achieved > 0.
+        - "RITMO ATUAL" → "AINDA FALTA": mostra kg/R$/dias restantes em VERMELHO
+          quando ainda há distância até a meta. Verde se meta já foi atingida.
+        - Label "JÁ PERDEU" vs "JÁ GANHOU" decidido dinamicamente comparando
+          target_value vs initial_value (meta de emagrecer vs engordar).
+        - "DIAS RESTANTES" → "DIAS" (mais curto).
+        - Cálculo de delta extraído em `fcDelta` que aceita todos os tipos
+          (weight/fitness/financial/habit/behavior/productivity) e retorna achievedLabel,
+          remainingLabel, verbRemaining, etc. em formato pt-BR (vírgula decimal).
+
+        Frontend — Performance (GoalDetailCard):
+        - Novo helper `computeGoalDelta(goal)` centraliza lógica de "quanto falta"
+          e "quanto já conquistou" para todos os tipos.
+        - Círculo central mostra "X,X" (achieved com vírgula) e subtitle
+          "PERDIDOS"/"GANHOS"/"ACUMULADOS"/"FEITOS"/"GANHOS" conforme tipo.
+        - KPIs à direita: "Ainda p/ perder" (vermelho), "Já perdidos" (verde),
+          "Faltam N dias" (neutro).
+        - Botão "REGISTRAR PROGRESSO" agora é sempre dourado (era cor do tipo).
+
+        Neutralização de cores:
+        - TYPE_META agora tem color=NEUTRAL (#9A9A9A) para todos os tipos
+          (weight, fitness, financial, habit, behavior, productivity).
+        - Todas as instâncias de `g.color || TYPE_META[g.type].color` substituídas
+          por NEUTRAL ou por cores verde/vermelho baseadas em status real.
+        - Mini-stories, RegisterProgressForm, GoalMenu: tudo cinza.
+        - Line chart: cor NEUTRAL.
+        - Home btn-meta-nome: borda/texto neutros, só verde se achieved > 0 ou
+          vermelho se regressing.
+
+        Resultado validado visualmente em duas situações:
+        1. Meta "Ganhar massa muscular" (target > initial) → labels "JÁ GANHOU" + "p/ ganhar" ✓
+        2. Meta "Perder 8kg" (target < initial) → labels "JÁ PERDIDOS" + "p/ perder" + círculo "0,0 PERDIDOS" ✓
+
+
         Validado visualmente em iPhone 15 Pro Max (430x932). Zero erros no console.
 
 

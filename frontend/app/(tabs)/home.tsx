@@ -122,6 +122,7 @@ export default function Home() {
   const hasGoals = !!dashboard?.has_goals;
   const stats = {
     activeGoals: dashboard?.active_count || 0,
+    completedGoals: (dashboard as any)?.completed_count || 0,
     progress: Math.round(dashboard?.overall_progress || 0),
     weeklyDelta: dashboard?.weekly_delta || 0,
     rhythm: Math.round(dashboard?.avg_rhythm || 0),
@@ -129,6 +130,66 @@ export default function Home() {
   };
 
   const forecastGoal = dashboard?.critical_goal;
+
+  // Calcula delta da meta "crítica" (a que guia o card principal):
+  // quanto já foi conquistado (kg/R$/etc.) e quanto ainda falta.
+  const fcDelta = (() => {
+    if (!forecastGoal) return null;
+    const g: any = forecastGoal;
+    const t = g.type as string;
+    if (t === "habit") {
+      const done = g.done_count ?? 0;
+      const expected = g.expected_count ?? g.target_value ?? 0;
+      return {
+        achieved: done,
+        remaining: Math.max(0, expected - done),
+        currentLabel: `${done}`,
+        achievedLabel: `${done} feitos`,
+        remainingLabel: `${Math.max(0, expected - done)} restantes`,
+        unitCaption: "check-ins",
+        verbRemaining: "faltam",
+        isRegressing: false,
+      };
+    }
+    if (t === "behavior") {
+      const cur = g.current_value ?? 0;
+      const init = g.initial_value ?? 0;
+      const tgt = g.target_value ?? 0;
+      const achieved = Math.max(0, cur - init);
+      const remaining = Math.max(0, tgt - cur);
+      const toBR = (n: number) => Math.abs(n).toFixed(1).replace(".", ",");
+      return {
+        achieved, remaining,
+        currentLabel: toBR(cur),
+        achievedLabel: `+${toBR(achieved)}`,
+        remainingLabel: `${toBR(remaining)} pts`,
+        unitCaption: "pts",
+        verbRemaining: "faltam",
+        isRegressing: cur < init,
+      };
+    }
+    // weight/fitness/financial/productivity
+    const cur = g.current_value ?? 0;
+    const init = g.initial_value ?? 0;
+    const tgt = g.target_value ?? 0;
+    const losing = tgt < init;
+    const achieved = losing ? Math.max(0, init - cur) : Math.max(0, cur - init);
+    const remaining = losing ? Math.max(0, cur - tgt) : Math.max(0, tgt - cur);
+    const isRegressing = losing ? cur > init : cur < init;
+    const unit = g.unit || (t === "financial" ? "R$" : t === "productivity" ? "h" : "kg");
+    const isBRL = t === "financial";
+    const toBR = (n: number, d = 1) => Math.abs(n).toFixed(d).replace(".", ",");
+    const fmt = (n: number) => isBRL ? `R$ ${toBR(n, 0)}` : `${toBR(n, 1)} ${unit}`;
+    return {
+      achieved, remaining,
+      currentLabel: fmt(cur),
+      achievedLabel: fmt(achieved),
+      remainingLabel: fmt(remaining),
+      unitCaption: unit,
+      verbRemaining: losing ? (t === "weight" || t === "fitness" ? "p/ perder" : "faltam") : "p/ ganhar",
+      isRegressing,
+    };
+  })();
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -195,8 +256,13 @@ export default function Home() {
               <TouchableOpacity
                 style={[
                   s.btnGhost,
-                  hasGoals && forecastGoal?.color
-                    ? { borderColor: `${forecastGoal.color}90`, backgroundColor: `${forecastGoal.color}18` }
+                  // Neutro por padrão. Verde/Vermelho apenas se há progresso mensurável.
+                  hasGoals && fcDelta
+                    ? fcDelta.achieved > 0
+                      ? { borderColor: "rgba(46,204,113,0.5)", backgroundColor: "rgba(46,204,113,0.10)" }
+                      : fcDelta.isRegressing
+                        ? { borderColor: "rgba(255,91,91,0.5)", backgroundColor: "rgba(255,91,91,0.10)" }
+                        : null
                     : null,
                 ]}
                 onPress={() => router.push("/(tabs)/performance")}
@@ -207,7 +273,8 @@ export default function Home() {
                   numberOfLines={1}
                   style={[
                     s.btnGhostTxt,
-                    hasGoals && forecastGoal?.color ? { color: forecastGoal.color } : null,
+                    hasGoals && fcDelta?.achieved && fcDelta.achieved > 0 ? { color: GREEN } : null,
+                    hasGoals && fcDelta?.isRegressing ? { color: RED } : null,
                   ]}
                 >
                   {hasGoals ? (forecastGoal?.title || "Sua meta") : "Criar meta"}
@@ -227,37 +294,55 @@ export default function Home() {
               </TouchableOpacity>
             </View>
 
-            {/* STATS — 4 columns with vertical dividers */}
+            {/* STATS — 4 colunas contextualizadas */}
             <View style={s.statsRow}>
+              {/* METAS — ativas + batidas com +/- */}
               <Stat
                 iconCircle={<MaterialCommunityIcons name="target" size={20} color="#EEE" />}
-                label="METAS ATIVAS"
-                value={stats.activeGoals}
-                caption={hasGoals ? "ver metas" : "criar"}
-                captionColor={GOLD}
+                label="METAS"
+                value={hasGoals ? `${stats.activeGoals}` : "0"}
+                caption={
+                  stats.completedGoals > 0
+                    ? `+${stats.completedGoals} batida${stats.completedGoals > 1 ? "s" : ""}`
+                    : hasGoals ? "ativas" : "criar"
+                }
+                captionColor={stats.completedGoals > 0 ? GREEN : hasGoals ? "#888" : GOLD}
               />
               <View style={s.statDividerV} />
+              {/* JÁ CONQUISTADO — kg perdidos/ganhos, verde se positivo */}
               <Stat
-                iconCircle={<RingProgress size={42} stroke={3.5} progress={stats.progress} label={`${stats.progress}%`} />}
-                label="PROGRESSO GERAL"
-                value={`${stats.progress}%`}
-                caption={hasGoals ? `+${stats.weeklyDelta}% essa semana` : "—"}
-                captionColor={GREEN}
+                iconCircle={<Ionicons name={(forecastGoal as any)?.type === "weight" && (forecastGoal as any)?.target_value > (forecastGoal as any)?.initial_value ? "trending-up" : "trending-down"} size={20} color="#EEE" />}
+                label={
+                  fcDelta && (forecastGoal as any)?.type === "weight"
+                    ? ((forecastGoal as any)?.target_value < (forecastGoal as any)?.initial_value ? "JÁ PERDEU" : "JÁ GANHOU")
+                  : fcDelta && (forecastGoal as any)?.type === "financial" ? "ACUMULOU"
+                  : fcDelta && (forecastGoal as any)?.type === "habit" ? "FEITOS"
+                  : "CONQUISTADO"
+                }
+                value={fcDelta ? fcDelta.achievedLabel : "—"}
+                caption={
+                  fcDelta
+                    ? (fcDelta.achieved > 0 ? "no caminho certo" : "comece a registrar")
+                    : "sem dados"
+                }
+                captionColor={fcDelta && fcDelta.achieved > 0 ? GREEN : "#888"}
               />
               <View style={s.statDividerV} />
+              {/* AINDA FALTA — kg restantes, vermelho se ainda há distância */}
               <Stat
-                iconCircle={<Ionicons name="trending-up" size={20} color="#EEE" />}
-                label="RITMO ATUAL"
-                value={hasGoals ? `${Math.abs(stats.rhythm)}%` : "—"}
-                caption={hasGoals ? "abaixo do ideal" : "sem dados"}
-                captionColor={hasGoals ? RED : "#777"}
+                iconCircle={<MaterialCommunityIcons name="flag-checkered" size={20} color="#EEE" />}
+                label="AINDA FALTA"
+                value={fcDelta ? fcDelta.remainingLabel : "—"}
+                caption={fcDelta ? fcDelta.verbRemaining : "sem dados"}
+                captionColor={fcDelta && fcDelta.remaining > 0 ? RED : GREEN}
               />
               <View style={s.statDividerV} />
+              {/* DIAS — neutro */}
               <Stat
                 iconCircle={<MaterialCommunityIcons name="calendar-month" size={20} color="#EEE" />}
-                label="DIAS RESTANTES"
+                label="DIAS"
                 value={hasGoals ? stats.daysLeft : "—"}
-                caption={hasGoals ? "para sua meta" : "—"}
+                caption={hasGoals ? "restantes" : "—"}
                 captionColor="#888"
               />
             </View>
