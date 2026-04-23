@@ -29,10 +29,18 @@ export default function Login() {
     setLoading(true);
     try {
       const m = await api.memberLogin(email.trim(), password);
+      // Tenta autenticar contra a coleção "users" com as MESMAS credenciais do
+      // membro. Se existir um user com esse email e mesma senha (ex.: admins
+      // e staff), o token é salvo e o app enxerga o role correto (admin/support/
+      // financeiro). Caso contrário, segue sem token — o membro segue como
+      // usuário comum e não vê áreas restritas.
       try {
-        const auth = await api.login("admin@farmaclube.com", "admin123");
+        const auth = await api.login(email.trim(), password);
         await setToken(auth.token);
-      } catch {}
+      } catch {
+        // Membro comum: sem conta em /users. Garante que não herda token antigo.
+        await setToken(null);
+      }
       await saveMember({
         member_id: m.member_id,
         member_number: (m as any).member_number,

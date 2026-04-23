@@ -70,10 +70,15 @@ export default function Enter() {
         state: state.trim().toUpperCase(),
         code: code.trim().toUpperCase(),
       });
+      // Tenta criar/vincular também uma conta em /users com as MESMAS
+      // credenciais (útil para staff). Membros comuns não têm conta em /users,
+      // então o catch garante que seguimos sem token de admin herdado.
       try {
-        const auth = await api.login("admin@farmaclube.com", "admin123");
+        const auth = await api.login(email.trim().toLowerCase(), password);
         await setToken(auth.token);
-      } catch {}
+      } catch {
+        await setToken(null);
+      }
       const m: MemberData = {
         member_id: res.member_id,
         name: res.name,
