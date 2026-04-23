@@ -17,6 +17,7 @@ import CircularProgress from "../../src/performance/CircularProgress";
 import LineChart from "../../src/performance/LineChart";
 import PieOverview from "../../src/performance/PieOverview";
 import CalendarPicker from "../../src/performance/CalendarPicker";
+import EditGoalForm from "../../src/performance/EditGoalForm";
 
 const GOLD = "#F5C150";
 const GREEN = "#2ECC71";
@@ -59,6 +60,7 @@ export default function PerformanceTab() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [progressModal, setProgressModal] = useState<Goal | null>(null);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [dailyMsg, setDailyMsg] = useState<DailyMessage | null>(null);
   const [dailyLoading, setDailyLoading] = useState(false);
 
@@ -151,6 +153,7 @@ export default function PerformanceTab() {
             {selectedGoal && (
               <GoalDetailCard goal={selectedGoal} width={W}
                 onRegister={() => setProgressModal(selectedGoal)}
+                onEdit={() => setEditingGoal(selectedGoal)}
                 onArchive={async () => {
                   try {
                     await api.goalArchive(selectedGoal.goal_id);
@@ -249,14 +252,25 @@ export default function PerformanceTab() {
           />
         )}
       </Modal>
+
+      {/* EDIT GOAL MODAL */}
+      <Modal visible={!!editingGoal} animationType="slide" transparent onRequestClose={() => setEditingGoal(null)}>
+        {editingGoal && (
+          <EditGoalForm
+            goal={editingGoal}
+            onClose={() => setEditingGoal(null)}
+            onSaved={async () => { setEditingGoal(null); await load(); }}
+          />
+        )}
+      </Modal>
     </SafeAreaView>
   );
 }
 
 /* ----------------------- GOAL DETAIL CARD ----------------------- */
 
-function GoalDetailCard({ goal, width, onRegister, onArchive }:
-  { goal: Goal; width: number; onRegister: () => void; onArchive: () => void }) {
+function GoalDetailCard({ goal, width, onRegister, onEdit, onArchive }:
+  { goal: Goal; width: number; onRegister: () => void; onEdit: () => void; onArchive: () => void }) {
   const meta = TYPE_META[goal.type];
   const color = goal.color || meta.color;
   const stt = statusLabel(goal.rhythm_status);
@@ -268,6 +282,23 @@ function GoalDetailCard({ goal, width, onRegister, onArchive }:
     return `${Math.round(goal.progress_pct)}%`;
   }, [goal]);
 
+  const openMenu = () => {
+    Alert.alert(
+      goal.title,
+      undefined,
+      [
+        { text: "Editar meta", onPress: onEdit },
+        { text: "Arquivar meta", style: "destructive", onPress: () => {
+          Alert.alert("Arquivar meta?", "A meta será oculta, mas o histórico é mantido.", [
+            { text: "Cancelar" },
+            { text: "Arquivar", style: "destructive", onPress: onArchive },
+          ]);
+        } },
+        { text: "Cancelar", style: "cancel" },
+      ],
+    );
+  };
+
   return (
     <View style={[st.card, { borderColor: `${color}35` }]}>
       <View style={st.cardHead}>
@@ -278,11 +309,8 @@ function GoalDetailCard({ goal, width, onRegister, onArchive }:
           <Text style={st.cardTitle} numberOfLines={1}>{goal.title.toUpperCase()}</Text>
           <Text style={st.cardSub}>{meta.label} · {stt.text}</Text>
         </View>
-        <TouchableOpacity onPress={() => Alert.alert("Arquivar meta?",
-          "A meta ficará oculta mas pode ser recuperada depois.",
-          [{ text: "Cancelar" }, { text: "Arquivar", onPress: onArchive, style: "destructive" }])}
-          hitSlop={10}>
-          <Ionicons name="ellipsis-horizontal" size={18} color="#777" />
+        <TouchableOpacity onPress={openMenu} hitSlop={14}>
+          <Ionicons name="ellipsis-horizontal" size={20} color="#AAA" />
         </TouchableOpacity>
       </View>
 

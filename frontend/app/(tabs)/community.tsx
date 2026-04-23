@@ -9,6 +9,7 @@ import { api, StoryGroup, Post, CommunityMember, Group } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
 import { notify } from "../../src/alerts";
+import CachedImage from "../../src/cached-image";
 
 type Tab = "foryou" | "following" | "recent" | "workouts";
 
@@ -233,7 +234,7 @@ function PostCard({ post, onAuthor, currentMemberId, onDelete }: {
         </TouchableOpacity>
       </TouchableOpacity>
       {post.text ? <Text style={styles.postText}>{post.text}</Text> : null}
-      {post.image_base64 ? <Image source={{ uri: post.image_base64 }} style={styles.postImg} /> : null}
+      {post.image_base64 ? <CachedImage source={{ uri: post.image_base64 }} style={styles.postImg} contentFit="cover" /> : null}
       <View style={styles.postActions}>
         <TouchableOpacity style={styles.reactBtn} onPress={() => react("fire")} testID={`react-fire-${post.post_id}`}>
           <Text style={styles.reactEmo}>🔥</Text><Text style={styles.reactCt}>{reactions.fire}</Text>

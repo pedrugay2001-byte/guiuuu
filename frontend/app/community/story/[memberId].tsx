@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
-  View, Text, StyleSheet, Image, TouchableOpacity, Animated, Dimensions,
-  ActivityIndicator, StatusBar, Pressable, PanResponder, Platform,
+  View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions,
+  ActivityIndicator, StatusBar, Pressable, PanResponder, Platform, Image,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,6 +9,7 @@ import { api, Story, StoryGroup } from "../../../src/api";
 import { TIERS } from "../../../src/theme";
 import { useGate } from "../../../src/gate";
 import { Alert } from "react-native";
+import CachedImage from "../../../src/cached-image";
 
 const { width, height } = Dimensions.get("window");
 const STORY_DURATION = 5000;
@@ -167,10 +168,10 @@ export default function StoryViewer() {
       {/* Media */}
       {story.image_base64 ? (
         <>
-          <Image
+          <CachedImage
             source={{ uri: story.image_base64 }}
             style={st.media}
-            resizeMode="cover"
+            contentFit="cover"
             onLoad={() => setImgLoaded(true)}
             onError={() => { setImgLoaded(true); }}
           />
