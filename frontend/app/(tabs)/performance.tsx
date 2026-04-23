@@ -18,6 +18,7 @@ import LineChart from "../../src/performance/LineChart";
 import PieOverview from "../../src/performance/PieOverview";
 import CalendarPicker from "../../src/performance/CalendarPicker";
 import EditGoalForm from "../../src/performance/EditGoalForm";
+import ActionSheet, { SheetAction } from "../../src/action-sheet";
 
 const GOLD = "#F5C150";
 const GREEN = "#2ECC71";
@@ -62,6 +63,8 @@ export default function PerformanceTab() {
   const [createOpen, setCreateOpen] = useState(false);
   const [progressModal, setProgressModal] = useState<Goal | null>(null);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [menuGoal, setMenuGoal] = useState<Goal | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState<Goal | null>(null);
 
   const load = useCallback(async () => {
     if (!member) return;
@@ -139,14 +142,7 @@ export default function PerformanceTab() {
             {selectedGoal && (
               <GoalDetailCard goal={selectedGoal} width={W}
                 onRegister={() => setProgressModal(selectedGoal)}
-                onEdit={() => setEditingGoal(selectedGoal)}
-                onArchive={async () => {
-                  try {
-                    await api.goalArchive(selectedGoal.goal_id);
-                    notify("Meta arquivada");
-                    await load();
-                  } catch {}
-                }}
+                onMenu={() => setMenuGoal(selectedGoal)}
               />
             )}
 
@@ -257,14 +253,48 @@ export default function PerformanceTab() {
           />
         )}
       </Modal>
+
+      {/* ACTION SHEET — menu da meta */}
+      <ActionSheet
+        visible={!!menuGoal}
+        title={menuGoal?.title}
+        subtitle={menuGoal ? TYPE_META[menuGoal.type].label : undefined}
+        onClose={() => setMenuGoal(null)}
+        actions={menuGoal ? [
+          { label: "Editar meta", icon: "create-outline",
+            onPress: () => { const g = menuGoal; setMenuGoal(null); setTimeout(() => setEditingGoal(g), 150); } },
+          { label: "Registrar progresso", icon: "add-circle-outline",
+            onPress: () => { const g = menuGoal; setMenuGoal(null); setTimeout(() => setProgressModal(g), 150); } },
+          { label: "Excluir meta", icon: "trash-outline", destructive: true,
+            onPress: () => { const g = menuGoal; setMenuGoal(null); setTimeout(() => setConfirmArchive(g), 150); } },
+        ] : []}
+      />
+
+      {/* ACTION SHEET — confirmar arquivamento */}
+      <ActionSheet
+        visible={!!confirmArchive}
+        title="Excluir meta?"
+        subtitle="Esta ação não pode ser desfeita. O histórico será perdido."
+        onClose={() => setConfirmArchive(null)}
+        actions={confirmArchive ? [
+          { label: "Sim, excluir meta", icon: "trash", destructive: true,
+            onPress: async () => {
+              try {
+                await api.goalArchive(confirmArchive.goal_id);
+                notify("Meta excluída");
+                await load();
+              } catch (e: any) { notify("Erro", e?.message || "Falha"); }
+            } },
+        ] : []}
+      />
     </SafeAreaView>
   );
 }
 
 /* ----------------------- GOAL DETAIL CARD ----------------------- */
 
-function GoalDetailCard({ goal, width, onRegister, onEdit, onArchive }:
-  { goal: Goal; width: number; onRegister: () => void; onEdit: () => void; onArchive: () => void }) {
+function GoalDetailCard({ goal, width, onRegister, onMenu }:
+  { goal: Goal; width: number; onRegister: () => void; onMenu: () => void }) {
   const meta = TYPE_META[goal.type];
   const color = goal.color || meta.color;
   const stt = statusLabel(goal.rhythm_status);
@@ -276,23 +306,6 @@ function GoalDetailCard({ goal, width, onRegister, onEdit, onArchive }:
     return `${Math.round(goal.progress_pct)}%`;
   }, [goal]);
 
-  const openMenu = () => {
-    Alert.alert(
-      goal.title,
-      undefined,
-      [
-        { text: "Editar meta", onPress: onEdit },
-        { text: "Arquivar meta", style: "destructive", onPress: () => {
-          Alert.alert("Arquivar meta?", "A meta será oculta, mas o histórico é mantido.", [
-            { text: "Cancelar" },
-            { text: "Arquivar", style: "destructive", onPress: onArchive },
-          ]);
-        } },
-        { text: "Cancelar", style: "cancel" },
-      ],
-    );
-  };
-
   return (
     <View style={[st.card, { borderColor: `${color}35` }]}>
       <View style={st.cardHead}>
@@ -303,7 +316,7 @@ function GoalDetailCard({ goal, width, onRegister, onEdit, onArchive }:
           <Text style={st.cardTitle} numberOfLines={1}>{goal.title.toUpperCase()}</Text>
           <Text style={st.cardSub}>{meta.label} · {stt.text}</Text>
         </View>
-        <TouchableOpacity onPress={openMenu} hitSlop={14}>
+        <TouchableOpacity onPress={onMenu} hitSlop={14} testID="goal-menu-btn">
           <Ionicons name="ellipsis-horizontal" size={20} color="#AAA" />
         </TouchableOpacity>
       </View>
@@ -710,6 +723,7 @@ function EntriesHistory({ goal, onDeleted }:
   { goal: Goal; onDeleted: () => Promise<void> | void }) {
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const color = goal.color || TYPE_META[goal.type].color;
 
   const load = useCallback(async () => {
@@ -722,18 +736,13 @@ function EntriesHistory({ goal, onDeleted }:
 
   useEffect(() => { load(); }, [load]);
 
-  const del = (entryId: string) => {
-    Alert.alert("Excluir registro?", "Esta ação não pode ser desfeita.", [
-      { text: "Cancelar" },
-      { text: "Excluir", style: "destructive", onPress: async () => {
-        try {
-          await api.goalDeleteEntry(goal.goal_id, entryId);
-          setEntries(prev => prev.filter(e => e.entry_id !== entryId));
-          await onDeleted();
-          notify("Registro excluído");
-        } catch (e: any) { notify("Erro", e?.message || "Falha ao excluir"); }
-      } },
-    ]);
+  const doDelete = async (entryId: string) => {
+    try {
+      await api.goalDeleteEntry(goal.goal_id, entryId);
+      setEntries(prev => prev.filter(e => e.entry_id !== entryId));
+      await onDeleted();
+      notify("Registro excluído");
+    } catch (e: any) { notify("Erro", e?.message || "Falha ao excluir"); }
   };
 
   if (loading) return (
@@ -764,13 +773,23 @@ function EntriesHistory({ goal, onDeleted }:
                 <Text style={st.entryVal}>{valTxt}</Text>
                 <Text style={st.entryDate}>{label}{e.note ? ` · ${e.note}` : ""}</Text>
               </View>
-              <TouchableOpacity onPress={() => del(e.entry_id)} hitSlop={10}>
+              <TouchableOpacity onPress={() => setConfirmDel(e.entry_id)} hitSlop={10}>
                 <Ionicons name="trash-outline" size={16} color="#FF5B5B" />
               </TouchableOpacity>
             </View>
           );
         })
       )}
+      <ActionSheet
+        visible={!!confirmDel}
+        title="Excluir registro?"
+        subtitle="Esta ação recalculará automaticamente seu progresso."
+        onClose={() => setConfirmDel(null)}
+        actions={confirmDel ? [
+          { label: "Sim, excluir", icon: "trash", destructive: true,
+            onPress: async () => { if (confirmDel) await doDelete(confirmDel); } },
+        ] : []}
+      />
     </View>
   );
 }
