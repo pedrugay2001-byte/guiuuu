@@ -40,7 +40,7 @@ export default function DMChat() {
     if (!member || !id) return;
     const t = setInterval(async () => {
       try { const m = await api.dmList(member.member_id, id); setMsgs(m); } catch {}
-    }, 5000);
+    }, 10000);
     return () => clearInterval(t);
   }, [member, id]);
 

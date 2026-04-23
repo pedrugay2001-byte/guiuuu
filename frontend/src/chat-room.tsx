@@ -63,7 +63,7 @@ export default function ChatRoom({ mode }: { mode: Mode }) {
   // Poll every 3s
   useEffect(() => {
     if (!memberId) return;
-    const t = setInterval(load, 3000);
+    const t = setInterval(load, 8000);
     return () => clearInterval(t);
   }, [memberId, load]);
 

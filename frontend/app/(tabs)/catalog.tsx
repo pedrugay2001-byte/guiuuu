@@ -31,6 +31,11 @@ const CAT_META: Record<string, { label: string; icon: string; color: string }> =
   landerlan:    { label: "Landerlan",     icon: "shield-checkmark", color: "#D4AF37" },
 };
 
+// Cache em memória simples (dura enquanto a app está aberta) para
+// dados que quase não mudam — evita refetch a cada troca de tela.
+const _catCache: { data?: Category[]; ts?: number } = {};
+const _CACHE_MS = 5 * 60 * 1000; // 5 min
+
 export default function Marketplace() {
   const router = useRouter();
   const { member } = useGate();
@@ -40,7 +45,7 @@ export default function Marketplace() {
 
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<Category[]>(_catCache.data || []);
   const [products, setProducts] = useState<Product[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,19 +53,30 @@ export default function Marketplace() {
   const load = useCallback(async () => {
     if (!hasMarketplaceAccess || !member) { setLoading(false); return; }
     try {
+      // Usa cache de categorias se recente (<5min)
+      const catsFresh = _catCache.data && _catCache.ts && (Date.now() - _catCache.ts) < _CACHE_MS;
+      const catsPromise = catsFresh
+        ? Promise.resolve(_catCache.data as Category[])
+        : api.categories(member.member_id).catch(() => [] as Category[]);
       const [cats, prods, aa] = await Promise.all([
-        api.categories(member.member_id).catch(() => []),
+        catsPromise,
         api.listProducts({ category: cat, q, member_id: member.member_id }).catch(() => []),
         api.listAds().catch(() => []),
       ]);
-      setCategories(cats);
+      if (!catsFresh) { _catCache.data = cats as Category[]; _catCache.ts = Date.now(); }
+      setCategories(cats as Category[]);
       setProducts(prods);
       setAds(aa.slice(0, 8));
     } finally { setLoading(false); }
   }, [cat, q, member, hasMarketplaceAccess]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
-  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [load]);
+  // Carrega no foco E debounce quando muda categoria/busca — sem duplicar
+  useFocusEffect(useCallback(() => { load(); }, [hasMarketplaceAccess, member?.member_id]));
+  useEffect(() => {
+    // Debounce apenas quando usuário digita/troca categoria
+    const t = setTimeout(load, 300);
+    return () => clearTimeout(t);
+  }, [cat, q]);
 
   // Descontos por tier (Silver 0%, Gold 15%, Diamond 30%)
   const tierDisc = useMemo(() => {
