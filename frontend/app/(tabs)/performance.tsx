@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Image,
-  useWindowDimensions, Alert,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -22,8 +22,8 @@ import ActionSheet, { SheetAction } from "../../src/action-sheet";
 
 const GOLD = "#F5C150";
 const GREEN = "#2ECC71";
+const ORANGE = "#F39C12";
 const RED = "#FF5B5B";
-const BLUE = "#7FD7E5";
 
 const TYPE_META: Record<GoalType, { label: string; icon: string; color: string; unitHint: string; description: string }> = {
   weight:       { label: "Peso / Saúde",   icon: "scale-bathroom", color: "#2ECC71", unitHint: "kg",     description: "Acompanhe peso, medidas ou saúde física" },
@@ -34,12 +34,12 @@ const TYPE_META: Record<GoalType, { label: string; icon: string; color: string; 
   productivity: { label: "Produtividade",  icon: "briefcase",      color: "#E67E22", unitHint: "h",      description: "Entregas, marcos e carreira" },
 };
 
-const PALETTE = ["#F5C150", "#2ECC71", "#5DADE2", "#A569BD", "#E67E22", "#FF6B9D", "#FFFFFF"];
+const PALETTE = ["#F5C150", "#2ECC71", "#5DADE2", "#A569BD", "#E67E22", "#FF6B9D", "#FFFFFF"]; void PALETTE;
 
 function statusLabel(s: string): { text: string; color: string } {
   if (s === "ahead") return { text: "Adiantado", color: GREEN };
-  if (s === "on_track") return { text: "No ritmo", color: BLUE };
-  if (s === "slightly_behind") return { text: "Levemente atrasado", color: "#E8C96B" };
+  if (s === "on_track") return { text: "No ritmo", color: GREEN };
+  if (s === "slightly_behind") return { text: "Levemente atrasado", color: ORANGE };
   if (s === "behind") return { text: "Atrasado", color: RED };
   return { text: "—", color: "#888" };
 }
@@ -122,39 +122,33 @@ export default function PerformanceTab() {
 
         {hasGoals && (
           <>
-            {/* SELETOR DE METAS com "Visão Geral" */}
+            {/* MINI STORIES — filtro de metas estilo Instagram */}
             <Text style={st.sectionLbl}>SUAS METAS</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 10, paddingVertical: 4, paddingRight: 10 }}>
-              {/* Chip "Visão Geral" */}
-              <TouchableOpacity
+              contentContainerStyle={{ gap: 14, paddingVertical: 6, paddingHorizontal: 2, paddingRight: 12 }}>
+              {/* Story "Visão Geral" */}
+              <MiniStory
+                active={!selectedId}
+                icon="grid-outline"
+                iconLib="ion"
+                label="Visão Geral"
+                color={GOLD}
                 onPress={() => setSelectedId(null as any)}
-                activeOpacity={0.85}
-                style={[st.goalChip, !selectedId && { borderColor: "#D4AF37", backgroundColor: "rgba(212,175,55,0.12)" }]}
-              >
-                <Ionicons name="grid" size={14} color={!selectedId ? "#D4AF37" : "#888"} />
-                <Text style={[st.goalChipTxt, !selectedId && { color: "#FFF" }]} numberOfLines={1}>
-                  Visão Geral
-                </Text>
-              </TouchableOpacity>
+              />
               {goals.map(g => {
-                const selected = g.goal_id === selectedId;
                 const meta = TYPE_META[g.type];
                 const color = g.color || meta.color;
                 return (
-                  <TouchableOpacity key={g.goal_id}
+                  <MiniStory
+                    key={g.goal_id}
+                    active={g.goal_id === selectedId}
+                    icon={meta.icon}
+                    iconLib="mc"
+                    label={g.title}
+                    color={color}
+                    progress={g.progress_pct}
                     onPress={() => setSelectedId(g.goal_id)}
-                    activeOpacity={0.85}
-                    style={[st.goalChip, selected && { borderColor: color, backgroundColor: `${color}18` }]}>
-                    <MaterialCommunityIcons name={meta.icon as any} size={15}
-                      color={selected ? color : "#888"} />
-                    <Text style={[st.goalChipTxt, selected && { color: "#FFF" }]} numberOfLines={1}>
-                      {g.title}
-                    </Text>
-                    <View style={[st.goalChipPct, { backgroundColor: `${color}22` }]}>
-                      <Text style={[st.goalChipPctTxt, { color }]}>{Math.round(g.progress_pct)}%</Text>
-                    </View>
-                  </TouchableOpacity>
+                  />
                 );
               })}
             </ScrollView>
@@ -166,6 +160,9 @@ export default function PerformanceTab() {
                 onMenu={() => setMenuGoal(selectedGoal)}
               />
             )}
+
+            {/* VISÃO GERAL — card consolidado quando nenhuma meta selecionada */}
+            {!selectedGoal && <OverviewCard goals={goals} /> }
 
             {/* MENSAGEM DO DIA - banner discreto (abre tela dedicada) */}
             {selectedGoal && (
@@ -209,8 +206,8 @@ export default function PerformanceTab() {
               />
             )}
 
-            {/* RESUMO GERAL - PIZZA */}
-            {goals.length >= 1 && (
+            {/* RESUMO GERAL - PIZZA (apenas quando há meta selecionada) */}
+            {selectedGoal && goals.length >= 2 && (
               <View style={st.card}>
                 <View style={st.cardHead}>
                   <Text style={st.cardTitle}>RESUMO GERAL</Text>
@@ -308,6 +305,114 @@ export default function PerformanceTab() {
             } },
         ] : []}
       />
+    </View>
+  );
+}
+
+/* ----------------------- MINI STORY (filtro circular) ----------------------- */
+
+function MiniStory({
+  active, icon, iconLib, label, color, progress, onPress,
+}: {
+  active: boolean; icon: string; iconLib: "mc" | "ion"; label: string;
+  color: string; progress?: number; onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={st.msWrap}>
+      <View style={[st.msRing, active && { borderColor: color, borderWidth: 2.5 }]}>
+        <View style={[st.msCircle, { backgroundColor: `${color}1F`, borderColor: `${color}55` }]}>
+          {iconLib === "ion" ? (
+            <Ionicons name={icon as any} size={24} color={color} />
+          ) : (
+            <MaterialCommunityIcons name={icon as any} size={26} color={color} />
+          )}
+        </View>
+        {typeof progress === "number" && (
+          <View style={[st.msBadge, { backgroundColor: color }]}>
+            <Text style={st.msBadgeTxt}>{Math.round(progress)}%</Text>
+          </View>
+        )}
+      </View>
+      <Text style={[st.msLabel, active && { color: "#FFF", fontWeight: "800" }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+/* ----------------------- OVERVIEW CARD (Visão Geral) ----------------------- */
+
+function OverviewCard({ goals }: { goals: Goal[] }) {
+  const stats = useMemo(() => {
+    const total = goals.length;
+    const avg = total ? Math.round(goals.reduce((s, g) => s + g.progress_pct, 0) / total) : 0;
+    const onTrack = goals.filter(g => g.rhythm_status === "on_track" || g.rhythm_status === "ahead").length;
+    const behind = goals.filter(g => g.rhythm_status === "behind").length;
+    const mid = total - onTrack - behind;
+    return { total, avg, onTrack, behind, mid };
+  }, [goals]);
+
+  return (
+    <View style={[st.card, { borderColor: "rgba(212,175,55,0.25)" }]}>
+      <View style={st.cardHead}>
+        <View style={[st.goalIcon, { backgroundColor: "rgba(212,175,55,0.18)", borderColor: "rgba(212,175,55,0.45)" }]}>
+          <Ionicons name="grid" size={18} color={GOLD} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={st.cardTitle}>VISÃO GERAL</Text>
+          <Text style={st.cardSub}>{stats.total} {stats.total === 1 ? "meta ativa" : "metas ativas"}</Text>
+        </View>
+      </View>
+
+      {/* KPIs */}
+      <View style={st.kpiRow}>
+        <View style={st.kpiBox}>
+          <Text style={[st.kpiVal, { color: GOLD }]}>{stats.avg}%</Text>
+          <Text style={st.kpiLbl}>PROGRESSO MÉDIO</Text>
+        </View>
+        <View style={st.kpiDivider} />
+        <View style={st.kpiBox}>
+          <Text style={[st.kpiVal, { color: GREEN }]}>{stats.onTrack}</Text>
+          <Text style={st.kpiLbl}>NO RITMO</Text>
+        </View>
+        <View style={st.kpiDivider} />
+        <View style={st.kpiBox}>
+          <Text style={[st.kpiVal, { color: stats.behind > 0 ? RED : "#888" }]}>{stats.behind}</Text>
+          <Text style={st.kpiLbl}>ATRASADAS</Text>
+        </View>
+      </View>
+
+      {/* PIZZA + LEGENDA */}
+      {goals.length >= 1 && (
+        <View style={{ flexDirection: "row", gap: 16, alignItems: "center", marginTop: 16 }}>
+          <PieOverview
+            size={130}
+            data={goals.map(g => ({
+              label: g.title, value: Math.max(g.progress_pct, 1),
+              color: g.color || TYPE_META[g.type].color,
+            }))}
+          />
+          <View style={{ flex: 1, gap: 10 }}>
+            {goals.map(g => {
+              const color = g.color || TYPE_META[g.type].color;
+              const statusColor = g.rhythm_status === "behind" ? RED
+                : g.rhythm_status === "slightly_behind" ? ORANGE : GREEN;
+              return (
+                <View key={g.goal_id} style={st.legRow}>
+                  <View style={[st.legColor, { backgroundColor: color }]} />
+                  <Text style={st.legName} numberOfLines={1}>{g.title}</Text>
+                  <View style={[st.legStatusDot, { backgroundColor: statusColor }]} />
+                  <Text style={st.legPct}>{Math.round(g.progress_pct)}%</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
+      <Text style={st.overviewHint}>
+        Toque em uma meta acima para ver detalhes e registrar progresso.
+      </Text>
     </View>
   );
 }
@@ -446,7 +551,61 @@ function NumBlock({ label, value, color = "#EEE" }: { label: string; value: stri
   );
 }
 
-/* ----------------------- CREATE GOAL FORM ----------------------- */
+/* ----------------------- CREATE GOAL FORM (DINÂMICO) ----------------------- */
+
+type FieldCopy = {
+  initialLbl: string; initialPh: string;
+  currentLbl: string; currentPh: string;
+  targetLbl: string;  targetPh: string;
+  unitHint: string;
+  helpText: string;
+};
+
+function fieldCopy(t: GoalType): FieldCopy {
+  switch (t) {
+    case "weight":
+    case "fitness":
+      return {
+        initialLbl: "PESO INICIAL", initialPh: "95",
+        currentLbl: "PESO ATUAL",   currentPh: "92",
+        targetLbl:  "PESO DESEJADO", targetPh: "85",
+        unitHint: "kg",
+        helpText: "Registre seu peso periodicamente. O app calcula o ritmo ideal por dia.",
+      };
+    case "financial":
+      return {
+        initialLbl: "SALDO INICIAL (R$)", initialPh: "10000",
+        currentLbl: "SALDO ATUAL (R$)",   currentPh: "12500",
+        targetLbl:  "META (R$)",          targetPh: "50000",
+        unitHint: "R$",
+        helpText: "Registre atualizações de patrimônio/caixa para ver o progresso em tempo real.",
+      };
+    case "habit":
+      return {
+        initialLbl: "JÁ FEITOS", initialPh: "0",
+        currentLbl: "CHECK-INS ATUAIS", currentPh: "0",
+        targetLbl:  "META DE DIAS", targetPh: "90",
+        unitHint: "dias",
+        helpText: "Cada registro = 1 check-in. Mantenha a sequência para criar o hábito.",
+      };
+    case "behavior":
+      return {
+        initialLbl: "SCORE INICIAL (0-10)", initialPh: "5",
+        currentLbl: "SCORE ATUAL (0-10)", currentPh: "6",
+        targetLbl:  "SCORE ALVO (0-10)", targetPh: "9",
+        unitHint: "/10",
+        helpText: "Dê uma nota diária (0-10). O app calcula sua média e evolução.",
+      };
+    case "productivity":
+      return {
+        initialLbl: "PONTO DE PARTIDA", initialPh: "0",
+        currentLbl: "ATUAL", currentPh: "12",
+        targetLbl:  "META",  targetPh: "120",
+        unitHint: "h",
+        helpText: "Horas, entregas ou marcos. Use a unidade que fizer sentido pra você.",
+      };
+  }
+}
 
 function CreateGoalForm({ memberId, onClose, onSaved }:
   { memberId: string; onClose: () => void; onSaved: (g: Goal) => void }) {
@@ -456,22 +615,28 @@ function CreateGoalForm({ memberId, onClose, onSaved }:
   const [current, setCurrent] = useState("");
   const [target, setTarget] = useState("");
   const [unit, setUnit] = useState(TYPE_META.weight.unitHint);
+  const today = new Date().toISOString().slice(0, 10);
+  const [startDate, setStartDate] = useState<string>(today);
   const [endDate, setEndDate] = useState<string>(() => {
     const d = new Date(); d.setDate(d.getDate() + 90);
     return d.toISOString().slice(0, 10);
   });
   const [color, setColor] = useState<string>(TYPE_META.weight.color);
-  const [description, setDescription] = useState("");
   const [motive, setMotive] = useState("");
   const [photoInitial, setPhotoInitial] = useState<string | null>(null);
-  const [showCal, setShowCal] = useState(false);
+  const [calOpen, setCalOpen] = useState<"start" | "end" | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const copy = fieldCopy(type);
 
   const applyType = (t: GoalType) => {
     setType(t);
     const m = TYPE_META[t];
-    setUnit(m.unitHint);
+    const c = fieldCopy(t);
+    setUnit(c.unitHint);
     setColor(m.color);
+    // Reset values quando muda tipo (deixa usuário preencher de novo)
+    setInitial(""); setCurrent(""); setTarget("");
     if (t === "habit") { setInitial("0"); setCurrent("0"); }
     if (t === "behavior") { setInitial("5"); setCurrent("5"); }
   };
@@ -485,18 +650,22 @@ function CreateGoalForm({ memberId, onClose, onSaved }:
 
   const submit = async () => {
     if (!title.trim()) return notify("Dê um título pra sua meta.");
+    // Autofill current com initial se usuário não mexeu no atual
+    const i = parseFloat(initial || current || "0");
+    const c = parseFloat(current || initial || "0");
     const t = parseFloat(target);
-    const c = parseFloat(current || initial);
-    const i = parseFloat(initial || current);
     if (isNaN(c) || isNaN(t) || isNaN(i)) return notify("Preencha valores válidos.");
-    if (!endDate) return notify("Defina a data final.");
+    if (!endDate || !startDate) return notify("Defina as datas inicial e final.");
+    if (new Date(endDate) <= new Date(startDate)) {
+      return notify("Data final precisa ser depois da inicial.");
+    }
     setSaving(true);
     try {
       const g = await api.goalCreate({
         member_id: memberId, type, title: title.trim(),
         initial_value: i, current_value: c, target_value: t,
-        unit: unit.trim(), end_date: endDate,
-        color, description: description.trim(), motive: motive.trim(),
+        unit: unit.trim(), start_date: startDate, end_date: endDate,
+        color, motive: motive.trim(),
         photo_initial: photoInitial,
       });
       notify("Meta criada!", "Agora é só manter o ritmo.");
@@ -506,24 +675,36 @@ function CreateGoalForm({ memberId, onClose, onSaved }:
     } finally { setSaving(false); }
   };
 
-  const prettyEnd = (() => {
+  const prettyDate = (iso: string) => {
     try {
-      const d = new Date(endDate + "T00:00:00");
-      return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
-    } catch { return endDate; }
-  })();
+      const d = new Date(iso + "T00:00:00");
+      return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+    } catch { return iso; }
+  };
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
       <View style={st.modalBackdrop}>
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ justifyContent: "flex-end", flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled">
-          <View style={st.createCard}>
-            <View style={st.wtdHead}>
-              <Text style={st.wtdTitle}>NOVA META</Text>
-              <TouchableOpacity onPress={onClose}><Ionicons name="close" size={22} color="#FFF" /></TouchableOpacity>
+        {/* Espaçador superior clicável para fechar */}
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+        <View style={st.createCardFixed}>
+          {/* HEADER FIXO — X sempre acessível */}
+          <View style={st.stickyHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={st.stickyKicker}>NOVA META</Text>
+              <Text style={st.stickyTitle}>{TYPE_META[type].label}</Text>
             </View>
+            <TouchableOpacity onPress={onClose} style={st.closeBtn} hitSlop={10} testID="close-create-goal">
+              <Ionicons name="close" size={22} color="#FFF" />
+            </TouchableOpacity>
+          </View>
 
+          <ScrollView
+            style={{ maxHeight: "100%" }}
+            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <Text style={st.inpLbl}>TIPO DE META</Text>
             <View style={st.typeGrid}>
               {(["weight", "financial", "habit", "behavior", "productivity"] as GoalType[]).map((t) => {
@@ -539,66 +720,115 @@ function CreateGoalForm({ memberId, onClose, onSaved }:
                 );
               })}
             </View>
-            <Text style={st.typeDesc}>{TYPE_META[type].description}</Text>
+            <Text style={st.typeDesc}>{copy.helpText}</Text>
 
             <Text style={st.inpLbl}>TÍTULO</Text>
             <TextInput style={st.inp} value={title} onChangeText={setTitle}
-              placeholder="Ex: Perder 8kg em 90 dias" placeholderTextColor="#555" />
+              placeholder={
+                type === "weight" ? "Ex: Perder 8kg em 90 dias"
+                : type === "financial" ? "Ex: Acumular 50k pra viagem"
+                : type === "habit" ? "Ex: Ler 20min por dia"
+                : type === "behavior" ? "Ex: Paciência com a família"
+                : "Ex: 120h de estudo de inglês"
+              } placeholderTextColor="#555" />
 
+            {/* CAMPOS DINÂMICOS */}
+            {type === "habit" ? (
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.inpLbl}>{copy.currentLbl}</Text>
+                  <TextInput style={st.inp} value={current} onChangeText={setCurrent}
+                    keyboardType="number-pad" placeholder={copy.currentPh} placeholderTextColor="#555" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.inpLbl}>{copy.targetLbl}</Text>
+                  <TextInput style={st.inp} value={target} onChangeText={setTarget}
+                    keyboardType="number-pad" placeholder={copy.targetPh} placeholderTextColor="#555" />
+                </View>
+              </View>
+            ) : type === "behavior" ? (
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.inpLbl}>{copy.currentLbl}</Text>
+                  <TextInput style={st.inp} value={current} onChangeText={(v) => { setCurrent(v); setInitial(v); }}
+                    keyboardType="decimal-pad" placeholder={copy.currentPh} placeholderTextColor="#555" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.inpLbl}>{copy.targetLbl}</Text>
+                  <TextInput style={st.inp} value={target} onChangeText={setTarget}
+                    keyboardType="decimal-pad" placeholder={copy.targetPh} placeholderTextColor="#555" />
+                </View>
+              </View>
+            ) : (
+              <>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={st.inpLbl}>{copy.initialLbl}</Text>
+                    <TextInput style={st.inp} value={initial}
+                      onChangeText={(v) => { setInitial(v); if (!current) setCurrent(v); }}
+                      keyboardType="decimal-pad" placeholder={copy.initialPh} placeholderTextColor="#555" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={st.inpLbl}>{copy.targetLbl}</Text>
+                    <TextInput style={st.inp} value={target} onChangeText={setTarget}
+                      keyboardType="decimal-pad" placeholder={copy.targetPh} placeholderTextColor="#555" />
+                  </View>
+                </View>
+                <Text style={st.hintTiny}>
+                  Começando hoje? Seu valor atual é igual ao inicial. Registre progresso depois.
+                </Text>
+              </>
+            )}
+
+            {/* DATAS — Inicial + Final lado a lado */}
             <View style={{ flexDirection: "row", gap: 10 }}>
               <View style={{ flex: 1 }}>
-                <Text style={st.inpLbl}>INICIAL</Text>
-                <TextInput style={st.inp} value={initial} onChangeText={setInitial}
-                  keyboardType="decimal-pad" placeholder="95" placeholderTextColor="#555" />
+                <Text style={st.inpLbl}>DATA INICIAL</Text>
+                <TouchableOpacity
+                  style={[st.inp, st.inpDate, calOpen === "start" && { borderColor: color }]}
+                  onPress={() => setCalOpen(v => v === "start" ? null : "start")} activeOpacity={0.8}>
+                  <Text style={st.dateTxt}>{prettyDate(startDate)}</Text>
+                  <Ionicons name="calendar-outline" size={16} color={color} />
+                </TouchableOpacity>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={st.inpLbl}>ATUAL</Text>
-                <TextInput style={st.inp} value={current} onChangeText={setCurrent}
-                  keyboardType="decimal-pad" placeholder="92" placeholderTextColor="#555" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={st.inpLbl}>META</Text>
-                <TextInput style={st.inp} value={target} onChangeText={setTarget}
-                  keyboardType="decimal-pad" placeholder="87" placeholderTextColor="#555" />
-              </View>
-              <View style={{ width: 70 }}>
-                <Text style={st.inpLbl}>UNIDADE</Text>
-                <TextInput style={st.inp} value={unit} onChangeText={setUnit}
-                  placeholder="kg" placeholderTextColor="#555" />
+                <Text style={st.inpLbl}>DATA FINAL</Text>
+                <TouchableOpacity
+                  style={[st.inp, st.inpDate, calOpen === "end" && { borderColor: color }]}
+                  onPress={() => setCalOpen(v => v === "end" ? null : "end")} activeOpacity={0.8}>
+                  <Text style={st.dateTxt}>{prettyDate(endDate)}</Text>
+                  <Ionicons name="calendar-outline" size={16} color={color} />
+                </TouchableOpacity>
               </View>
             </View>
 
-            <Text style={st.inpLbl}>DATA FINAL</Text>
-            <TouchableOpacity style={[st.inp, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}
-              onPress={() => setShowCal(v => !v)} activeOpacity={0.8}>
-              <Text style={{ color: "#FFF", fontSize: 14 }}>{prettyEnd}</Text>
-              <Ionicons name="calendar" size={18} color={GOLD} />
-            </TouchableOpacity>
-            {showCal && (
+            {calOpen && (
               <View style={{ marginTop: 10 }}>
-                <CalendarPicker value={endDate} onChange={(iso) => { setEndDate(iso); setShowCal(false); }}
-                  minDate={new Date().toISOString().slice(0, 10)} color={color} />
+                <CalendarPicker
+                  value={calOpen === "start" ? startDate : endDate}
+                  onChange={(iso) => {
+                    if (calOpen === "start") setStartDate(iso);
+                    else setEndDate(iso);
+                    setCalOpen(null);
+                  }}
+                  minDate={calOpen === "end" ? startDate : undefined}
+                  color={color}
+                />
               </View>
             )}
 
-            <Text style={st.inpLbl}>COR DA META</Text>
-            <View style={st.colorRow}>
-              {PALETTE.map(c => (
-                <TouchableOpacity key={c} onPress={() => setColor(c)}
-                  style={[st.colorDot, { backgroundColor: c }, color === c && st.colorDotActive]} />
-              ))}
-            </View>
-
-            <Text style={st.inpLbl}>MOTIVO (por que essa meta?)</Text>
+            <Text style={st.inpLbl}>MOTIVO (por que essa meta é importante?)</Text>
             <TextInput style={[st.inp, { height: 60 }]} value={motive} onChangeText={setMotive}
-              multiline placeholder="Ex: Quero ter saúde para brincar com meus filhos..."
+              multiline placeholder={
+                type === "weight" ? "Ex: Saúde e disposição para minha família..."
+                : type === "financial" ? "Ex: Liberdade, segurança e oportunidades..."
+                : type === "habit" ? "Ex: Quero me tornar alguém consistente..."
+                : type === "behavior" ? "Ex: Ser uma versão melhor para quem amo..."
+                : "Ex: Subir de nível na minha carreira..."
+              }
               placeholderTextColor="#555" />
 
-            <Text style={st.inpLbl}>DESCRIÇÃO (opcional)</Text>
-            <TextInput style={[st.inp, { height: 50 }]} value={description} onChangeText={setDescription}
-              multiline placeholder="Detalhes da sua meta" placeholderTextColor="#555" />
-
-            <Text style={st.inpLbl}>FOTO INICIAL (antes)</Text>
+            <Text style={st.inpLbl}>FOTO INICIAL (opcional)</Text>
             <TouchableOpacity style={st.photoBtn} onPress={pickPhoto} activeOpacity={0.85}>
               {photoInitial ? (
                 <Image source={{ uri: photoInitial.startsWith("data:") ? photoInitial : `data:image/jpeg;base64,${photoInitial}` }}
@@ -606,7 +836,7 @@ function CreateGoalForm({ memberId, onClose, onSaved }:
               ) : (
                 <>
                   <Ionicons name="camera" size={20} color="#888" />
-                  <Text style={st.photoBtnTxt}>Adicionar foto</Text>
+                  <Text style={st.photoBtnTxt}>Adicionar foto de referência</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -615,9 +845,9 @@ function CreateGoalForm({ memberId, onClose, onSaved }:
               onPress={submit} disabled={saving} activeOpacity={0.88}>
               {saving ? <ActivityIndicator color="#000" /> : <Text style={st.saveTxt}>CRIAR META</Text>}
             </TouchableOpacity>
-            <View style={{ height: 16 }} />
-          </View>
-        </ScrollView>
+            <View style={{ height: 24 }} />
+          </ScrollView>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -953,4 +1183,54 @@ const st = StyleSheet.create({
     borderColor: "rgba(200,200,200,0.3)", backgroundColor: "#0A0A0A", marginTop: 12 },
   dmBannerTxt: { color: "#EEE", fontSize: 13, fontWeight: "700", flex: 1 },
   dmBannerSub: { color: "#999", fontSize: 11, fontWeight: "500", marginTop: 2 },
+
+  // NOVO — Botão "Nova Meta" dourado
+  newGoalBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 13, borderRadius: 14, marginBottom: 6, backgroundColor: GOLD,
+    shadowColor: GOLD, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  newGoalTxt: { color: "#000", fontWeight: "900", letterSpacing: 2, fontSize: 12 },
+
+  // NOVO — Mini Stories (filtro circular de metas)
+  msWrap: { alignItems: "center", width: 72 },
+  msRing: { width: 62, height: 62, borderRadius: 31, alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderColor: "rgba(255,255,255,0.08)", padding: 2 },
+  msCircle: { width: "100%", height: "100%", borderRadius: 29, alignItems: "center",
+    justifyContent: "center", borderWidth: 1 },
+  msBadge: { position: "absolute", bottom: -3, right: -4, borderRadius: 10, paddingHorizontal: 5,
+    paddingVertical: 1.5, minWidth: 28, alignItems: "center",
+    borderWidth: 2, borderColor: "#050505" },
+  msBadgeTxt: { color: "#000", fontSize: 8.5, fontWeight: "900" },
+  msLabel: { color: "#AAA", fontSize: 10.5, fontWeight: "600", marginTop: 6,
+    textAlign: "center", maxWidth: 74 },
+
+  // NOVO — Visão Geral (OverviewCard)
+  kpiRow: { flexDirection: "row", alignItems: "center", marginTop: 16,
+    backgroundColor: "rgba(255,255,255,0.02)", borderRadius: 12, borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)", paddingVertical: 12 },
+  kpiBox: { flex: 1, alignItems: "center", gap: 4 },
+  kpiVal: { fontSize: 22, fontWeight: "900" },
+  kpiLbl: { color: "#888", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  kpiDivider: { width: 1, height: 28, backgroundColor: "rgba(255,255,255,0.08)" },
+  legStatusDot: { width: 7, height: 7, borderRadius: 4 },
+  overviewHint: { color: "#777", fontSize: 11.5, fontStyle: "italic", marginTop: 14, textAlign: "center" },
+
+  // NOVO — Create Goal modal fixo (X sempre acessível)
+  createCardFixed: {
+    backgroundColor: "#0B0B0B", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    borderTopWidth: 1, borderColor: "rgba(245,193,80,0.3)",
+    maxHeight: "88%",
+  },
+  stickyHeader: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14,
+    borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+  stickyKicker: { color: GOLD, fontSize: 10, fontWeight: "900", letterSpacing: 2 },
+  stickyTitle: { color: "#FFF", fontSize: 15, fontWeight: "800", marginTop: 2 },
+  closeBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center",
+    justifyContent: "center", backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+  inpDate: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  dateTxt: { color: "#FFF", fontSize: 13, fontWeight: "600" },
+  hintTiny: { color: "#666", fontSize: 10.5, marginTop: 6, fontStyle: "italic" },
 });

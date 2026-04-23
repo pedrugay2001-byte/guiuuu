@@ -510,6 +510,34 @@ test_plan:
   test_all: false
   test_priority: "high_first"
 
+
+    - agent: "main"
+      message: |
+        CENTRAL DE PERFORMANCE — Refatoração P0 concluída em /app/frontend/app/(tabs)/performance.tsx:
+          1. Mini Stories circulares no topo substituem os chips. Avatar circular com cor/ícone por tipo + badge de progresso.
+             Primeiro item é "Visão Geral" (dourado). Clicar filtra a tela abaixo.
+          2. Modo "Visão Geral" (selectedId=null) exibe novo OverviewCard com:
+             • KPIs: Progresso Médio, Nº No Ritmo, Nº Atrasadas
+             • Pizza PieOverview + legenda com dots de status (verde/laranja/vermelho)
+             • Hint "Toque em uma meta para detalhes"
+          3. CreateGoalForm reconstruído:
+             • Header FIXO com título dinâmico (tipo selecionado) e botão X sempre acessível no topo
+             • maxHeight: 88% + ScrollView interno (X nunca some)
+             • DATA INICIAL + DATA FINAL lado a lado; calendário expansível pelo toque
+             • Campos DINÂMICOS por tipo via fieldCopy():
+                - weight/fitness: PESO INICIAL + PESO DESEJADO (unit kg)
+                - financial: SALDO INICIAL + META (R$)
+                - habit: CHECK-INS ATUAIS + META DE DIAS
+                - behavior: SCORE ATUAL + SCORE ALVO (0-10)
+                - productivity: PONTO DE PARTIDA + META (h)
+             • Placeholders e título/motivo adaptam ao tipo
+             • Removida paleta de cores manual (cor vem automaticamente do tipo)
+          4. statusLabel agora usa APENAS green/orange/red (on_track também verde).
+          5. Botão dourado "NOVA META" destacado acima das mini stories.
+        Validação visual via screenshot: Mini Stories, Visão Geral KPI+Pie, Modal Peso, Modal Hábitos ✓ todos OK.
+        Aguardando validação do usuário antes de seguir para P1 (separar bell/mensagens, back buttons globais).
+
+
 agent_communication:
     - agent: "testing"
       message: |
