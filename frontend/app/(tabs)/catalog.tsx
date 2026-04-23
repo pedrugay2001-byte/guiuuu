@@ -193,49 +193,56 @@ export default function Marketplace() {
           })}
         </ScrollView>
 
-        {/* MEMBROS BLACK DIAMOND — exclusivo Diamond, banner premium em AZUL */}
+        {/* MEMBROS BLACK DIAMOND — apresentação leve e elegante */}
         {isDiamond && (
           <View style={st.diamondSection}>
-            <View style={st.diamondHero}>
-              <View style={st.diamondHeroIcon}>
-                <Ionicons name="diamond" size={26} color="#FFF" />
+            {/* Divisor elegante com título embutido */}
+            <View style={st.diamondDivider}>
+              <View style={st.diamondDividerLine} />
+              <View style={st.diamondDividerBadge}>
+                <Ionicons name="diamond" size={10} color={DIAMOND_BLUE} />
+                <Text style={st.diamondDividerTxt}>CÍRCULO DIAMANTE</Text>
+                <Ionicons name="diamond" size={10} color={DIAMOND_BLUE} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={st.diamondKicker}>CÍRCULO BLACK DIAMOND</Text>
-                <Text style={st.diamondTitle}>Transações privadas entre membros</Text>
-                <Text style={st.diamondSub}>
-                  Acesso restrito ao tier Diamante. Ambiente verificado, custódia em BLEX Token e liquidação instantânea entre membros qualificados.
-                </Text>
-              </View>
+              <View style={st.diamondDividerLine} />
+            </View>
+
+            {/* Subheader simples */}
+            <View style={st.diamondSubheadRow}>
+              <Text style={st.diamondSubheadTxt}>Transações privadas entre membros</Text>
+              <TouchableOpacity
+                onPress={() => router.push("/ads")}
+                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                style={st.diamondSeeAllBtn}
+              >
+                <Text style={st.diamondSeeAllTxt}>VER TUDO</Text>
+                <Ionicons name="arrow-forward" size={11} color={DIAMOND_BLUE} />
+              </TouchableOpacity>
             </View>
 
             {ads.length > 0 ? (
-              <>
-                <View style={[st.sectionHead, { marginTop: 4 }]}>
-                  <Text style={[st.sectionTitle, { color: DIAMOND_BLUE }]}>ANÚNCIOS DA ELITE</Text>
-                  <TouchableOpacity onPress={() => router.push("/ads")} hitSlop={{ top: 6, right: 6, bottom: 6, left: 6 }}>
-                    <Text style={[st.sectionLink, { color: DIAMOND_BLUE }]}>Ver todos →</Text>
-                  </TouchableOpacity>
-                </View>
-                <FlatList
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  data={ads}
-                  keyExtractor={(a) => a.ad_id}
-                  contentContainerStyle={{ paddingHorizontal: 14, gap: 10 }}
-                  renderItem={({ item }) => <AdCard ad={item} onPress={() => router.push({ pathname: "/ads/[id]", params: { id: item.ad_id } })} />}
-                />
-              </>
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={ads}
+                keyExtractor={(a) => a.ad_id}
+                contentContainerStyle={{ paddingHorizontal: 14, gap: 10 }}
+                renderItem={({ item }) => <AdCard ad={item} onPress={() => router.push({ pathname: "/ads/[id]", params: { id: item.ad_id } })} />}
+              />
             ) : (
               <TouchableOpacity
                 style={st.diamondEmptyCta}
                 onPress={() => router.push("/ads")}
                 activeOpacity={0.88}
               >
+                <Ionicons name="diamond-outline" size={14} color={DIAMOND_BLUE} />
                 <Text style={st.diamondEmptyCtaTxt}>EXPLORAR MARKETPLACE DIAMOND</Text>
-                <Ionicons name="chevron-forward" size={16} color={DIAMOND_BLUE} />
+                <Ionicons name="chevron-forward" size={14} color={DIAMOND_BLUE} />
               </TouchableOpacity>
             )}
+
+            {/* Fechamento do círculo com divider */}
+            <View style={st.diamondCloseLine} />
           </View>
         )}
 
@@ -356,61 +363,61 @@ const st = StyleSheet.create({
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 18 },
   sectionLink: { color: GOLD, fontSize: 11, fontWeight: "800" },
 
-  // === MEMBROS BLACK DIAMOND — banner exclusivo em AZUL ===
+  // === MEMBROS BLACK DIAMOND — apresentação leve e minimalista ===
   diamondSection: {
-    marginTop: 16,
-    marginHorizontal: 14,
-    borderRadius: 18,
-    overflow: "hidden",
-    borderWidth: 1.5,
-    borderColor: "rgba(127,215,229,0.45)",
+    marginTop: 26, marginBottom: 8,
+  },
+  // Divisor elegante com título embutido estilo "─── CÍRCULO DIAMANTE ───"
+  diamondDivider: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 24, marginBottom: 14,
+  },
+  diamondDividerLine: {
+    flex: 1, height: 1,
+    backgroundColor: "rgba(127,215,229,0.25)",
+  },
+  diamondDividerBadge: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 5,
+    marginHorizontal: 10,
+    borderRadius: 20, borderWidth: 1,
+    borderColor: "rgba(127,215,229,0.35)",
     backgroundColor: "rgba(127,215,229,0.06)",
-    paddingBottom: 16,
   },
-  diamondHero: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(127,215,229,0.12)",
+  diamondDividerTxt: {
+    color: DIAMOND_BLUE, fontSize: 9.5,
+    fontWeight: "900", letterSpacing: 2,
   },
-  diamondHeroIcon: {
-    width: 54, height: 54, borderRadius: 27,
-    backgroundColor: DIAMOND_BLUE,
-    alignItems: "center", justifyContent: "center",
-    shadowColor: DIAMOND_BLUE,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
-    elevation: 4,
+  diamondSubheadRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 18, marginBottom: 12,
   },
-  diamondKicker: {
-    color: DIAMOND_BLUE,
-    fontSize: 10, fontWeight: "900", letterSpacing: 2.5,
+  diamondSubheadTxt: {
+    color: "#AAA", fontSize: 12, fontWeight: "600", letterSpacing: 0.2,
+    flex: 1, marginRight: 10,
   },
-  diamondTitle: {
-    color: "#FFF", fontSize: 17, fontWeight: "900",
-    marginTop: 4, letterSpacing: 0.3,
+  diamondSeeAllBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingVertical: 4, paddingHorizontal: 2,
   },
-  diamondSub: {
-    color: "#C8E8EE",
-    fontSize: 11.5, fontWeight: "500",
-    marginTop: 6, lineHeight: 16,
+  diamondSeeAllTxt: {
+    color: DIAMOND_BLUE, fontSize: 10, fontWeight: "900", letterSpacing: 1.5,
   },
   diamondEmptyCta: {
-    marginHorizontal: 18, marginTop: 14,
-    paddingVertical: 12, paddingHorizontal: 14,
-    borderWidth: 1, borderColor: "rgba(127,215,229,0.55)",
-    borderRadius: 10,
+    marginHorizontal: 18, marginTop: 4,
+    paddingVertical: 14, paddingHorizontal: 14,
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.25)",
+    borderRadius: 12,
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6,
-    backgroundColor: "rgba(127,215,229,0.08)",
+    gap: 8,
+    backgroundColor: "rgba(127,215,229,0.04)",
   },
   diamondEmptyCtaTxt: {
-    color: DIAMOND_BLUE, fontSize: 11.5, fontWeight: "900", letterSpacing: 1.5,
+    color: DIAMOND_BLUE, fontSize: 11, fontWeight: "900", letterSpacing: 1.8,
+  },
+  diamondCloseLine: {
+    height: 1, marginTop: 16, marginHorizontal: 24,
+    backgroundColor: "rgba(127,215,229,0.12)",
   },
   sectionCount: { color: "#666", fontSize: 11 },
 
