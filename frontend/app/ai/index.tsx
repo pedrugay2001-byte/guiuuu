@@ -8,6 +8,7 @@ import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../src/api";
 import { theme } from "../../src/theme";
+import ScreenHeader from "../../src/screen-header";
 
 type Specialist = {
   id: string;
@@ -51,14 +52,8 @@ export default function AISpecialists() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-      <Stack.Screen
-        options={{
-          title: "BLACK AI",
-          headerStyle: { backgroundColor: theme.colors.bg },
-          headerTintColor: theme.colors.white,
-          headerTitleStyle: { fontWeight: "900", letterSpacing: 3, fontSize: 15 },
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title="BLACK AI" />
       <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
         {loading ? (
           <View style={styles.centerFill}>

@@ -36,11 +36,7 @@ export default function BottomBrandBar({ unread = 0, unreadMessages = 0 }: Props
           testID="bottom-messages"
         >
           <Ionicons name="chatbubble-ellipses-outline" size={22} color="#D8D8D8" />
-          {unreadMessages > 0 && (
-            <View style={st.badge}>
-              <Text style={st.badgeTxt}>{unreadMessages > 9 ? "9+" : String(unreadMessages)}</Text>
-            </View>
-          )}
+          {unreadMessages > 0 && <View style={st.dot} />}
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -50,11 +46,7 @@ export default function BottomBrandBar({ unread = 0, unreadMessages = 0 }: Props
           testID="bottom-notifications"
         >
           <Ionicons name="notifications-outline" size={22} color="#D8D8D8" />
-          {unread > 0 && (
-            <View style={st.badge}>
-              <Text style={st.badgeTxt}>{unread > 9 ? "9+" : String(unread)}</Text>
-            </View>
-          )}
+          {unread > 0 && <View style={st.dot} />}
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -86,6 +78,12 @@ const st = StyleSheet.create({
   },
   right: { flexDirection: "row", alignItems: "center", gap: 10 },
   iconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  dot: {
+    position: "absolute", top: 7, right: 7,
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: "#FF3B30",
+    borderWidth: 1.5, borderColor: "#050505",
+  },
   badge: { position: "absolute", top: 4, right: 4, minWidth: 14, height: 14, borderRadius: 7,
     backgroundColor: "#FF3B30", alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
   badgeTxt: { color: "#FFF", fontSize: 9, fontWeight: "800" },

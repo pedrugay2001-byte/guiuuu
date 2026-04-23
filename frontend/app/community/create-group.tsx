@@ -9,6 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, CommunityMember } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
+import ScreenHeader from "../../src/screen-header";
 
 const COLORS = ["#D4AF37", "#4EE07F", "#F5C150", "#FF7A4D", "#B287FF", "#7FD7E5", "#FF6BD5"];
 const ICONS = ["people", "barbell", "nutrition", "flash", "rocket", "trophy", "heart", "sparkles"];
@@ -53,7 +54,8 @@ export default function CreateGroup() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: "#050505" }}>
-      <Stack.Screen options={{ title: "Novo grupo", headerStyle: { backgroundColor: "#050505" }, headerTintColor: "#FFF" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title="Novo Grupo" />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <View style={styles.preview}>
           <View style={[styles.pIc, { backgroundColor: color + "22", borderColor: color }]}>

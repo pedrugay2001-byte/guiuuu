@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, Ad, formatBRL, Wallet } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
+import ScreenHeader from "../../src/screen-header";
 
 const DISC: Record<string, number> = { silver: 0, gold: 15, diamond: 30 };
 const { width } = Dimensions.get("window");
@@ -60,7 +61,8 @@ export default function AdView() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#050505" }}>
-      <Stack.Screen options={{ title: "Anúncio", headerStyle: { backgroundColor: "#050505" }, headerTintColor: "#FFF" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title="Anúncio" />
       <ScrollView>
         {ad.images?.[0] ? (
           <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>

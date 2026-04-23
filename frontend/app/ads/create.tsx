@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { pickCompressedImage } from "../../src/imagepicker";
+import ScreenHeader from "../../src/screen-header";
 
 const CATS = [
   { id: "emagrecedores", name: "Emagrecedores" },
@@ -31,16 +32,19 @@ export default function CreateAd() {
 
   if (member?.tier !== "diamond") {
     return (
-      <View style={{ flex: 1, backgroundColor: "#050505", alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <Stack.Screen options={{ title: "Anunciar", headerStyle: { backgroundColor: "#050505" }, headerTintColor: "#FFF" }} />
-        <Ionicons name="diamond" size={48} color="#7FD7E5" />
-        <Text style={{ color: "#FFF", fontSize: 17, fontWeight: "900", marginTop: 14 }}>Exclusivo BLACK DIAMOND</Text>
-        <Text style={{ color: "#999", fontSize: 13, textAlign: "center", marginTop: 8, lineHeight: 18 }}>
-          Somente membros com plano BLACK DIAMOND podem anunciar no marketplace do clube.
-        </Text>
-        <TouchableOpacity onPress={() => router.push("/(tabs)/negocios")} style={{ marginTop: 20, backgroundColor: "#7FD7E5", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10 }}>
-          <Text style={{ color: "#000", fontWeight: "900", letterSpacing: 1 }}>VER PLANOS</Text>
-        </TouchableOpacity>
+      <View style={{ flex: 1, backgroundColor: "#050505" }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ScreenHeader title="Anunciar" />
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <Ionicons name="diamond" size={48} color="#7FD7E5" />
+          <Text style={{ color: "#FFF", fontSize: 17, fontWeight: "900", marginTop: 14 }}>Exclusivo BLACK DIAMOND</Text>
+          <Text style={{ color: "#999", fontSize: 13, textAlign: "center", marginTop: 8, lineHeight: 18 }}>
+            Somente membros com plano BLACK DIAMOND podem anunciar no marketplace do clube.
+          </Text>
+          <TouchableOpacity onPress={() => router.push("/(tabs)/negocios")} style={{ marginTop: 20, backgroundColor: "#7FD7E5", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10 }}>
+            <Text style={{ color: "#000", fontWeight: "900", letterSpacing: 1 }}>VER PLANOS</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -70,7 +74,8 @@ export default function CreateAd() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: "#050505" }}>
-      <Stack.Screen options={{ title: "Novo anúncio", headerStyle: { backgroundColor: "#050505" }, headerTintColor: "#FFF" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title="Novo Anúncio" />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <Text style={styles.lbl}>FOTOS ({images.length}/6)</Text>
         <ScrollView horizontal style={{ marginBottom: 16 }} showsHorizontalScrollIndicator={false}>

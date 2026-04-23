@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, Ad, formatBRL } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
+import ScreenHeader from "../../src/screen-header";
 
 const DISC: Record<string, number> = { silver: 0, gold: 15, diamond: 30 };
 
@@ -31,11 +32,15 @@ export default function AdsIndex() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#050505" }}>
-      <Stack.Screen options={{ title: "Marketplace", headerStyle: { backgroundColor: "#050505" }, headerTintColor: "#FFF", headerRight: () => canSell ? (
-        <TouchableOpacity onPress={() => router.push("/ads/create")} testID="ad-create" style={{ paddingHorizontal: 8 }}>
-          <Ionicons name="add-circle" size={26} color="#D4AF37" />
-        </TouchableOpacity>
-      ) : null }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader
+        title="Meus Anúncios"
+        right={canSell ? (
+          <TouchableOpacity onPress={() => router.push("/ads/create")} testID="ad-create" hitSlop={12}>
+            <Ionicons name="add-circle" size={26} color="#D4AF37" />
+          </TouchableOpacity>
+        ) : null}
+      />
 
       <View style={styles.headerCard}>
         <View style={styles.searchRow}>

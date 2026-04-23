@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, CommunityMember, Group, CommunityEvent } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
+import ScreenHeader from "../../src/screen-header";
 
 type Filter = "all" | "online" | "near";
 
@@ -37,7 +38,8 @@ export default function Discover() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#050505" }}>
-      <Stack.Screen options={{ title: "Descobrir", headerStyle: { backgroundColor: "#050505" }, headerTintColor: "#FFF" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title="Descobrir Membros" />
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         <View style={styles.searchRow}>
           <Ionicons name="search" size={16} color="#888" />

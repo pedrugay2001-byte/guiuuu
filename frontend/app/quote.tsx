@@ -11,6 +11,7 @@ import { api } from "../src/api";
 import { useGate } from "../src/gate";
 import { theme } from "../src/theme";
 import { pickImage, takePhoto, PickedAsset } from "../src/media";
+import ScreenHeader from "../src/screen-header";
 
 export default function QuoteScreen() {
   const router = useRouter();
@@ -66,7 +67,8 @@ export default function QuoteScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
     >
-      <Stack.Screen options={{ title: "Chamados" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title="Chamados" />
       <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <Text style={styles.kicker}>CURADORIA SOB DEMANDA</Text>

@@ -8,6 +8,7 @@ import { Stack, useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api, Goal, GoalDashboard } from "../src/api";
 import { useGate } from "../src/gate";
+import ScreenHeader from "../src/screen-header";
 
 const GOLD = "#F5C150";
 const SILVER = "#C0C0C0";
@@ -119,14 +120,8 @@ export default function BlackAIScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <Stack.Screen
-        options={{
-          title: "BLACK AI",
-          headerStyle: { backgroundColor: BG },
-          headerTintColor: "#FFF",
-          headerTitleStyle: { fontWeight: "900", letterSpacing: 3, fontSize: 15 },
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title="BLACK AI" />
       <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}

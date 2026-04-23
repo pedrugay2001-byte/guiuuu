@@ -532,6 +532,54 @@ test_plan:
                 - productivity: PONTO DE PARTIDA + META (h)
              • Placeholders e título/motivo adaptam ao tipo
              • Removida paleta de cores manual (cor vem automaticamente do tipo)
+
+    - agent: "main"
+      message: |
+        SESSÃO COMPLETA - P0+P1+P2 executados em uma rodada:
+
+        P0 CORRIGIDO: Botão "NOVA META" agora é SEMPRE visível (antes estava dentro de {hasGoals && ...}
+        o que impedia usuários sem meta alguma de criar a primeira). Agora muda o label para
+        "CRIAR MINHA PRIMEIRA META" quando o usuário tem 0 metas. Usuário confirmou que conseguiu
+        criar metas (criou 2 no backend: g_c3f9b5191721 e g_4673b45c75d9).
+
+        P1 DONE — Top Tab Bar Messages vs Notifications:
+        - /app/frontend/src/bottom-brand-bar.tsx: troquei o numeric badge por um "dot" discreto
+          (8px vermelho com borda escura) sobre sino e mensagens, sem números. Backend já estava
+          separado (unread vs unreadMessages), agora a UI é mais elegante e premium.
+
+        P1 DONE — Global Back Buttons:
+        - Padronizei 11 telas profundas injetando <ScreenHeader title="..."/> e desativando o
+          header nativo do Stack (headerShown: false):
+          • black-ai.tsx, quote.tsx, terms.tsx
+          • community/messages.tsx, community/descobrir.tsx, community/create-group.tsx
+          • ads/create.tsx, ads/index.tsx, ads/[id].tsx
+          • ai/index.tsx
+          • chat.tsx já tinha via chat-room.tsx (verificado)
+        - ScreenHeader (já existia em /app/frontend/src/screen-header.tsx) com botão < sempre
+          visível, cor dourada, hitSlop generoso (12px), fallback para /home se não tiver histórico.
+
+        P2 DONE — Planos (negocios.tsx):
+        - Rewrite completo: removi cores berrantes por plano (antes: verde/azul/dourado cheios).
+          Agora só acento SUTIL (borda + ícone) por tier: silver #C0C0C0, gold #D4AF37,
+          diamond #E8E8E8. Fundo único #0B0B0B, tipografia faz o trabalho pesado.
+        - Preço destaque com baseline, R$30/mês estilo editorial.
+        - Features com bullet dot dourado discreto.
+        - KPIs minimalistas (DESCONTO, VENDER, COMPRAR) com bullet ou —.
+        - CTA outline na cor do acento (não preenchido).
+        - Removido Alert.alert → ActionSheet com ação "Falar com suporte".
+        - Shortcut para Marketplace com ícone Ionicons storefront.
+
+        P2 DONE — Social Feed Performance (community.tsx):
+        - PostCard envelopado em React.memo com custom comparator (post_id, text, image,
+          reactions, currentMemberId) → evita re-renders em cascata quando outros posts mudam.
+        - Trocado <Image> por <CachedImage> em: story avatars + post author avatars.
+          CachedImage usa expo-image com memory+disk cache, muito mais fluido em scroll.
+        - Import React adicionado no topo.
+
+        Todos os testes visuais OK. App compilando e respondendo em localhost:3000.
+        Backend intacto, 21/21 tests devem continuar passando (não toquei em server.py).
+
+
           4. statusLabel agora usa APENAS green/orange/red (on_track também verde).
           5. Botão dourado "NOVA META" destacado acima das mini stories.
         Validação visual via screenshot: Mini Stories, Visão Geral KPI+Pie, Modal Peso, Modal Hábitos ✓ todos OK.

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
   FlatList, RefreshControl, ActivityIndicator,
@@ -101,7 +101,7 @@ export default function Community() {
                 <TouchableOpacity style={styles.storyItem} onPress={() => router.push(`/community/story/${s.member_id}`)}>
                   <View style={[styles.storyRing, { borderColor: tier.color }]}>
                     {s.avatar_base64 ? (
-                      <Image source={{ uri: s.avatar_base64 }} style={styles.storyAvatar} />
+                      <CachedImage source={{ uri: s.avatar_base64 }} style={styles.storyAvatar} contentFit="cover" />
                     ) : (
                       <View style={[styles.storyAvatar, { backgroundColor: "#2A2A2A", alignItems: "center", justifyContent: "center" }]}>
                         <Text style={{ color: "#EEE", fontWeight: "800" }}>{s.nickname.charAt(0).toUpperCase()}</Text>
@@ -187,7 +187,7 @@ function FilterChip({ label, active, onPress }: any) {
   );
 }
 
-function PostCard({ post, onAuthor, currentMemberId, onDelete }: {
+function PostCardInner({ post, onAuthor, currentMemberId, onDelete }: {
   post: Post; onAuthor: () => void; currentMemberId: string; onDelete: () => Promise<void> | void;
 }) {
   const tier = TIERS[post.author_tier || "silver"];
@@ -212,7 +212,7 @@ function PostCard({ post, onAuthor, currentMemberId, onDelete }: {
     <View style={styles.post}>
       <TouchableOpacity style={styles.postHeader} onPress={onAuthor}>
         <View style={[styles.postAvRing, { borderColor: tier.color }]}>
-          {post.author_avatar ? <Image source={{ uri: post.author_avatar }} style={styles.postAv} /> : (
+          {post.author_avatar ? <CachedImage source={{ uri: post.author_avatar }} style={styles.postAv} contentFit="cover" /> : (
             <View style={[styles.postAv, { backgroundColor: "#2A2A2A", alignItems: "center", justifyContent: "center" }]}>
               <Text style={{ color: "#EEE", fontWeight: "800" }}>{(post.author_nickname || "?").charAt(0).toUpperCase()}</Text>
             </View>
@@ -269,6 +269,18 @@ function PostCard({ post, onAuthor, currentMemberId, onDelete }: {
     </View>
   );
 }
+
+// React.memo para evitar re-renders desnecessários quando outros posts/estados mudam.
+// Compara propriedades estáveis (post_id, reactions, tier, currentMemberId).
+const PostCard = React.memo(PostCardInner, (prev, next) => (
+  prev.post.post_id === next.post.post_id &&
+  prev.post.text === next.post.text &&
+  prev.post.image_base64 === next.post.image_base64 &&
+  prev.post.reactions.fire === next.post.reactions.fire &&
+  prev.post.reactions.heart === next.post.reactions.heart &&
+  prev.post.reactions.muscle === next.post.reactions.muscle &&
+  prev.currentMemberId === next.currentMemberId
+));
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingTop: 10, paddingBottom: 8 },

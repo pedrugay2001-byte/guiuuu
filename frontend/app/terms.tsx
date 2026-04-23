@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../src/theme";
+import ScreenHeader from "../src/screen-header";
 
 export default function Terms() {
   const router = useRouter();
@@ -32,7 +33,8 @@ export default function Terms() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="terms-screen">
-      <Stack.Screen options={{ title: "Código de Conduta" }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader title="Código de Conduta" />
       <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
         <ScrollView
           contentContainerStyle={styles.container}

@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, CommunityMember, StoryGroup } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
+import ScreenHeader from "../../src/screen-header";
 
 type Thread = { partner: CommunityMember; last_text: string; last_at: string };
 
@@ -47,13 +48,15 @@ export default function Messages() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#050505" }}>
-      <Stack.Screen options={{ title: "Mensagens", headerStyle: { backgroundColor: "#050505" }, headerTintColor: "#FFF",
-        headerRight: () => (
-          <TouchableOpacity style={{ paddingHorizontal: 12 }} onPress={() => router.push("/community")}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScreenHeader
+        title="Mensagens"
+        right={
+          <TouchableOpacity onPress={() => router.push("/community" as any)} hitSlop={12}>
             <Ionicons name="create" size={22} color="#D4AF37" />
           </TouchableOpacity>
-        ),
-      }} />
+        }
+      />
       <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
         <View style={styles.searchRow}>
           <Ionicons name="search" size={16} color="#888" />
