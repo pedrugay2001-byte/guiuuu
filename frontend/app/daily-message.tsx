@@ -38,6 +38,7 @@ export default function DailyMessageScreen() {
 
   useEffect(() => {
     if (!selectedId) { setLoading(false); return; }
+    const controller = new AbortController();
     let cancelled = false;
     setLoading(true);
     setMsg(null);
@@ -45,7 +46,7 @@ export default function DailyMessageScreen() {
       .then(m => { if (!cancelled) setMsg(m); })
       .catch(() => { if (!cancelled) setMsg(null); })
       .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [selectedId]);
 
   const selectedGoal = goals.find(g => g.goal_id === selectedId);
