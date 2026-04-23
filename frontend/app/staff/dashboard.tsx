@@ -156,6 +156,14 @@ export default function StaffDashboard() {
                 <Ionicons name="pricetags" size={18} color={theme.colors.white} />
                 <Text style={[styles.actionText, { color: theme.colors.white }]}>GERENCIAR CATÁLOGO</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#2ECC71", borderColor: "#2ECC71" }]}
+                onPress={() => router.push("/admin/wallet" as any)}
+                testID="staff-action-wallet"
+              >
+                <Ionicons name="wallet" size={18} color="#000" />
+                <Text style={[styles.actionText, { color: "#000" }]}>CREDITAR BLACK COINS</Text>
+              </TouchableOpacity>
             </>
           )}
         </View>
