@@ -653,6 +653,48 @@ test_plan:
 
 
           CachedImage usa expo-image com memory+disk cache, muito mais fluido em scroll.
+
+    - agent: "main"
+      message: |
+        REVERT KPI + NAVEGAÇÃO RESTRUTURADA:
+
+        Revertido (voltou ao estado anterior):
+        - Home stats row: METAS ATIVAS / PROGRESSO GERAL / RITMO ATUAL / DIAS RESTANTES.
+        - Performance GoalDetailCard: círculo com %, RITMO/FALTAM/IDEAL HOJE.
+        - TYPE_META: cores originais (weight=verde, financial=dourado, habit=azul, behavior=roxo, productivity=laranja).
+        - Remoção do helper computeGoalDelta/fmtBR (não usados mais).
+
+        Removido definitivamente:
+        - Card "ASSISTENTE BLACK" do topo da Home (dentro da Central de Performance).
+        - Botão "BLACK AI" e Btn-meta-nome do aiBtnRow (junto com o card).
+
+        Acesso Rápido:
+        - Removido SilverMetalChip (ícones prateados 3D) do render.
+        - Voltou ao formato simples: ícone em cima + label embaixo, dentro de quadrado cinza (estilo s.tile que já existia).
+
+        NAVEGAÇÃO RESTRUTURADA:
+        1. Top Tab Bar (/app/frontend/src/top-tab-bar.tsx):
+           - "home" removido da lista de ICONS.
+           - "member" (Perfil) adicionado na primeira posição.
+           - Se usuário tem avatar_base64, exibe foto circular com anel dourado quando selecionado.
+           - Fallback: ícone person-circle-outline.
+           - Layout final: [Perfil] [Loja] [Social] [Metas] [Banco].
+
+        2. (tabs)/_layout.tsx:
+           - home passou a ter href: null (oculto do top bar).
+           - member passou a ter title "Perfil" (visível no top bar).
+
+        3. Bottom Brand Bar (/app/frontend/src/bottom-brand-bar.tsx):
+           - Removido botão de perfil do lado direito.
+           - Novo layout em 3 colunas flex para garantir centralização perfeita:
+             * Esquerda: BrandLogo
+             * Centro: botão Home destacado (círculo dourado 44px com shadow/elevation)
+             * Direita: chat + sino (com dots vermelhos preservados)
+           - O botão Home central é o elemento principal e chama atenção por ser maior e dourado.
+
+        Validado visualmente: layout limpo, centralização perfeita, home dourado no centro inferior, perfil no topo à esquerda.
+
+
         - Import React adicionado no topo.
 
         Todos os testes visuais OK. App compilando e respondendo em localhost:3000.

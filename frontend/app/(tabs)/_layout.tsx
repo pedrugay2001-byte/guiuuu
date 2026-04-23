@@ -61,15 +61,15 @@ export default function TabsLayout() {
           tabBarPosition: "top",
         }}
       >
-        <Tabs.Screen name="home" options={{ title: "Home" }} />
+        <Tabs.Screen name="home" options={{ href: null }} />
         <Tabs.Screen name="catalog" options={{ title: "Loja" }} />
         <Tabs.Screen name="community" options={{ title: "Social" }} />
         <Tabs.Screen name="performance" options={{ title: "Metas" }} />
         <Tabs.Screen name="wallet" options={{ title: "Banco" }} />
+        <Tabs.Screen name="member" options={{ title: "Perfil" }} />
         <Tabs.Screen name="cart" options={{ href: null }} />
         <Tabs.Screen name="notifications" options={{ href: null }} />
         <Tabs.Screen name="negocios" options={{ href: null }} />
-        <Tabs.Screen name="member" options={{ href: null }} />
       </Tabs>
       <BottomBrandBar unread={unread} unreadMessages={unreadMsgs} />
     </SafeAreaView>

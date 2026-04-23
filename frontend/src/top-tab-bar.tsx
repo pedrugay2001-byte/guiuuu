@@ -1,15 +1,17 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import { useGate } from "./gate";
 
 const GOLD = "#F5C150";
 const INACTIVE = "#6E6E6E";
 const BG = "#050505";
 
 type IconCfg = { ion?: string; mat?: string };
-const ICONS: Record<string, { label: string; active: IconCfg; inactive: IconCfg }> = {
-  home:        { label: "Início", active: { ion: "home" },                 inactive: { ion: "home-outline" } },
+const ICONS: Record<string, { label: string; active: IconCfg; inactive: IconCfg; isAvatar?: boolean }> = {
+  // "member" ficou no lugar onde antes era "home" (primeira posição).
+  member:      { label: "Perfil", active: { ion: "person-circle" },        inactive: { ion: "person-circle-outline" }, isAvatar: true },
   catalog:     { label: "Loja",   active: { ion: "storefront" },           inactive: { ion: "storefront-outline" } },
   community:   { label: "Social", active: { ion: "people" },               inactive: { ion: "people-outline" } },
   performance: { label: "Metas",  active: { mat: "chart-line-variant" },   inactive: { mat: "chart-line" } },
@@ -20,9 +22,19 @@ const ICONS: Record<string, { label: string; active: IconCfg; inactive: IconCfg 
  * Barra de navegação superior premium.
  * NÃO aplica SafeAreaView próprio — isso é responsabilidade do (tabs)/_layout.tsx,
  * que envolve toda a hierarquia num único SafeAreaView. Evita duplicação no iPhone.
+ *
+ * Layout: [Perfil] [Loja] [Social] [Metas] [Banco]
+ * O botão "Perfil" exibe o avatar real do usuário (foto) quando disponível.
  */
 export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
-  const visibleRoutes = state.routes.filter((r) => ICONS[r.name]);
+  const { member } = useGate();
+  const avatar = member?.avatar_base64;
+
+  // Ordena: sempre member na primeira posição, depois o restante na ordem dada em ICONS
+  const ORDER = ["member", "catalog", "community", "performance", "wallet"];
+  const visibleRoutes = ORDER
+    .map((name) => state.routes.find((r) => r.name === name))
+    .filter(Boolean) as typeof state.routes;
 
   return (
     <View style={st.bar}>
@@ -47,7 +59,12 @@ export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
             accessibilityState={focused ? { selected: true } : {}}
           >
             {focused && <View style={st.activeBar} />}
-            {cfg.active.ion ? (
+            {/* Se é "member" e temos avatar → mostra foto do usuário com anel dourado se focused */}
+            {cfg.isAvatar && avatar ? (
+              <View style={[st.avatarRing, focused && { borderColor: GOLD, borderWidth: 2 }]}>
+                <Image source={{ uri: avatar }} style={st.avatarImg} />
+              </View>
+            ) : cfg.active.ion ? (
               <Ionicons
                 name={(focused ? cfg.active.ion : cfg.inactive.ion) as any}
                 size={22}
@@ -104,4 +121,12 @@ const st = StyleSheet.create({
     marginTop: 1,
     includeFontPadding: false as any,
   },
+  // Avatar do perfil na tab bar — anel dourado quando selecionado.
+  avatarRing: {
+    width: 24, height: 24, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+    overflow: "hidden",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+  },
+  avatarImg: { width: 22, height: 22, borderRadius: 11 },
 });

@@ -131,66 +131,6 @@ export default function Home() {
 
   const forecastGoal = dashboard?.critical_goal;
 
-  // Calcula delta da meta "crítica" (a que guia o card principal):
-  // quanto já foi conquistado (kg/R$/etc.) e quanto ainda falta.
-  const fcDelta = (() => {
-    if (!forecastGoal) return null;
-    const g: any = forecastGoal;
-    const t = g.type as string;
-    if (t === "habit") {
-      const done = g.done_count ?? 0;
-      const expected = g.expected_count ?? g.target_value ?? 0;
-      return {
-        achieved: done,
-        remaining: Math.max(0, expected - done),
-        currentLabel: `${done}`,
-        achievedLabel: `${done} feitos`,
-        remainingLabel: `${Math.max(0, expected - done)} restantes`,
-        unitCaption: "check-ins",
-        verbRemaining: "faltam",
-        isRegressing: false,
-      };
-    }
-    if (t === "behavior") {
-      const cur = g.current_value ?? 0;
-      const init = g.initial_value ?? 0;
-      const tgt = g.target_value ?? 0;
-      const achieved = Math.max(0, cur - init);
-      const remaining = Math.max(0, tgt - cur);
-      const toBR = (n: number) => Math.abs(n).toFixed(1).replace(".", ",");
-      return {
-        achieved, remaining,
-        currentLabel: toBR(cur),
-        achievedLabel: `+${toBR(achieved)}`,
-        remainingLabel: `${toBR(remaining)} pts`,
-        unitCaption: "pts",
-        verbRemaining: "faltam",
-        isRegressing: cur < init,
-      };
-    }
-    // weight/fitness/financial/productivity
-    const cur = g.current_value ?? 0;
-    const init = g.initial_value ?? 0;
-    const tgt = g.target_value ?? 0;
-    const losing = tgt < init;
-    const achieved = losing ? Math.max(0, init - cur) : Math.max(0, cur - init);
-    const remaining = losing ? Math.max(0, cur - tgt) : Math.max(0, tgt - cur);
-    const isRegressing = losing ? cur > init : cur < init;
-    const unit = g.unit || (t === "financial" ? "R$" : t === "productivity" ? "h" : "kg");
-    const isBRL = t === "financial";
-    const toBR = (n: number, d = 1) => Math.abs(n).toFixed(d).replace(".", ",");
-    const fmt = (n: number) => isBRL ? `R$ ${toBR(n, 0)}` : `${toBR(n, 1)} ${unit}`;
-    return {
-      achieved, remaining,
-      currentLabel: fmt(cur),
-      achievedLabel: fmt(achieved),
-      remainingLabel: fmt(remaining),
-      unitCaption: unit,
-      verbRemaining: losing ? (t === "weight" || t === "fitness" ? "p/ perder" : "faltam") : "p/ ganhar",
-      isRegressing,
-    };
-  })();
-
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <ScrollView
@@ -220,135 +160,43 @@ export default function Home() {
               <Text style={s.centralUser}>{name}</Text>
             </View>
 
-            {/* ASSISTENTE BLACK — agora clicável, abre análise detalhada + chat */}
-            <TouchableOpacity
-              style={s.aiCard}
-              onPress={() => router.push("/black-ai" as any)}
-              activeOpacity={0.85}
-              testID="assistente-black-ai"
-            >
-              <View style={s.aiLeft}>
-                <View style={s.aiBrainOval}>
-                  <MaterialCommunityIcons name="brain" size={22} color={SILVER} />
-                </View>
-              </View>
-
-              <View style={s.aiRight}>
-                <View style={s.aiLabelRow}>
-                  <Text style={s.aiLabel}>ASSISTENTE BLACK</Text>
-                  <View style={s.aiBadge}>
-                    <Text style={s.aiBadgeTxt}>AI</Text>
-                  </View>
-                </View>
-                <Text style={s.aiMsg}>
-                  {hasGoals
-                    ? `${stats.activeGoals} ${stats.activeGoals === 1 ? "meta ativa" : "metas ativas"} · ${stats.progress}% de progresso.`
-                    : "Defina sua primeira meta e a IA te guia."}
-                </Text>
-                <Text style={s.aiTip}>Toque para ver análise detalhada</Text>
-              </View>
-
-              <Ionicons name="chevron-forward" size={18} color={SILVER} style={s.aiChev} />
-            </TouchableOpacity>
-
-            {/* Buttons row — nome da meta ativa + BLACK AI */}
-            <View style={s.aiBtnRow}>
-              <TouchableOpacity
-                style={[
-                  s.btnGhost,
-                  // Neutro por padrão. Verde/Vermelho apenas se há progresso mensurável.
-                  hasGoals && fcDelta
-                    ? fcDelta.achieved > 0
-                      ? { borderColor: "rgba(46,204,113,0.5)", backgroundColor: "rgba(46,204,113,0.10)" }
-                      : fcDelta.isRegressing
-                        ? { borderColor: "rgba(255,91,91,0.5)", backgroundColor: "rgba(255,91,91,0.10)" }
-                        : null
-                    : null,
-                ]}
-                onPress={() => router.push("/(tabs)/performance")}
-                activeOpacity={0.85}
-                testID="btn-meta-nome"
-              >
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    s.btnGhostTxt,
-                    hasGoals && fcDelta?.achieved && fcDelta.achieved > 0 ? { color: GREEN } : null,
-                    hasGoals && fcDelta?.isRegressing ? { color: RED } : null,
-                  ]}
-                >
-                  {hasGoals ? (forecastGoal?.title || "Sua meta") : "Criar meta"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={s.btnPrimary}
-                onPress={() => {
-                  const gid = forecastGoal?.goal_id;
-                  router.push(gid ? `/black-ai?goalId=${gid}` as any : "/black-ai" as any);
-                }}
-                activeOpacity={0.9}
-                testID="btn-black-ai"
-              >
-                <MaterialCommunityIcons name="brain" size={13} color="#FFF" />
-                <Text style={s.btnPrimaryTxt}>BLACK AI</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* STATS — 4 colunas contextualizadas */}
+            {/* STATS — 4 columns with vertical dividers */}
             <View style={s.statsRow}>
-              {/* METAS — ativas + batidas com +/- */}
               <Stat
                 iconCircle={<MaterialCommunityIcons name="target" size={20} color="#EEE" />}
-                label="METAS"
-                value={hasGoals ? `${stats.activeGoals}` : "0"}
-                caption={
-                  stats.completedGoals > 0
-                    ? `+${stats.completedGoals} batida${stats.completedGoals > 1 ? "s" : ""}`
-                    : hasGoals ? "ativas" : "criar"
-                }
-                captionColor={stats.completedGoals > 0 ? GREEN : hasGoals ? "#888" : GOLD}
+                label="METAS ATIVAS"
+                value={stats.activeGoals}
+                caption={hasGoals ? "ver metas" : "criar"}
+                captionColor={GOLD}
               />
               <View style={s.statDividerV} />
-              {/* JÁ CONQUISTADO — kg perdidos/ganhos, verde se positivo */}
               <Stat
-                iconCircle={<Ionicons name={(forecastGoal as any)?.type === "weight" && (forecastGoal as any)?.target_value > (forecastGoal as any)?.initial_value ? "trending-up" : "trending-down"} size={20} color="#EEE" />}
-                label={
-                  fcDelta && (forecastGoal as any)?.type === "weight"
-                    ? ((forecastGoal as any)?.target_value < (forecastGoal as any)?.initial_value ? "JÁ PERDEU" : "JÁ GANHOU")
-                  : fcDelta && (forecastGoal as any)?.type === "financial" ? "ACUMULOU"
-                  : fcDelta && (forecastGoal as any)?.type === "habit" ? "FEITOS"
-                  : "CONQUISTADO"
-                }
-                value={fcDelta ? fcDelta.achievedLabel : "—"}
-                caption={
-                  fcDelta
-                    ? (fcDelta.achieved > 0 ? "no caminho certo" : "comece a registrar")
-                    : "sem dados"
-                }
-                captionColor={fcDelta && fcDelta.achieved > 0 ? GREEN : "#888"}
+                iconCircle={<RingProgress size={42} stroke={3.5} progress={stats.progress} label={`${stats.progress}%`} />}
+                label="PROGRESSO GERAL"
+                value={`${stats.progress}%`}
+                caption={hasGoals ? `+${stats.weeklyDelta}% essa semana` : "—"}
+                captionColor={GREEN}
               />
               <View style={s.statDividerV} />
-              {/* AINDA FALTA — kg restantes, vermelho se ainda há distância */}
               <Stat
-                iconCircle={<MaterialCommunityIcons name="flag-checkered" size={20} color="#EEE" />}
-                label="AINDA FALTA"
-                value={fcDelta ? fcDelta.remainingLabel : "—"}
-                caption={fcDelta ? fcDelta.verbRemaining : "sem dados"}
-                captionColor={fcDelta && fcDelta.remaining > 0 ? RED : GREEN}
+                iconCircle={<Ionicons name="trending-up" size={20} color="#EEE" />}
+                label="RITMO ATUAL"
+                value={hasGoals ? `${Math.abs(stats.rhythm)}%` : "—"}
+                caption={hasGoals ? "abaixo do ideal" : "sem dados"}
+                captionColor={hasGoals ? RED : "#777"}
               />
               <View style={s.statDividerV} />
-              {/* DIAS — neutro */}
               <Stat
                 iconCircle={<MaterialCommunityIcons name="calendar-month" size={20} color="#EEE" />}
-                label="DIAS"
+                label="DIAS RESTANTES"
                 value={hasGoals ? stats.daysLeft : "—"}
-                caption={hasGoals ? "restantes" : "—"}
+                caption={hasGoals ? "para sua meta" : "—"}
                 captionColor="#888"
               />
             </View>
           </View>
 
-          {/* ACESSO RÁPIDO — ícones prateados metálicos 3D */}
+          {/* ACESSO RÁPIDO — quadrado cinza minimalista (estilo original) */}
           <Text style={s.sectionLbl}>ACESSO RÁPIDO</Text>
           <View style={s.grid}>
             {AREAS.map((a) => (
@@ -356,10 +204,10 @@ export default function Home() {
                 key={a.id}
                 onPress={() => router.push(a.route as any)}
                 style={s.tile}
-                activeOpacity={0.82}
+                activeOpacity={0.85}
                 testID={`area-${a.id}`}
               >
-                <SilverMetalChip icon={a.icon} size={58} />
+                <AreaIcon icon={a.icon} size={22} color="#FFF" />
                 <Text style={s.tileLbl} numberOfLines={1}>{a.label}</Text>
               </TouchableOpacity>
             ))}
