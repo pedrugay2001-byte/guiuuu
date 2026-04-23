@@ -2382,10 +2382,14 @@ async def create_story(data: StoryCreate):
 
 @api_router.get("/stories")
 async def list_stories():
+    """Lista stories SEM as imagens base64 (leve). Usa /stories/{id}/image para a imagem."""
     now = datetime.now(timezone.utc)
-    cur = db.stories.find({"expires_at": {"$gt": now}}, {"_id": 0}).sort("created_at", -1).limit(200)
+    # Projeção exclui image_base64 para payload leve
+    cur = db.stories.find(
+        {"expires_at": {"$gt": now}},
+        {"_id": 0, "image_base64": 0}
+    ).sort("created_at", -1).limit(200)
     items = await cur.to_list(length=200)
-    # group by member_id
     grouped: Dict[str, Any] = {}
     for s in items:
         mid = s["member_id"]
@@ -2398,8 +2402,22 @@ async def list_stories():
                 "avatar_base64": (m or {}).get("avatar_base64"),
                 "stories": [],
             }
+        # Flag indicando se tem imagem (para UI mostrar loading adequado)
+        s["has_image"] = bool(s.get("text") or True)  # backend knows it was filtered
         grouped[mid]["stories"].append(s)
     return list(grouped.values())
+
+
+@api_router.get("/stories/{story_id}/image")
+async def get_story_image(story_id: str):
+    """Retorna apenas a imagem base64 de um story individual (sob demanda)."""
+    s = await db.stories.find_one(
+        {"story_id": story_id},
+        {"_id": 0, "image_base64": 1, "text": 1}
+    )
+    if not s:
+        raise HTTPException(status_code=404, detail="Story não encontrado")
+    return {"story_id": story_id, "image_base64": s.get("image_base64"), "text": s.get("text", "")}
 
 
 # ---------- FEED (posts) ----------
@@ -3019,6 +3037,9 @@ def _compute_goal_snapshot(goal: dict, entries: List[dict]) -> dict:
             denom = abs(target - initial) or 1e-9
             delta_done = (current - initial) if direction == "increase" else (initial - current)
             progress_pct = max(0.0, min(100.0, (delta_done / denom) * 100.0))
+            # Variação desde o início (pode ser NEGATIVA = regressão)
+            delta_from_start = delta_done  # positivo = avançando, negativo = regredindo
+            is_regressing = delta_done < 0
 
             # história real
             history.append({
@@ -3043,7 +3064,10 @@ def _compute_goal_snapshot(goal: dict, entries: List[dict]) -> dict:
                 day = (start_dt + timedelta(days=int(frac * total_days))).date()
                 ideal_series.append({"date": day.isoformat(), "ideal": round(ideal_val, 2)})
 
-            snapshot_extras = {}
+            snapshot_extras = {
+                "delta_from_start": round(delta_from_start, 2),
+                "is_regressing": is_regressing,
+            }
 
         # --- RITMO ---
         rhythm = progress_pct - time_pct

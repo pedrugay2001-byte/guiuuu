@@ -282,21 +282,18 @@ export default function Home() {
           {/* ACESSO RÁPIDO — no scroll needed */}
           <Text style={s.sectionLbl}>ACESSO RÁPIDO</Text>
           <View style={s.grid}>
-            {AREAS.map((a) => {
-              const tileW = (W - 24 - 18) / 4;
-              return (
-                <TouchableOpacity
-                  key={a.id}
-                  onPress={() => router.push(a.route as any)}
-                  style={[s.tile, { width: tileW }]}
-                  activeOpacity={0.85}
-                  testID={`area-${a.id}`}
-                >
-                  <AreaIcon icon={a.icon} size={24} color="#FFF" />
-                  <Text style={s.tileLbl} numberOfLines={1}>{a.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
+            {AREAS.map((a) => (
+              <TouchableOpacity
+                key={a.id}
+                onPress={() => router.push(a.route as any)}
+                style={s.tile}
+                activeOpacity={0.85}
+                testID={`area-${a.id}`}
+              >
+                <AreaIcon icon={a.icon} size={22} color="#FFF" />
+                <Text style={s.tileLbl} numberOfLines={1}>{a.label}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           {/* Below the fold */}
@@ -573,17 +570,18 @@ const s = StyleSheet.create({
   seeAllGrey: { color: "#888", fontSize: 11, fontWeight: "700" },
   seeAllGold: { color: GOLD, fontSize: 11, fontWeight: "800" },
 
-  // TILES 4x2 — width calculated inline
-  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 6 },
+  // TILES 4 col — flex robusto, 4 por linha
+  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 6, justifyContent: "space-between" },
   tile: {
+    flexBasis: "23.5%",
     aspectRatio: 0.95,
     backgroundColor: TILE_BG,
     borderRadius: 14,
     alignItems: "center", justifyContent: "center",
-    gap: 8,
-    paddingHorizontal: 4,
+    gap: 6,
+    paddingHorizontal: 4, paddingVertical: 8,
   },
-  tileLbl: { color: "#F5F5F5", fontSize: 10, fontWeight: "700", textAlign: "center" },
+  tileLbl: { color: "#F5F5F5", fontSize: 10, fontWeight: "700", textAlign: "center", letterSpacing: 0.2 },
 
   // Below-fold
   postCard: { width: 170, borderRadius: 14, backgroundColor: "#0E0E0E", borderWidth: 1, borderColor: "#1A1A1A", padding: 12 },

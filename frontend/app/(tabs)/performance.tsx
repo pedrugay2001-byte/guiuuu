@@ -5,7 +5,7 @@ import {
   useWindowDimensions, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   api, Goal, GoalDashboard, GoalType, DailyMessage,
@@ -53,6 +53,7 @@ function fmtVal(v: number, unit?: string) {
 
 export default function PerformanceTab() {
   const { member } = useGate();
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const [dashboard, setDashboard] = useState<GoalDashboard | null>(null);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -61,8 +62,6 @@ export default function PerformanceTab() {
   const [createOpen, setCreateOpen] = useState(false);
   const [progressModal, setProgressModal] = useState<Goal | null>(null);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
-  const [dailyMsg, setDailyMsg] = useState<DailyMessage | null>(null);
-  const [dailyLoading, setDailyLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!member) return;
@@ -82,19 +81,6 @@ export default function PerformanceTab() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const selectedGoal = goals.find(g => g.goal_id === selectedId) || null;
-
-  // Carrega mensagem do dia quando troca a meta selecionada
-  useEffect(() => {
-    if (!selectedGoal) { setDailyMsg(null); return; }
-    let cancelled = false;
-    setDailyLoading(true);
-    setDailyMsg(null);
-    api.goalDailyMessage(selectedGoal.goal_id)
-      .then(m => { if (!cancelled) setDailyMsg(m); })
-      .catch(() => { if (!cancelled) setDailyMsg(null); })
-      .finally(() => { if (!cancelled) setDailyLoading(false); });
-    return () => { cancelled = true; };
-  }, [selectedId]);
 
   const W = Math.min(width, 480) - 32;
 
@@ -164,13 +150,21 @@ export default function PerformanceTab() {
               />
             )}
 
-            {/* MENSAGEM DO DIA */}
+            {/* MENSAGEM DO DIA - banner discreto (abre tela dedicada) */}
             {selectedGoal && (
-              <DailyMessageCard
-                loading={dailyLoading}
-                msg={dailyMsg}
-                goal={selectedGoal}
-              />
+              <TouchableOpacity
+                style={st.dmBanner}
+                onPress={() => router.push(`/daily-message?goalId=${selectedGoal.goal_id}` as any)}
+                activeOpacity={0.85}
+                testID="perf-daily-banner"
+              >
+                <MaterialCommunityIcons name="book-open-variant" size={20} color={selectedGoal.color || "#C0C0C0"} />
+                <View style={{ flex: 1 }}>
+                  <Text style={st.dmBannerTxt}>Mensagem do Dia</Text>
+                  <Text style={st.dmBannerSub}>Reflexão personalizada para hoje</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#777" />
+              </TouchableOpacity>
             )}
 
             {/* GRÁFICO DE EVOLUÇÃO */}
@@ -335,6 +329,29 @@ function GoalDetailCard({ goal, width, onRegister, onEdit, onArchive }:
         </View>
       </View>
 
+      {/* Indicador visual de PROGRESSÃO vs REGRESSÃO (só para tipos contínuos) */}
+      {(gtype === "weight" || gtype === "fitness" || gtype === "financial" || gtype === "productivity") &&
+        goal.delta_from_start !== undefined && goal.delta_from_start !== 0 && (
+        <View style={[st.deltaBox, { backgroundColor: goal.is_regressing ? "rgba(255,91,91,0.12)" : "rgba(46,204,113,0.12)",
+          borderColor: goal.is_regressing ? "rgba(255,91,91,0.35)" : "rgba(46,204,113,0.35)" }]}>
+          <Ionicons
+            name={goal.is_regressing ? "trending-down" : "trending-up"}
+            size={18}
+            color={goal.is_regressing ? RED : GREEN}
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={[st.deltaLbl, { color: goal.is_regressing ? RED : GREEN }]}>
+              {goal.is_regressing ? "REGRESSÃO" : "PROGRESSO"}
+            </Text>
+            <Text style={st.deltaVal}>
+              {goal.is_regressing ? "Você afastou-se " : "Você avançou "}
+              {fmtVal(Math.abs(goal.delta_from_start), goal.unit)}
+              {" desde o início"}
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Numbers detail per type */}
       <View style={[st.numbers, { borderColor: "rgba(255,255,255,0.06)" }]}>
         {gtype === "habit" ? (
@@ -391,47 +408,6 @@ function NumBlock({ label, value, color = "#EEE" }: { label: string; value: stri
     <View style={{ alignItems: "center", flex: 1 }}>
       <Text style={st.mini}>{label}</Text>
       <Text style={[st.numVal, { color }]}>{value}</Text>
-    </View>
-  );
-}
-
-/* ----------------------- MENSAGEM DO DIA ----------------------- */
-
-function DailyMessageCard({ loading, msg, goal }:
-  { loading: boolean; msg: DailyMessage | null; goal: Goal }) {
-  const color = msg?.goal_color || goal.color || TYPE_META[goal.type].color;
-  return (
-    <View style={[st.card, { borderColor: `${color}40`, backgroundColor: "#0A0A0A" }]}>
-      <View style={st.cardHead}>
-        <MaterialCommunityIcons name="star-four-points" size={16} color={color} />
-        <Text style={[st.cardTitle, { color }]}>MENSAGEM DO DIA</Text>
-      </View>
-      {loading ? (
-        <View style={{ padding: 20, alignItems: "center" }}>
-          <ActivityIndicator color={color} />
-        </View>
-      ) : msg ? (
-        <>
-          <Text style={st.dayLbl}>{(msg.day_label || "").toUpperCase()}</Text>
-          <View style={[st.goalTag, { borderColor: `${color}60`, backgroundColor: `${color}18` }]}>
-            <Text style={[st.goalTagTxt, { color }]}>META: {msg.goal_title.toUpperCase()}</Text>
-          </View>
-          <Text style={st.headline}>{msg.headline}</Text>
-          <Text style={st.focus}>{msg.focus}</Text>
-
-          <View style={st.verseBox}>
-            <Text style={st.verseTxt}>"{msg.verse}"</Text>
-            <Text style={st.verseRef}>— {msg.verse_ref}</Text>
-          </View>
-
-          <Text style={st.parable}>{msg.parable}</Text>
-          <Text style={[st.closing, { color }]}>{msg.closing}</Text>
-        </>
-      ) : (
-        <Text style={{ color: "#888", fontSize: 13, padding: 10 }}>
-          Prepare-se: a mensagem do dia chegará em instantes.
-        </Text>
-      )}
     </View>
   );
 }
@@ -926,4 +902,15 @@ const st = StyleSheet.create({
   entryDot: { width: 8, height: 8, borderRadius: 4 },
   entryVal: { color: "#EEE", fontSize: 13, fontWeight: "700" },
   entryDate: { color: "#777", fontSize: 11, marginTop: 2 },
+
+  deltaBox: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14,
+    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1 },
+  deltaLbl: { fontSize: 10, fontWeight: "900", letterSpacing: 1.4 },
+  deltaVal: { color: "#E0E0E0", fontSize: 12.5, marginTop: 2, fontWeight: "600" },
+
+  dmBanner: { flexDirection: "row", alignItems: "center", gap: 10,
+    paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1,
+    borderColor: "rgba(200,200,200,0.3)", backgroundColor: "#0A0A0A", marginTop: 12 },
+  dmBannerTxt: { color: "#EEE", fontSize: 13, fontWeight: "700", flex: 1 },
+  dmBannerSub: { color: "#999", fontSize: 11, fontWeight: "500", marginTop: 2 },
 });

@@ -401,6 +401,9 @@ export type Goal = {
   // Extras por tipo
   streak?: number; best_streak?: number; done_count?: number; expected_count?: number;
   avg_score?: number; target_score?: number;
+  // Variação desde o início (peso/financeiro/produtividade)
+  delta_from_start?: number;
+  is_regressing?: boolean;
 };
 
 export type GoalSummary = {
@@ -457,6 +460,10 @@ Object.assign(api as any, {
   goalDailyMessage: (goal_id: string) =>
     request<DailyMessage>(`/goals/${goal_id}/daily-message`, { method: "POST", body: "{}" }),
   goalWhatToDo: (goal_id: string) => request<WhatToDoReply>(`/goals/${goal_id}/what-to-do`, { method: "POST", body: "{}" }),
+
+  // Stories individual image (lazy-load)
+  storyImage: (story_id: string) =>
+    request<{ story_id: string; image_base64: string | null; text: string }>(`/stories/${story_id}/image`),
 
   // Delete content
   postDelete: (post_id: string, member_id: string) =>

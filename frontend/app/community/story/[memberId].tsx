@@ -39,25 +39,24 @@ export default function StoryViewer() {
   const [storyIdx, setStoryIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
+  // Cache local de imagens por story_id (evita fetch repetido)
+  const [imageCache, setImageCache] = useState<Record<string, string | null>>({});
 
   const progress = useRef(new Animated.Value(0)).current;
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  // Load stories once
+  // Load stories once (metadata apenas, sem imagens)
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         const gs = await api.listStories();
         if (!alive) return;
-        // Filter out empty groups defensively
         const clean = (gs || []).filter(g => g?.stories?.length > 0);
         setGroups(clean);
         const start = Math.max(0, clean.findIndex(g => g.member_id === memberId));
         setGroupIdx(start === -1 ? 0 : start);
       } catch (e) {
-        // If API fails, close gracefully
-        // eslint-disable-next-line no-console
         console.log("[StoryViewer] load error", (e as any)?.message);
         router.back();
       } finally {
@@ -69,6 +68,38 @@ export default function StoryViewer() {
 
   const group = groups[groupIdx];
   const story: Story | undefined = group?.stories?.[storyIdx];
+
+  // Carrega a imagem do story atual sob demanda + prefetch da próxima
+  useEffect(() => {
+    if (!story) return;
+    const sid = story.story_id;
+    // Se já está no cache (mesmo que null) — carregado
+    if (imageCache[sid] !== undefined) {
+      setImgLoaded(true);
+      return;
+    }
+    setImgLoaded(false);
+    let alive = true;
+    api.storyImage(sid).then(r => {
+      if (!alive) return;
+      setImageCache(prev => ({ ...prev, [sid]: r.image_base64 || null }));
+      setImgLoaded(true);
+    }).catch(() => {
+      if (!alive) return;
+      setImageCache(prev => ({ ...prev, [sid]: null }));
+      setImgLoaded(true);
+    });
+
+    // PREFETCH da próxima imagem em background (reduz latência)
+    const nextStory = group?.stories[storyIdx + 1]
+      || groups[groupIdx + 1]?.stories[0];
+    if (nextStory && imageCache[nextStory.story_id] === undefined) {
+      api.storyImage(nextStory.story_id).then(r => {
+        if (alive) setImageCache(prev => ({ ...prev, [nextStory.story_id]: r.image_base64 || null }));
+      }).catch(() => {});
+    }
+    return () => { alive = false; };
+  }, [story?.story_id]);
 
   // Safely advance
   const next = useCallback(() => {
@@ -166,26 +197,41 @@ export default function StoryViewer() {
       <StatusBar barStyle="light-content" />
 
       {/* Media */}
-      {story.image_base64 ? (
-        <>
-          <CachedImage
-            source={{ uri: story.image_base64 }}
-            style={st.media}
-            contentFit="cover"
-            onLoad={() => setImgLoaded(true)}
-            onError={() => { setImgLoaded(true); }}
-          />
-          {!imgLoaded && (
+      {(() => {
+        const img = story.image_base64 || imageCache[story.story_id];
+        if (img) {
+          return (
+            <>
+              <CachedImage
+                source={{ uri: img }}
+                style={st.media}
+                contentFit="cover"
+                onLoad={() => setImgLoaded(true)}
+                onError={() => { setImgLoaded(true); }}
+              />
+              {!imgLoaded && (
+                <View style={st.mediaLoader}>
+                  <ActivityIndicator color="#D4AF37" />
+                </View>
+              )}
+            </>
+          );
+        }
+        // No image: text-only OR still loading
+        const isInCache = imageCache.hasOwnProperty(story.story_id);
+        if (!isInCache) {
+          return (
             <View style={st.mediaLoader}>
-              <ActivityIndicator color="#D4AF37" />
+              <ActivityIndicator color="#D4AF37" size="large" />
             </View>
-          )}
-        </>
-      ) : (
-        <View style={st.textOnly}>
-          <Text style={st.textOnlyTxt}>{story.text || " "}</Text>
-        </View>
-      )}
+          );
+        }
+        return (
+          <View style={st.textOnly}>
+            <Text style={st.textOnlyTxt}>{story.text || " "}</Text>
+          </View>
+        );
+      })()}
 
       {/* Top gradient for readability */}
       <View style={[st.fade, { top: 0, height: 180 }]} />

@@ -138,6 +138,42 @@ backend:
     priority: "high"
     needs_retesting: true
     status_history:
+        - working: true
+          agent: "testing"
+          comment: |
+            ROD6 — Validação dos novos endpoints e campos de snapshot de metas.
+            Executados 35 assertions em /app/backend_test_rod6.py contra a URL pública. 35/35 PASS, 0 FAIL.
+
+            ## 1. GET /stories (LEVE — sem image_base64) ✅
+            - HTTP 200, 12 stories ativos agrupados por membro.
+            - Tamanho do JSON: 138.6KB (bem abaixo dos 500KB pedidos).
+            - NENHUM story retorna `image_base64` no payload (projeção Mongo `{image_base64: 0}` confirmada).
+
+            ## 2. GET /stories/{story_id}/image ✅ (NOVO)
+            - HTTP 200 com {story_id, image_base64, text} para id válido.
+            - HTTP 404 para id inválido (ex: `st_invalid_id_xxx`).
+
+            ## 3. Goal weight (decrease) — delta_from_start / is_regressing ✅
+            - Meta criada: initial=100, current=100, target=90, end_date=+60d.
+            - Início: `delta_from_start=0.0`, `is_regressing=False` ✅.
+            - Entry 102 (regrediu — peso subiu): `delta_from_start=-2.0`, `is_regressing=True` ✅.
+            - Entry 97 (progrediu): `delta_from_start=3.0` (positivo), `is_regressing=False` ✅.
+
+            ## 4. Goal financial (increase) — regressão ✅
+            - Meta: initial=10000, current=10000, target=50000.
+            - Entry 8000 (perdeu): `delta_from_start=-2000.0`, `is_regressing=True` ✅.
+            - Entry 15000 (progrediu): `delta_from_start=5000.0`, `is_regressing=False` ✅.
+
+            ## 5. habit / behavior NÃO retornam delta_from_start / is_regressing ✅
+            - Meta habit (target=30 dias): campos ausentes no snapshot (POST + GET).
+            - Meta behavior (target=8): campos ausentes no snapshot.
+            - Confirmado: `delta_from_start` e `is_regressing` são retornados apenas em weight/financial/productivity/fitness (continuous types).
+
+            ## 6. Cleanup ✅
+            - 4 metas criadas durante o teste foram todas arquivadas via DELETE /goals/{goal_id}.
+
+            CONCLUSÃO: Todos os novos endpoints e campos funcionam exatamente conforme especificado no review.
+            Nenhum bug encontrado. Nada para main agent corrigir nesta rodada.
         - working: "NA"
           agent: "main"
           comment: |

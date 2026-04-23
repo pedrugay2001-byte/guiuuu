@@ -1,6 +1,6 @@
 import { Tabs, useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Platform } from "react-native";
 import { useEffect, useState } from "react";
 import { useGate } from "../../src/gate";
 import { theme } from "../../src/theme";
@@ -57,18 +57,19 @@ export default function TabsLayout() {
     </View>
   );
 
-  // Label premium que permite 2 linhas e evita cortes
+  // Label premium — nomes curtos, nunca cortam, 2 linhas permitidas
   const TabLabel = ({ focused, label }: { focused: boolean; label: string }) => (
     <Text
       numberOfLines={1}
       allowFontScaling={false}
+      adjustsFontSizeToFit={Platform.OS === "ios"}
       style={{
-        fontSize: 9.5,
-        fontWeight: focused ? "800" : "700",
-        letterSpacing: 0.1,
-        color: focused ? GOLD : "#6A6A6A",
+        fontSize: 10.5,
+        fontWeight: focused ? "800" : "600",
+        letterSpacing: 0,
+        color: focused ? GOLD : "#7A7A7A",
         textAlign: "center",
-        marginTop: 3,
+        marginTop: 4,
         includeFontPadding: false,
       } as any}
     >
@@ -89,38 +90,38 @@ export default function TabsLayout() {
           backgroundColor: "#050505",
           borderTopColor: "#1A1A1A",
           borderTopWidth: 1,
-          height: 74,
-          paddingTop: 8,
+          height: 76,
+          paddingTop: 10,
           paddingBottom: 14,
-          paddingHorizontal: 0,
+          paddingHorizontal: 4,
         },
         tabBarActiveTintColor: GOLD,
-        tabBarInactiveTintColor: "#6A6A6A",
+        tabBarInactiveTintColor: "#7A7A7A",
         tabBarLabelPosition: "below-icon",
-        tabBarItemStyle: { paddingHorizontal: 0, paddingVertical: 0 },
-        tabBarIconStyle: { marginTop: 2 },
+        tabBarItemStyle: { paddingHorizontal: 2, paddingVertical: 0 },
+        tabBarIconStyle: { marginTop: 0 },
       }}
     >
       <Tabs.Screen
         name="home"
         options={{
-          title: "Início",
+          title: "Home",
           headerShown: false,
-          tabBarLabel: ({ focused }) => <TabLabel focused={focused} label="Início" />,
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "home" : "home-outline"} color={color} size={22} />
+          tabBarLabel: ({ focused }) => <TabLabel focused={focused} label="Home" />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "home" : "home-outline"} color={color} size={23} />
           ),
         }}
       />
       <Tabs.Screen
         name="catalog"
         options={{
-          title: "Mercado",
+          title: "Loja",
           headerStyle: { backgroundColor: theme.colors.bg, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
           headerTitle: () => <Text style={styles.screenTitle}>MARKETPLACE</Text>,
-          tabBarLabel: ({ focused }) => <TabLabel focused={focused} label="Mercado" />,
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "storefront" : "storefront-outline"} color={color} size={22} />
+          tabBarLabel: ({ focused }) => <TabLabel focused={focused} label="Loja" />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "storefront" : "storefront-outline"} color={color} size={23} />
           ),
         }}
       />
@@ -130,8 +131,8 @@ export default function TabsLayout() {
           title: "Social",
           headerShown: false,
           tabBarLabel: ({ focused }) => <TabLabel focused={focused} label="Social" />,
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "people" : "people-outline"} color={color} size={22} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "people" : "people-outline"} color={color} size={23} />
           ),
         }}
       />
@@ -142,11 +143,11 @@ export default function TabsLayout() {
           headerStyle: { backgroundColor: theme.colors.bg, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
           headerTitle: () => <Text style={[styles.screenTitle, { color: GOLD }]}>PERFORMANCE</Text>,
           tabBarLabel: ({ focused }) => <TabLabel focused={focused} label="Metas" />,
-          tabBarIcon: ({ color, size, focused }) => (
+          tabBarIcon: ({ color, focused }) => (
             <MaterialCommunityIcons
               name={focused ? "chart-line-variant" : "chart-line"}
               color={color}
-              size={22}
+              size={23}
             />
           ),
         }}
@@ -157,8 +158,8 @@ export default function TabsLayout() {
           title: "Banco",
           headerTitle: () => <Text style={styles.screenTitle}>BANCO</Text>,
           tabBarLabel: ({ focused }) => <TabLabel focused={focused} label="Banco" />,
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "wallet" : "wallet-outline"} color={color} size={22} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "wallet" : "wallet-outline"} color={color} size={23} />
           ),
         }}
       />
