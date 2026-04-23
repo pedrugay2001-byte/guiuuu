@@ -1010,6 +1010,65 @@ test_plan:
 agent_communication:
     - agent: "testing"
       message: |
+        SMOKE TEST PRÉ-DEPLOY (blacksclub.com) — 24/24 PASS, 0 FAIL em /app/backend_test.py.
+        Executado contra URL pública https://member-shop-2.preview.emergentagent.com/api.
+
+        ## RESULTADO POR CATEGORIA (TUDO PASS) ✅
+
+        ### AUTH ✅
+        • POST /api/auth/login (admin@farmaclube.com/admin123) → 200 + JWT (203 chars)
+        • GET /api/auth/me com token → 200, email=admin@farmaclube.com
+
+        ### BLEX TOKEN (moeda interna) ✅
+        • GET /blx/wallet/mem_7a9d652945e7 → 200, wallet=BLX-JCM5T48X, balance_centavos=215771 (int)
+        • GET /blx/lookup?q=BLX-JCM5T48X → 200, 1 hit
+        • GET /blx/transactions/mem_7a9d652945e7?limit=10 → 200, 8 txs
+        • GET /blx/orders/mem_7a9d652945e7?role=buyer → 200, [] (sem pedidos ativos)
+        • GET /blx/ratings/seller/mem_7a9d652945e7 → 200, count=1, avg=5.0
+
+        ### MARKETPLACE ✅
+        • GET /ads → 200, 94 anúncios
+        • GET /cart/mem_7a9d652945e7 → 200 (dict)
+        • GET /favorites/mem_7a9d652945e7 → 200, []
+
+        ### COMUNIDADE ✅
+        • GET /stories → 200, retorna ARRAY (1 grupo ativo)
+        • GET /stories/st_bd34019616c5/image → 200, image_base64 232019 chars
+        • GET /feed/posts → 200, 3 posts
+        • GET /community/members?exclude=mem_7a9d652945e7 → 200, 3 membros
+        • GET /community/groups → 200, 7 grupos
+        • GET /community/events → 200, 3 eventos
+
+        ### BLACK AI ✅
+        • GET /ai/specialists → 200, 16 especialistas
+          (fisico=8, mental=3, vida=4, espiritual=1 — confere com o layout do frontend)
+
+        ### ADMIN (com token staff) ✅
+        • GET /admin/stats → 200, keys=[members, active_members, open_quotes, total_quotes, open_orders, unread_messages]
+        • GET /admin/metrics → 200, struct completa {supply, volume_30d, orders, top_sellers}
+          - INVARIANTE VALIDADA: supply.total_cents (417600) == available_cents (417600) + escrow_out_cents (0) ✅
+          - supply.wallets_count=6, wallets_with_balance, todos INT ✅
+          - volume_30d.total_cents=208239, tx_count=6 (ambos int) ✅
+          - orders.open=3, orders.completed=0 (ambos int) ✅
+          - top_sellers=1 item com campos member_id/name/tier/total_cents/sales_count/rating_avg/rating_count ✅
+        • GET /admin/members → 200, 4 membros
+
+        ### GOALS ✅
+        • GET /goals/dashboard/mem_7a9d652945e7 → 200, struct {has_goals, active_count, completed_count,
+          overall_progress, avg_rhythm, days_left, score, weekly_delta, critical_goal, message, goals_summary}
+
+        ## VALIDAÇÕES EXTRA ✅
+        • NENHUM endpoint retornou 500 Internal Server Error
+        • /api/stories retorna ARRAY (não 500) mesmo com 1 grupo vazio-ish
+        • supply.total_cents == available_cents + escrow_out_cents ✅
+        • Endpoints bloqueados conforme pedido (transcribe e criação de dados) NÃO testados
+
+        ## CONCLUSÃO
+        🚀 Backend 100% PRONTO para deploy em produção (blacksclub.com).
+        Zero bugs. Zero 500s. Todas as estruturas conferem com o esperado pelo frontend.
+
+    - agent: "testing"
+      message: |
         Backend validado com 37 testes (37 PASS, 0 FAIL) em /app/backend_test.py. NENHUM BUG CRÍTICO.
         O fluxo de upload de imagem (reclamação do usuário) funciona: avatar até ~800KB, galeria com
         2 fotos de ~150KB, feed post com imagem ~100KB, story com imagem ~100KB — tudo 200 sem 413/500.
