@@ -11,6 +11,7 @@ import { useGate } from "../../src/gate";
 import { theme } from "../../src/theme";
 
 const GOLD = "#D4AF37";
+const DIAMOND_BLUE = "#7FD7E5"; // ciano premium usado para destacar seção Diamond
 
 const CAT_META: Record<string, { label: string; icon: string; color: string }> = {
   // Públicas
@@ -20,8 +21,8 @@ const CAT_META: Record<string, { label: string; icon: string; color: string }> =
   suplementos:  { label: "Suplementos", icon: "nutrition",          color: "#2ECC71" },
   eletronicos:  { label: "Eletrônicos", icon: "phone-portrait",     color: "#7FD7E5" },
   outros:       { label: "Outros",      icon: "cube",               color: "#999" },
-  // Umbrella Saúde (Diamond)
-  saude_diamante: { label: "Saúde Diamante", icon: "shield-checkmark", color: "#D4AF37" },
+  // Umbrella Saúde (Diamond) — AZUL premium para destacar exclusividade
+  saude_diamante: { label: "Saúde Diamante", icon: "shield-checkmark", color: "#7FD7E5" },
   // Legados (mantidos para retrocompatibilidade interna)
   hormonios:    { label: "Hormônios",   icon: "pulse",              color: "#E8C96B" },
   emagrecedores:{ label: "Emagrecedores", icon: "flame",            color: "#FF6B35" },
@@ -122,12 +123,12 @@ export default function Marketplace() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* SAÚDE — apenas para Diamond. Alinhado à esquerda, compacto. */}
+        {/* SAÚDE — apenas para Diamond. Alinhado à esquerda, compacto. Cor AZUL diamante. */}
         {isDiamond && healthCats.length > 0 && (
           <View style={st.saudeSection}>
             <View style={st.saudeHead}>
-              <MaterialCommunityIcons name="heart-pulse" size={14} color={GOLD} />
-              <Text style={st.saudeHeadTxt}>SAÚDE · DIAMANTE</Text>
+              <MaterialCommunityIcons name="heart-pulse" size={14} color={DIAMOND_BLUE} />
+              <Text style={[st.saudeHeadTxt, { color: DIAMOND_BLUE }]}>SAÚDE · DIAMANTE</Text>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.saudeRow}>
               {healthCats.map((c) => {
@@ -137,10 +138,10 @@ export default function Marketplace() {
                   <TouchableOpacity
                     key={c.id}
                     onPress={() => setCat(active ? "all" : c.id)}
-                    style={[st.saudeChip, active && { backgroundColor: "rgba(212,175,55,0.15)", borderColor: GOLD }]}
+                    style={[st.saudeChip, active && { backgroundColor: "rgba(127,215,229,0.15)", borderColor: DIAMOND_BLUE }]}
                     activeOpacity={0.85}
                   >
-                    <Ionicons name={meta.icon as any} size={13} color={active ? GOLD : "#999"} />
+                    <Ionicons name={meta.icon as any} size={13} color={active ? DIAMOND_BLUE : "#999"} />
                     <Text style={[st.saudeChipTxt, active && { color: "#FFF" }]} numberOfLines={1}>{meta.label}</Text>
                   </TouchableOpacity>
                 );
@@ -168,23 +169,49 @@ export default function Marketplace() {
           })}
         </ScrollView>
 
-        {/* Marketplace P2P — anúncios Diamond */}
-        {ads.length > 0 && (
-          <View style={{ marginTop: 8 }}>
-            <View style={st.sectionHead}>
-              <Text style={st.sectionTitle}>MEMBROS BLACK DIAMOND</Text>
-              <TouchableOpacity onPress={() => router.push("/ads")} hitSlop={{ top: 6, right: 6, bottom: 6, left: 6 }}>
-                <Text style={st.sectionLink}>Ver todos</Text>
-              </TouchableOpacity>
+        {/* MEMBROS BLACK DIAMOND — exclusivo Diamond, banner premium em AZUL */}
+        {isDiamond && (
+          <View style={st.diamondSection}>
+            <View style={st.diamondHero}>
+              <View style={st.diamondHeroIcon}>
+                <Ionicons name="diamond" size={26} color="#FFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={st.diamondKicker}>EXCLUSIVO BLACK DIAMOND</Text>
+                <Text style={st.diamondTitle}>Marketplace entre membros</Text>
+                <Text style={st.diamondSub}>
+                  Só quem é Diamante acessa. Negocie direto com a elite do clube em um ambiente privado, verificado e com escrow em Black Coins.
+                </Text>
+              </View>
             </View>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={ads}
-              keyExtractor={(a) => a.ad_id}
-              contentContainerStyle={{ paddingHorizontal: 14, gap: 10 }}
-              renderItem={({ item }) => <AdCard ad={item} onPress={() => router.push({ pathname: "/ads/[id]", params: { id: item.ad_id } })} />}
-            />
+
+            {ads.length > 0 ? (
+              <>
+                <View style={[st.sectionHead, { marginTop: 4 }]}>
+                  <Text style={[st.sectionTitle, { color: DIAMOND_BLUE }]}>ANÚNCIOS DA ELITE</Text>
+                  <TouchableOpacity onPress={() => router.push("/ads")} hitSlop={{ top: 6, right: 6, bottom: 6, left: 6 }}>
+                    <Text style={[st.sectionLink, { color: DIAMOND_BLUE }]}>Ver todos →</Text>
+                  </TouchableOpacity>
+                </View>
+                <FlatList
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  data={ads}
+                  keyExtractor={(a) => a.ad_id}
+                  contentContainerStyle={{ paddingHorizontal: 14, gap: 10 }}
+                  renderItem={({ item }) => <AdCard ad={item} onPress={() => router.push({ pathname: "/ads/[id]", params: { id: item.ad_id } })} />}
+                />
+              </>
+            ) : (
+              <TouchableOpacity
+                style={st.diamondEmptyCta}
+                onPress={() => router.push("/ads")}
+                activeOpacity={0.88}
+              >
+                <Text style={st.diamondEmptyCtaTxt}>EXPLORAR MARKETPLACE DIAMOND</Text>
+                <Ionicons name="chevron-forward" size={16} color={DIAMOND_BLUE} />
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -285,7 +312,7 @@ const st = StyleSheet.create({
   // Área Saúde (Diamond) — alinhada à esquerda, compacta
   saudeSection: { marginTop: 12, marginBottom: 4, paddingLeft: 14 },
   saudeHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
-  saudeHeadTxt: { color: GOLD, fontSize: 10, fontWeight: "900", letterSpacing: 2 },
+  saudeHeadTxt: { color: DIAMOND_BLUE, fontSize: 10, fontWeight: "900", letterSpacing: 2 },
   saudeRow: { paddingRight: 14, gap: 6 },
   saudeChip: {
     flexDirection: "row", alignItems: "center", gap: 5,
@@ -298,6 +325,63 @@ const st = StyleSheet.create({
   sectionTitle: { color: "#888", fontSize: 10, fontWeight: "900", letterSpacing: 2.5, marginLeft: 18, marginTop: 16, marginBottom: 10 },
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 18 },
   sectionLink: { color: GOLD, fontSize: 11, fontWeight: "800" },
+
+  // === MEMBROS BLACK DIAMOND — banner exclusivo em AZUL ===
+  diamondSection: {
+    marginTop: 16,
+    marginHorizontal: 14,
+    borderRadius: 18,
+    overflow: "hidden",
+    borderWidth: 1.5,
+    borderColor: "rgba(127,215,229,0.45)",
+    backgroundColor: "rgba(127,215,229,0.06)",
+    paddingBottom: 16,
+  },
+  diamondHero: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(127,215,229,0.12)",
+  },
+  diamondHeroIcon: {
+    width: 54, height: 54, borderRadius: 27,
+    backgroundColor: DIAMOND_BLUE,
+    alignItems: "center", justifyContent: "center",
+    shadowColor: DIAMOND_BLUE,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  diamondKicker: {
+    color: DIAMOND_BLUE,
+    fontSize: 10, fontWeight: "900", letterSpacing: 2.5,
+  },
+  diamondTitle: {
+    color: "#FFF", fontSize: 17, fontWeight: "900",
+    marginTop: 4, letterSpacing: 0.3,
+  },
+  diamondSub: {
+    color: "#C8E8EE",
+    fontSize: 11.5, fontWeight: "500",
+    marginTop: 6, lineHeight: 16,
+  },
+  diamondEmptyCta: {
+    marginHorizontal: 18, marginTop: 14,
+    paddingVertical: 12, paddingHorizontal: 14,
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.55)",
+    borderRadius: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6,
+    backgroundColor: "rgba(127,215,229,0.08)",
+  },
+  diamondEmptyCtaTxt: {
+    color: DIAMOND_BLUE, fontSize: 11.5, fontWeight: "900", letterSpacing: 1.5,
+  },
   sectionCount: { color: "#666", fontSize: 11 },
 
   catRow: { paddingHorizontal: 14, gap: 8 },
