@@ -1364,35 +1364,37 @@ class Product(BaseModel):
 
 # -------------- Marketplace Category Access Rules --------------
 # Apenas Silver, Gold e Diamante acessam o marketplace.
-# Categorias "saúde" (sensíveis) só para Black Diamante.
-PUBLIC_CATEGORIES = ["hormonios", "suplementos", "tecnologia", "bem_estar", "beleza", "pre_treinos"]
-HEALTH_CATEGORIES = ["emagrecedores", "peptideos", "landerlan"]
+# Categorias sensíveis são ocultas sob a etiqueta "saude_diamante" (diamond).
+PUBLIC_CATEGORIES = ["tecnologia", "bem_estar", "beleza", "suplementos", "eletronicos", "outros"]
+HEALTH_CATEGORIES = ["emagrecedores", "peptideos", "landerlan", "hormonios"]
+HEALTH_UMBRELLA_ID = "saude_diamante"
 
 @api_router.get("/products", response_model=List[Product])
 async def list_products(category: Optional[str] = None, subcategory: Optional[str] = None, q: Optional[str] = None, member_id: Optional[str] = None):
-    # Descobre o tier do membro (se enviado)
     tier = "black"
     if member_id:
         m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "tier": 1})
         if m:
             tier = (m.get("tier") or "black").lower()
 
-    # Regras de acesso por categoria
+    # Saúde Diamante = umbrella que inclui todas as categorias sensíveis (só Diamond)
+    is_saude_umbrella = category == HEALTH_UMBRELLA_ID
+
     if category and category != "all":
-        if category in HEALTH_CATEGORIES and tier != "diamond":
-            raise HTTPException(status_code=403, detail="Categoria exclusiva para membros Black Diamante")
-        if category not in HEALTH_CATEGORIES and category not in PUBLIC_CATEGORIES:
-            # categoria inválida
+        if is_saude_umbrella or category in HEALTH_CATEGORIES:
+            if tier != "diamond":
+                raise HTTPException(status_code=403, detail="Área exclusiva para membros Black Diamante")
+        elif category not in PUBLIC_CATEGORIES:
             return []
-        # Usuário "black" puro não acessa marketplace
         if tier == "black":
             raise HTTPException(status_code=403, detail="Marketplace exclusivo para membros Silver, Gold e Diamante")
 
     query: dict = {}
-    if category and category != "all":
+    if is_saude_umbrella:
+        query["category"] = {"$in": HEALTH_CATEGORIES}
+    elif category and category != "all":
         query["category"] = category
     else:
-        # Sem filtro: mostra só categorias permitidas pelo tier
         if tier == "black":
             raise HTTPException(status_code=403, detail="Marketplace exclusivo para membros Silver, Gold e Diamante")
         if tier == "diamond":
@@ -1486,9 +1488,9 @@ async def delete_product(product_id: str, admin: dict = Depends(require_staff)):
 @api_router.get("/categories")
 async def get_categories(member_id: Optional[str] = None):
     """Retorna categorias do marketplace, com metadata de restrição.
-    - Black comum: 403 (não pode ver marketplace)
-    - Silver/Gold: vê apenas públicas
-    - Diamond: vê todas (públicas + saúde)
+    - Black comum: 403
+    - Silver/Gold: apenas categorias públicas
+    - Diamond: públicas + área "Saúde Diamante" (nomes sensíveis ocultos)
     """
     tier = "black"
     if member_id:
@@ -1499,23 +1501,23 @@ async def get_categories(member_id: Optional[str] = None):
     if tier == "black":
         raise HTTPException(status_code=403, detail="Marketplace exclusivo para membros Silver, Gold e Diamante")
 
+    # Categorias públicas — nomes leves sem referências sensíveis
     public = [
-        {"id": "hormonios",   "name": "Hormônios",   "icon": "pulse",          "restricted": False, "group": "public"},
-        {"id": "suplementos", "name": "Suplementos", "icon": "nutrition",      "restricted": False, "group": "public"},
         {"id": "tecnologia",  "name": "Tecnologia",  "icon": "hardware-chip",  "restricted": False, "group": "public"},
         {"id": "bem_estar",   "name": "Bem-estar",   "icon": "leaf",           "restricted": False, "group": "public"},
         {"id": "beleza",      "name": "Beleza",      "icon": "sparkles",       "restricted": False, "group": "public"},
+        {"id": "suplementos", "name": "Suplementos", "icon": "nutrition",      "restricted": False, "group": "public"},
+        {"id": "eletronicos", "name": "Eletrônicos", "icon": "phone-portrait", "restricted": False, "group": "public"},
+        {"id": "outros",      "name": "Outros",      "icon": "cube",           "restricted": False, "group": "public"},
     ]
     if tier != "diamond":
         return public
 
-    health = [
-        {"id": "emagrecedores", "name": "Emagrecedores",    "icon": "flame",              "restricted": True, "group": "saude"},
-        {"id": "peptideos",     "name": "Peptídeos",        "icon": "flask",              "restricted": True, "group": "saude"},
-        {"id": "landerlan",     "name": "Linha Landerlan",  "icon": "shield-checkmark",   "restricted": True, "group": "saude"},
-        {"id": "hormonios",     "name": "Hormônios",        "icon": "pulse",              "restricted": True, "group": "saude"},
+    # Saúde Diamante — agrupa tudo sensível SEM expor nomes no app
+    saude = [
+        {"id": "saude_diamante", "name": "Saúde Diamante", "icon": "shield-checkmark", "restricted": True, "group": "saude"},
     ]
-    return public + health
+    return public + saude
 
 
 # -------------- Seed --------------

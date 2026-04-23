@@ -13,12 +13,17 @@ import { theme } from "../../src/theme";
 const GOLD = "#D4AF37";
 
 const CAT_META: Record<string, { label: string; icon: string; color: string }> = {
-  hormonios:    { label: "Hormônios",   icon: "pulse",              color: "#E8C96B" },
-  suplementos:  { label: "Suplementos", icon: "nutrition",          color: "#2ECC71" },
+  // Públicas
   tecnologia:   { label: "Tecnologia",  icon: "hardware-chip",      color: "#B794F4" },
   bem_estar:    { label: "Bem-estar",   icon: "leaf",               color: "#95D5B2" },
   beleza:       { label: "Beleza",      icon: "sparkles",           color: "#F58FC3" },
-  // Saúde (Diamond only)
+  suplementos:  { label: "Suplementos", icon: "nutrition",          color: "#2ECC71" },
+  eletronicos:  { label: "Eletrônicos", icon: "phone-portrait",     color: "#7FD7E5" },
+  outros:       { label: "Outros",      icon: "cube",               color: "#999" },
+  // Umbrella Saúde (Diamond)
+  saude_diamante: { label: "Saúde Diamante", icon: "shield-checkmark", color: "#D4AF37" },
+  // Legados (mantidos para retrocompatibilidade interna)
+  hormonios:    { label: "Hormônios",   icon: "pulse",              color: "#E8C96B" },
   emagrecedores:{ label: "Emagrecedores", icon: "flame",            color: "#FF6B35" },
   peptideos:    { label: "Peptídeos",     icon: "flask",            color: "#7FD7E5" },
   landerlan:    { label: "Landerlan",     icon: "shield-checkmark", color: "#D4AF37" },

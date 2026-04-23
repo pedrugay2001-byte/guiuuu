@@ -78,10 +78,10 @@ export default function Home() {
         showsVerticalScrollIndicator={false}
         testID="home-scroll"
       >
-          {/* GREETING — centralizado, limpo */}
+          {/* GREETING — frase elegante em destaque */}
           <View style={s.greet}>
-            <Text style={s.greetHello}>Bem-vindo,</Text>
-            <Text style={s.greetSub}>Foco hoje, resultado amanhã.</Text>
+            <Text style={s.greetHello}>Foco hoje,</Text>
+            <Text style={s.greetSub}>resultado amanhã.</Text>
           </View>
 
           {/* CENTRAL DE PERFORMANCE */}
@@ -293,8 +293,8 @@ const s = StyleSheet.create({
 
   // Greeting centralizado
   greet: { alignItems: "center", marginTop: 16, marginBottom: 18 },
-  greetHello: { color: "#FFF", fontSize: 22, fontWeight: "800" },
-  greetSub: { color: "#B8B8B8", fontSize: 13, marginTop: 6, fontWeight: "500" },
+  greetHello: { color: "#FFF", fontSize: 26, fontWeight: "900", letterSpacing: -0.5, lineHeight: 30 },
+  greetSub: { color: "#B8B8B8", fontSize: 17, marginTop: 2, fontWeight: "300", fontStyle: "italic", letterSpacing: -0.3 },
 
   // Central
   central: {

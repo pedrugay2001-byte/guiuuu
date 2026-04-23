@@ -41,21 +41,23 @@ export default function Cart() {
 
   if (items.length === 0) {
     return (
-      <SafeAreaView style={styles.container} edges={["top"]} testID="cart-empty">
+      <View style={[styles.container, { flex: 1 }]} testID="cart-empty">
         <View style={styles.empty}>
-          <Ionicons name="bag-outline" size={64} color={theme.colors.textMuted} />
-          <Text style={styles.emptyTitle}>Carrinho vazio</Text>
-          <Text style={styles.emptyText}>Adicione produtos do catálogo para continuar.</Text>
+          <View style={styles.emptyIcon}>
+            <Ionicons name="bag-handle-outline" size={48} color="#D4AF37" />
+          </View>
+          <Text style={styles.emptyTitle}>Seu carrinho está vazio</Text>
+          <Text style={styles.emptyText}>Adicione produtos para começar.</Text>
           <TouchableOpacity
-            style={styles.ghostBtn}
-            onPress={() => router.push("/chat")}
-            testID="cart-open-chat"
+            style={styles.primaryBtn}
+            onPress={() => router.push("/(tabs)/catalog" as any)}
+            activeOpacity={0.85}
           >
-            <Ionicons name="chatbubbles" size={16} color={theme.colors.white} />
-            <Text style={styles.ghostText}>ABRIR CONVERSA COM SUPORTE</Text>
+            <Ionicons name="storefront" size={16} color="#000" />
+            <Text style={styles.primaryText}>IR PARA A LOJA</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -167,9 +169,21 @@ const styles = StyleSheet.create({
   },
   closeText: { color: theme.colors.bg, fontWeight: "800", letterSpacing: 1.5, fontSize: 13 },
   hint: { color: theme.colors.textMuted, fontSize: 11, textAlign: "center" },
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: theme.spacing.lg, gap: 12 },
-  emptyTitle: { color: theme.colors.white, fontSize: 20, fontWeight: "700" },
-  emptyText: { color: theme.colors.textMuted, fontSize: 14, textAlign: "center" },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: theme.spacing.lg, gap: 14 },
+  emptyIcon: {
+    width: 96, height: 96, borderRadius: 48,
+    backgroundColor: "rgba(212,175,55,0.08)",
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 8,
+  },
+  emptyTitle: { color: theme.colors.white, fontSize: 18, fontWeight: "800" },
+  emptyText: { color: theme.colors.textMuted, fontSize: 13, textAlign: "center" },
+  primaryBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: "#D4AF37",
+    paddingHorizontal: 24, paddingVertical: 13, borderRadius: 10, marginTop: 18,
+  },
+  primaryText: { color: "#000", fontSize: 12, fontWeight: "900", letterSpacing: 1.5 },
   ghostBtn: {
     flexDirection: "row", alignItems: "center", gap: 8,
     borderWidth: 1, borderColor: theme.colors.border,

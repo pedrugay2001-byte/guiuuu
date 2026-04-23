@@ -9,7 +9,7 @@ const BG = "#050505";
 
 type IconCfg = { ion?: string; mat?: string };
 const ICONS: Record<string, { label: string; active: IconCfg; inactive: IconCfg }> = {
-  home:        { label: "Home",   active: { ion: "home" },                 inactive: { ion: "home-outline" } },
+  home:        { label: "Início", active: { ion: "home" },                 inactive: { ion: "home-outline" } },
   catalog:     { label: "Loja",   active: { ion: "storefront" },           inactive: { ion: "storefront-outline" } },
   community:   { label: "Social", active: { ion: "people" },               inactive: { ion: "people-outline" } },
   performance: { label: "Metas",  active: { mat: "chart-line-variant" },   inactive: { mat: "chart-line" } },
