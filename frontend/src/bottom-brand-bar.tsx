@@ -1,8 +1,9 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { BrandLogo } from "./brand";
+import { useGate } from "./gate";
 
 const GOLD = "#F5C150";
 
@@ -11,11 +12,10 @@ type Props = {
   unreadMessages?: number;
 };
 
-/**
- * Barra inferior premium: logo BLACKSCLUB à esquerda + ícones de mensagens/notificações/perfil à direita.
- */
 export default function BottomBrandBar({ unread = 0, unreadMessages = 0 }: Props) {
   const router = useRouter();
+  const { member } = useGate();
+  const avatar = member?.avatar_base64;
 
   return (
     <View style={st.bar}>
@@ -63,7 +63,11 @@ export default function BottomBrandBar({ unread = 0, unreadMessages = 0 }: Props
           activeOpacity={0.85}
           testID="bottom-profile"
         >
-          <Ionicons name="person" size={18} color={GOLD} />
+          {avatar ? (
+            <Image source={{ uri: avatar }} style={st.profileImg} />
+          ) : (
+            <Ionicons name="person" size={18} color={GOLD} />
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -90,5 +94,7 @@ const st = StyleSheet.create({
     borderWidth: 1.5, borderColor: GOLD,
     alignItems: "center", justifyContent: "center",
     backgroundColor: "rgba(245,193,80,0.08)",
+    overflow: "hidden",
   },
+  profileImg: { width: 28, height: 28, borderRadius: 14 },
 });
