@@ -271,6 +271,23 @@ export const api = {
     note?: string;
   }) => request<BlxTx>("/blx/transfer", { method: "POST", body: JSON.stringify(body) }),
 
+  // ----- BLX Orders (escrow marketplace) -----
+  blxOrders: (member_id: string, role: "buyer" | "seller" | "all" = "all") =>
+    request<BlxOrder[]>(`/blx/orders/${member_id}?role=${role}`),
+
+  // ----- BLX Seller Ratings -----
+  blxCreateRating: (body: { tx_id: string; rater_id: string; rating: number; comment?: string }) =>
+    request<any>("/blx/ratings", { method: "POST", body: JSON.stringify(body) }),
+  blxSellerRatings: (seller_id: string, limit = 50) =>
+    request<{ count: number; average: number; ratings: any[] }>(`/blx/ratings/seller/${seller_id}?limit=${limit}`),
+
+  // ----- AI: Whisper transcription -----
+  aiTranscribe: (audio_base64: string, mime?: string) =>
+    request<{ text: string; mime: string; size_bytes: number }>("/ai/transcribe", {
+      method: "POST",
+      body: JSON.stringify({ audio_base64, mime }),
+    }),
+
   // ----- Stories -----
   listStories: () => request<StoryGroup[]>("/stories"),
   createStory: (member_id: string, image_base64?: string, text?: string) =>
@@ -384,6 +401,18 @@ export type BlxTx = {
   ad_title?: string;
   created_at: string;
   settled_at?: string;
+};
+export type BlxOrder = BlxTx & {
+  i_am_buyer: boolean;
+  i_am_seller: boolean;
+  counterpart?: {
+    member_id: string;
+    name: string;
+    tier: TierId;
+    avatar_base64?: string | null;
+  } | null;
+  i_rated: boolean;
+  ad_image?: string;
 };
 export type WalletTx = {
   tx_id: string;

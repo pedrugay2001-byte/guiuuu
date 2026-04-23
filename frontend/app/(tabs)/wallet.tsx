@@ -169,10 +169,10 @@ export default function WalletScreen() {
             testID="blx-action-history"
           />
           <ActionButton
-            icon="chatbubbles-outline"
-            label="Suporte"
-            onPress={() => router.push("/chat" as any)}
-            testID="blx-action-support"
+            icon="bag-handle-outline"
+            label="Compras"
+            onPress={() => router.push("/blx/orders" as any)}
+            testID="blx-action-orders"
           />
         </View>
 

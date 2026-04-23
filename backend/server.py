@@ -31,6 +31,14 @@ except Exception:
     LlmChat = None
     UserMessage = None
 
+try:
+    from openai import OpenAI  # type: ignore
+    _OPENAI_KEY = os.environ.get("OPENAI_API_KEY") or ""
+    openai_client = OpenAI(api_key=_OPENAI_KEY) if _OPENAI_KEY else None
+except Exception:  # pragma: no cover
+    OpenAI = None
+    openai_client = None
+
 # MongoDB connection
 mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
@@ -2924,21 +2932,37 @@ async def get_notifications(member_id: str):
             "color": "#D4AF37",
         })
 
-    # Wallet transactions (escrow & settled)
-    wx_cur = db.wallet_txs.find({"$or": [{"from_id": member_id}, {"to_id": member_id}], "created_at": {"$gte": since}}, {"_id": 0}).sort("created_at", -1).limit(30)
+    # Wallet transactions (escrow, settled, transfers)
+    wx_cur = db.wallet_txs.find({"$or": [{"from_id": member_id}, {"to_id": member_id}], "created_at": {"$gte": since}}, {"_id": 0}).sort("created_at", -1).limit(40)
     async for tx in wx_cur:
         iAmBuyer = tx.get("from_id") == member_id
         iAmSeller = tx.get("to_id") == member_id
         typ = tx.get("type")
+        cents = int(tx.get("amount_centavos") or round(float(tx.get("amount", 0)) * 100))
+        blx_str = f"{cents // 100:,}".replace(",", ".") + f",{cents % 100:02d} BLX"
         if typ == "topup":
-            items.append({"id": f"tx_{tx.get('tx_id')}", "type": "wallet", "title": "Recarga confirmada", "body": f"R$ {tx.get('amount',0):.2f} adicionadas à sua carteira", "route": "/(tabs)/wallet", "created_at": tx.get("created_at"), "icon": "add-circle", "color": "#4EE07F"})
+            items.append({"id": f"tx_{tx.get('tx_id')}", "type": "wallet", "title": "Crédito BLX recebido", "body": f"+{blx_str} adicionados à sua carteira.", "route": "/(tabs)/wallet", "created_at": tx.get("created_at"), "icon": "add-circle", "color": "#4EE07F"})
         elif typ == "withdraw":
-            items.append({"id": f"tx_{tx.get('tx_id')}", "type": "wallet", "title": "Saque solicitado", "body": f"R$ {tx.get('amount',0):.2f} para sua chave Pix", "route": "/(tabs)/wallet", "created_at": tx.get("created_at"), "icon": "arrow-down-circle", "color": "#F5C150"})
+            items.append({"id": f"tx_{tx.get('tx_id')}", "type": "wallet", "title": "Débito BLX", "body": f"−{blx_str} da sua carteira.", "route": "/(tabs)/wallet", "created_at": tx.get("created_at"), "icon": "arrow-down-circle", "color": "#F5C150"})
+        elif typ == "transfer":
+            if iAmBuyer:  # enviei
+                items.append({"id": f"tx_{tx.get('tx_id')}", "type": "transfer", "title": "BLX enviado", "body": f"−{blx_str} para {tx.get('to_name') or tx.get('to_wallet') or 'outro membro'}.", "route": "/blx/history", "created_at": tx.get("created_at"), "icon": "arrow-up-circle", "color": "#F87171"})
+            elif iAmSeller:  # recebi
+                items.append({"id": f"tx_{tx.get('tx_id')}", "type": "transfer", "title": "BLX recebido", "body": f"+{blx_str} de {tx.get('from_name') or tx.get('from_wallet') or 'outro membro'}.", "route": "/blx/history", "created_at": tx.get("created_at"), "icon": "arrow-down-circle", "color": "#4EE07F"})
         elif typ == "escrow":
+            status = tx.get("status")
             if iAmBuyer:
-                items.append({"id": f"tx_{tx.get('tx_id')}", "type": "order", "title": f"Compra efetuada: {tx.get('ad_title','Anúncio')}", "body": f"R$ {tx.get('amount',0):.2f} em escrow. Confirme o recebimento quando chegar.", "route": "/(tabs)/wallet", "created_at": tx.get("created_at"), "icon": "lock-closed", "color": "#F5C150"})
+                if status == "escrow":
+                    items.append({"id": f"tx_{tx.get('tx_id')}_b", "type": "order", "title": f"Compra efetuada: {tx.get('ad_title','Anúncio')}", "body": f"{blx_str} em escrow. Confirme o recebimento quando chegar.", "route": "/blx/orders", "created_at": tx.get("created_at"), "icon": "lock-closed", "color": "#F5C150"})
+                elif status == "settled":
+                    items.append({"id": f"tx_{tx.get('tx_id')}_b", "type": "order", "title": f"Compra liberada: {tx.get('ad_title','Anúncio')}", "body": f"Você confirmou o recebimento de {blx_str}. Avalie o vendedor!", "route": "/blx/orders", "created_at": tx.get("settled_at") or tx.get("created_at"), "icon": "checkmark-circle", "color": "#4EE07F"})
+                elif status == "refunded":
+                    items.append({"id": f"tx_{tx.get('tx_id')}_b", "type": "order", "title": f"Reembolso: {tx.get('ad_title','Anúncio')}", "body": f"{blx_str} devolvidos à sua carteira.", "route": "/blx/orders", "created_at": tx.get("settled_at") or tx.get("created_at"), "icon": "return-up-back", "color": "#AAA"})
             elif iAmSeller:
-                items.append({"id": f"tx_{tx.get('tx_id')}", "type": "sale", "title": f"Nova venda: {tx.get('ad_title','Anúncio')}", "body": f"R$ {tx.get('amount',0):.2f} aguardando entrega.", "route": "/(tabs)/wallet", "created_at": tx.get("created_at"), "icon": "cash", "color": "#4EE07F"})
+                if status == "escrow":
+                    items.append({"id": f"tx_{tx.get('tx_id')}_s", "type": "sale", "title": f"Nova venda: {tx.get('ad_title','Anúncio')}", "body": f"{blx_str} aguardando entrega. Combine com o comprador.", "route": "/blx/orders", "created_at": tx.get("created_at"), "icon": "cash", "color": "#4EE07F"})
+                elif status == "settled":
+                    items.append({"id": f"tx_{tx.get('tx_id')}_s", "type": "sale", "title": f"Pagamento liberado: {tx.get('ad_title','Anúncio')}", "body": f"Comprador confirmou. +{blx_str} na sua carteira.", "route": "/blx/orders", "created_at": tx.get("settled_at") or tx.get("created_at"), "icon": "checkmark-done", "color": "#4EE07F"})
 
     # Group invites (custom groups where I'm invited)
     g_cur = db.groups.find({"is_custom": True, "invited_ids": member_id, "owner_id": {"$ne": member_id}, "created_at": {"$gte": since}}, {"_id": 0}).sort("created_at", -1).limit(10)
@@ -2958,13 +2982,208 @@ async def get_notifications(member_id: str):
 async def notifications_count(member_id: str):
     since = datetime.now(timezone.utc) - timedelta(days=7)
     dm_count = await db.dms.count_documents({"to_id": member_id, "created_at": {"$gte": since}})
-    sales_count = await db.wallet_txs.count_documents({"to_id": member_id, "type": "escrow", "created_at": {"$gte": since}})
+    # Nova venda recente (escrow) OU BLX recebido via transfer (últimos 7 dias)
+    sales_count = await db.wallet_txs.count_documents({
+        "to_id": member_id,
+        "type": {"$in": ["escrow", "transfer", "topup"]},
+        "created_at": {"$gte": since},
+    })
     # Retorna contagem total (compat) + separadas (novo)
     return {
         "count": dm_count + sales_count,
         "messages": dm_count,
         "notifications": sales_count,
     }
+
+
+# ---------- BLX ORDERS (escrow marketplace) ----------
+
+
+@api_router.get("/blx/orders/{member_id}")
+async def blx_orders(member_id: str, role: str = "all"):
+    """Lista escrow transactions onde o membro é comprador ou vendedor.
+    role=buyer | seller | all. Ordenado por data desc."""
+    q: Dict[str, Any] = {"type": "escrow"}
+    if role == "buyer":
+        q["from_id"] = member_id
+    elif role == "seller":
+        q["to_id"] = member_id
+    else:
+        q["$or"] = [{"from_id": member_id}, {"to_id": member_id}]
+    cur = db.wallet_txs.find(q, {"_id": 0}).sort("created_at", -1).limit(100)
+    orders = await cur.to_list(length=100)
+    # Enriquece com nomes e rating já dado pelo comprador (se houver)
+    other_ids = set()
+    tx_ids = []
+    for t in orders:
+        tx_ids.append(t.get("tx_id"))
+        if t.get("from_id") != member_id and t.get("from_id"):
+            other_ids.add(t["from_id"])
+        if t.get("to_id") != member_id and t.get("to_id"):
+            other_ids.add(t["to_id"])
+    names_map: Dict[str, Dict[str, Any]] = {}
+    if other_ids:
+        async for m in db.members.find(
+            {"member_id": {"$in": list(other_ids)}},
+            {"_id": 0, "member_id": 1, "nickname": 1, "name": 1, "tier": 1, "avatar_base64": 1},
+        ):
+            names_map[m["member_id"]] = m
+    # Verifica se há avaliação
+    rated_tx_ids = set()
+    if tx_ids:
+        async for r in db.blx_ratings.find({"tx_id": {"$in": tx_ids}, "rater_id": member_id}, {"_id": 0, "tx_id": 1}):
+            rated_tx_ids.add(r["tx_id"])
+    out = []
+    for t in orders:
+        t["amount_centavos"] = int(t.get("amount_centavos") or round(float(t.get("amount", 0)) * 100))
+        t["i_am_buyer"] = t.get("from_id") == member_id
+        t["i_am_seller"] = t.get("to_id") == member_id
+        cp_id = t.get("to_id") if t["i_am_buyer"] else t.get("from_id")
+        cp = names_map.get(cp_id or "", {})
+        t["counterpart"] = {
+            "member_id": cp_id,
+            "name": cp.get("nickname") or cp.get("name"),
+            "tier": cp.get("tier", "black"),
+            "avatar_base64": cp.get("avatar_base64"),
+        } if cp_id else None
+        t["i_rated"] = t.get("tx_id") in rated_tx_ids
+        # Busca primeira imagem do anúncio para preview
+        if t.get("ad_id"):
+            ad = await db.ads.find_one({"ad_id": t["ad_id"]}, {"_id": 0, "images": 1})
+            if ad and ad.get("images"):
+                t["ad_image"] = ad["images"][0]
+        out.append(t)
+    return out
+
+
+# ---------- BLX RATINGS (avaliação do vendedor) ----------
+
+
+class BlxRatingRequest(BaseModel):
+    tx_id: str
+    rater_id: str        # comprador
+    rating: int          # 1..5
+    comment: Optional[str] = None
+
+
+@api_router.post("/blx/ratings")
+async def blx_create_rating(data: BlxRatingRequest):
+    if data.rating < 1 or data.rating > 5:
+        raise HTTPException(status_code=400, detail="Avaliação deve ser entre 1 e 5")
+    tx = await db.wallet_txs.find_one({"tx_id": data.tx_id}, {"_id": 0})
+    if not tx or tx.get("type") != "escrow":
+        raise HTTPException(status_code=404, detail="Transação não encontrada")
+    if tx.get("from_id") != data.rater_id:
+        raise HTTPException(status_code=403, detail="Apenas o comprador pode avaliar")
+    if tx.get("status") != "settled":
+        raise HTTPException(status_code=400, detail="Só é possível avaliar após liberar o pagamento")
+    # upsert (só pode avaliar 1x)
+    existing = await db.blx_ratings.find_one({"tx_id": data.tx_id, "rater_id": data.rater_id})
+    if existing:
+        raise HTTPException(status_code=400, detail="Você já avaliou esta compra")
+    rating_doc = {
+        "rating_id": f"r_{uuid.uuid4().hex[:12]}",
+        "tx_id": data.tx_id,
+        "rater_id": data.rater_id,
+        "seller_id": tx.get("to_id"),
+        "ad_id": tx.get("ad_id"),
+        "ad_title": tx.get("ad_title"),
+        "rating": int(data.rating),
+        "comment": (data.comment or "").strip()[:500] or None,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.blx_ratings.insert_one(rating_doc.copy())
+    rating_doc.pop("_id", None)
+    return rating_doc
+
+
+@api_router.get("/blx/ratings/seller/{seller_id}")
+async def blx_seller_ratings(seller_id: str, limit: int = 50):
+    """Retorna avaliações + média do vendedor."""
+    cur = db.blx_ratings.find({"seller_id": seller_id}, {"_id": 0}).sort("created_at", -1).limit(int(limit))
+    ratings = await cur.to_list(length=int(limit))
+    total = await db.blx_ratings.count_documents({"seller_id": seller_id})
+    avg = 0.0
+    if total:
+        pipeline = [
+            {"$match": {"seller_id": seller_id}},
+            {"$group": {"_id": None, "avg": {"$avg": "$rating"}}},
+        ]
+        agg = await db.blx_ratings.aggregate(pipeline).to_list(length=1)
+        if agg:
+            avg = round(float(agg[0].get("avg") or 0), 2)
+    # Enriquece com nome do avaliador
+    rater_ids = [r.get("rater_id") for r in ratings if r.get("rater_id")]
+    raters: Dict[str, Dict[str, Any]] = {}
+    if rater_ids:
+        async for m in db.members.find({"member_id": {"$in": rater_ids}}, {"_id": 0, "member_id": 1, "nickname": 1, "name": 1, "avatar_base64": 1}):
+            raters[m["member_id"]] = m
+    for r in ratings:
+        rr = raters.get(r.get("rater_id") or "", {})
+        r["rater_name"] = rr.get("nickname") or rr.get("name") or "Membro"
+        r["rater_avatar"] = rr.get("avatar_base64")
+        if isinstance(r.get("created_at"), datetime):
+            r["created_at"] = r["created_at"].isoformat()
+    return {"count": total, "average": avg, "ratings": ratings}
+
+
+# ---------- AI TRANSCRIPTION (Whisper) ----------
+
+
+@api_router.post("/ai/transcribe")
+async def ai_transcribe(payload: Dict[str, Any]):
+    """Transcreve áudio em texto usando OpenAI Whisper.
+    Body: { "audio_base64": "data:audio/webm;base64,...", "mime": "audio/webm" | opcional }.
+    Retorna { "text": "...", "duration_seconds": float|None }.
+    """
+    if not openai_client:
+        raise HTTPException(status_code=503, detail="Transcrição de áudio indisponível (OPENAI_API_KEY ausente)")
+    audio_b64 = (payload or {}).get("audio_base64") or ""
+    if not audio_b64 or len(audio_b64) < 100:
+        raise HTTPException(status_code=400, detail="Áudio vazio ou muito curto")
+    # Aceita data URL ou base64 puro
+    if audio_b64.startswith("data:"):
+        try:
+            _, audio_b64 = audio_b64.split(",", 1)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Formato de áudio inválido")
+    import base64 as _b64
+    try:
+        raw = _b64.b64decode(audio_b64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Base64 inválido")
+    if len(raw) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Áudio excede 25 MB (limite do Whisper)")
+    mime = (payload or {}).get("mime") or "audio/webm"
+    ext = "webm"
+    if "mp4" in mime or "m4a" in mime:
+        ext = "m4a"
+    elif "mp3" in mime:
+        ext = "mp3"
+    elif "wav" in mime:
+        ext = "wav"
+    elif "ogg" in mime:
+        ext = "ogg"
+    import io as _io
+    bio = _io.BytesIO(raw)
+    bio.name = f"audio.{ext}"
+    try:
+        # OpenAI Whisper (síncrono). Rodando em thread pool para não bloquear.
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: openai_client.audio.transcriptions.create(
+                model="whisper-1",
+                file=bio,
+                language="pt",
+                response_format="json",
+            ),
+        )
+        text = getattr(result, "text", None) or (result.get("text") if isinstance(result, dict) else "")
+        return {"text": (text or "").strip(), "mime": mime, "size_bytes": len(raw)}
+    except Exception as e:
+        logging.exception("Whisper transcription failed")
+        raise HTTPException(status_code=502, detail=f"Falha na transcrição: {str(e)[:200]}")
 
 
 # ---------- MARKETPLACE SEED (fictional members + 60+ realistic ads) ----------

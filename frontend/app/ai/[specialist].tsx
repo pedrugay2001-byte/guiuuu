@@ -10,6 +10,7 @@ import * as ImagePicker from "expo-image-picker";
 import { api } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { theme } from "../../src/theme";
+import { AudioRecorderButton } from "../../src/audio";
 
 type Msg = { sender: "member" | "ai"; text: string; created_at?: string; has_image?: boolean; image_preview?: string };
 type Specialist = {
@@ -136,40 +137,25 @@ export default function SpecialistChat() {
     }
   };
 
-  // Voice to text using Web Speech API when available (great on Chrome/desktop/mobile web)
-  const toggleMic = () => {
-    if (Platform.OS !== "web") {
-      Alert.alert("Microfone em beta", "No app nativo a gravação de voz estará liberada na próxima atualização. Por enquanto, digite sua pergunta.");
-      return;
+  // Voice to text via OpenAI Whisper (servidor). Funciona em web, iOS e Android.
+  const [transcribing, setTranscribing] = useState(false);
+  const onAudioRecorded = async (a: { base64: string; mime: string; duration_ms: number }) => {
+    if (a.duration_ms < 500) return;
+    setTranscribing(true);
+    try {
+      const res = await api.aiTranscribe(a.base64, a.mime);
+      const t = (res.text || "").trim();
+      if (t) setText((prev) => (prev ? prev + " " : "") + t);
+      else Alert.alert("Sem áudio", "Não consegui entender. Tente falar mais perto do microfone.");
+    } catch (e: any) {
+      Alert.alert("Voz indisponível", e.message || "Tente novamente em instantes.");
+    } finally {
+      setTranscribing(false);
     }
-    // @ts-ignore window
-    const SR = (typeof window !== "undefined") && ((window as any).webkitSpeechRecognition || (window as any).SpeechRecognition);
-    if (!SR) {
-      Alert.alert("Voz indisponível", "Seu navegador não suporta reconhecimento de voz. Tente no Chrome.");
-      return;
-    }
-    if (listening && recognitionRef.current) {
-      recognitionRef.current.stop();
-      setListening(false);
-      return;
-    }
-    const rec = new SR();
-    rec.lang = "pt-BR";
-    rec.interimResults = true;
-    rec.continuous = false;
-    rec.onresult = (ev: any) => {
-      let finalText = "";
-      for (let i = ev.resultIndex; i < ev.results.length; ++i) {
-        finalText += ev.results[i][0].transcript;
-      }
-      setText((prev) => (prev ? prev + " " : "") + finalText.trim());
-    };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
-    recognitionRef.current = rec;
-    rec.start();
-    setListening(true);
   };
+
+  // Mantido para compatibilidade com testIDs antigos, mas agora redundante.
+  const toggleMic = () => {};
 
   const clear = () => {
     if (!member || !specialist) return;
@@ -378,13 +364,16 @@ export default function SpecialistChat() {
               style={styles.input}
               value={text}
               onChangeText={setText}
-              placeholder={`Pergunte ao ${specialist.name.split(" ")[1] || specialist.name.split(" ")[0]}...`}
+              placeholder={transcribing ? "Transcrevendo áudio..." : `Pergunte ao ${specialist.name.split(" ")[1] || specialist.name.split(" ")[0]}...`}
               placeholderTextColor={theme.colors.textMuted}
               multiline
+              editable={!transcribing}
             />
-            <TouchableOpacity style={styles.iconBtn} onPress={toggleMic} testID="ai-mic">
-              <Ionicons name={listening ? "mic" : "mic-outline"} size={20} color={listening ? "#FF4E4E" : theme.colors.textMuted} />
-            </TouchableOpacity>
+            {transcribing ? (
+              <View style={styles.iconBtn}><ActivityIndicator color={accent} size="small" /></View>
+            ) : (
+              <AudioRecorderButton onRecorded={onAudioRecorded} color={accent} testID="ai-mic" />
+            )}
             <TouchableOpacity
               style={[styles.sendBtn, { backgroundColor: accent }, ((!text.trim() && !pendingImage) || sending) && { opacity: 0.45 }]}
               onPress={() => send()}

@@ -10,6 +10,7 @@ import { api, CommunityMember, DMMessage } from "../../../src/api";
 import { useGate } from "../../../src/gate";
 import { TIERS } from "../../../src/theme";
 import { pickCompressedImage } from "../../../src/imagepicker";
+import { AudioRecorderButton, AudioPlayer } from "../../../src/audio";
 
 const EMOJIS = ["🔥", "💪", "❤️", "🙌", "👊", "✨", "🏋️", "🥶", "😂", "😎", "🎉", "💀", "🍏", "🥊", "🦾", "☀️", "🌙", "💯", "👁️", "🥵"];
 
@@ -102,13 +103,26 @@ export default function DMChat() {
             renderItem={({ item }) => {
               const mine = item.from_id === member?.member_id;
               const imgMatch = /\[IMG\](data:[^\[]+)\[\/IMG\]/.exec(item.text);
+              const audMatch = /\[AUD\](data:[^\[]+)\[\/AUD\]/.exec(item.text);
               const imgUri = imgMatch?.[1];
-              const cleanText = item.text.replace(/\[IMG\][^\[]+\[\/IMG\]/, "").trim();
+              const audUri = audMatch?.[1];
+              const cleanText = item.text
+                .replace(/\[IMG\][^\[]+\[\/IMG\]/, "")
+                .replace(/\[AUD\][^\[]+\[\/AUD\]/, "")
+                .trim();
               return (
                 <View style={[styles.row, mine ? styles.rowMe : styles.rowOther]}>
-                  <View style={[styles.bubble, mine ? styles.bubbleMe : styles.bubbleOther, imgUri && { padding: 4 }]}>
+                  <View style={[styles.bubble, mine ? styles.bubbleMe : styles.bubbleOther, (imgUri || audUri) && { padding: 4 }]}>
                     {imgUri && <Image source={{ uri: imgUri }} style={styles.attachImg} />}
-                    {cleanText ? <Text style={[styles.bubbleTxt, { color: mine ? "#000" : "#EEE", marginTop: imgUri ? 6 : 0, paddingHorizontal: imgUri ? 6 : 0, paddingBottom: imgUri ? 4 : 0 }]}>{cleanText}</Text> : null}
+                    {audUri && (
+                      <AudioPlayer
+                        src={audUri}
+                        accent={mine ? "#000" : "#D4AF37"}
+                        bgColor={mine ? "rgba(0,0,0,0.15)" : "#0E0E0E"}
+                        textColor={mine ? "#000" : "#EEE"}
+                      />
+                    )}
+                    {cleanText ? <Text style={[styles.bubbleTxt, { color: mine ? "#000" : "#EEE", marginTop: (imgUri || audUri) ? 6 : 0, paddingHorizontal: (imgUri || audUri) ? 6 : 0, paddingBottom: (imgUri || audUri) ? 4 : 0 }]}>{cleanText}</Text> : null}
                   </View>
                 </View>
               );
@@ -129,6 +143,10 @@ export default function DMChat() {
         <View style={styles.inputBar}>
           <TouchableOpacity style={styles.iconBtn} onPress={attachPhoto} testID="dm-photo"><Ionicons name="image" size={22} color="#D4AF37" /></TouchableOpacity>
           <TouchableOpacity style={styles.iconBtn} onPress={() => setEmojiOpen(v => !v)} testID="dm-emoji"><Ionicons name={emojiOpen ? "close" : "happy"} size={22} color="#D4AF37" /></TouchableOpacity>
+          <AudioRecorderButton
+            onRecorded={(a) => send(`[AUD]${a.base64}[/AUD]`)}
+            testID="dm-audio"
+          />
           <TextInput style={styles.input} value={text} onChangeText={setText} placeholder={`Mensagem para ${partner.nickname}...`} placeholderTextColor="#666" multiline />
           <TouchableOpacity style={[styles.sendBtn, (!text.trim() || sending) && { opacity: 0.4 }]} disabled={!text.trim() || sending} onPress={() => send()} testID="dm-send">
             <Ionicons name="send" size={16} color="#000" />
