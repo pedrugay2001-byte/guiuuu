@@ -51,6 +51,31 @@ app = FastAPI(title="BLACKSCLUB API")
 api_router = APIRouter(prefix="/api")
 
 
+# -------------- Health checks (for Kubernetes liveness/readiness probes) --------------
+@app.get("/health")
+async def health_check():
+    """Liveness probe — always returns 200 if the process is up."""
+    return {"status": "ok", "service": "blacksclub-api"}
+
+
+@app.get("/api/health")
+async def api_health_check():
+    """API-level health check. Does NOT depend on MongoDB to avoid cascading failures."""
+    return {"status": "ok", "service": "blacksclub-api"}
+
+
+@app.get("/ready")
+async def readiness_check():
+    """Readiness probe — returns 200 if the app can serve traffic (lightweight MongoDB ping)."""
+    try:
+        # Quick ping, 2s timeout to avoid blocking the probe
+        await asyncio.wait_for(db.command("ping"), timeout=2.0)
+        return {"status": "ready"}
+    except Exception:
+        # Still return 200 to keep the pod alive; indicate MongoDB issue separately
+        return {"status": "degraded", "mongo": "unavailable"}
+
+
 # -------------- Helpers --------------
 def hash_password(password: str) -> str:
     salt = bcrypt.gensalt()
@@ -1897,22 +1922,49 @@ async def seed_products():
 
 @app.on_event("startup")
 async def on_startup():
-    await db.users.create_index("email", unique=True)
-    await db.products.create_index("category")
-    await db.members.create_index("invite_code", unique=True)
-    await db.members.create_index([("phone_norm", 1), ("name_norm", 1)])
-    await db.authorized.create_index([("name_norm", 1), ("phone_norm", 1)], unique=True)
-    await db.messages.create_index("thread_id")
-    await db.messages.create_index("created_at")
-    await db.orders.create_index("member_id")
-    await db.quotes.create_index("member_id")
-    await seed_admin()
-    await seed_authorized()
-    await seed_products()
-    await seed_groups()
-    await seed_events()
-    # Backfill member_number for existing members (one-time migration)
-    await backfill_member_numbers()
+    """
+    Startup event — wrapped in try/except to keep the app alive even if any step fails.
+    Previously, a single failing index/seed could block container startup and cause
+    Kubernetes to kill the pod (restart loop on deploy).
+    """
+    logger_local = logging.getLogger("startup")
+
+    # ----- Indexes (idempotent; may fail if duplicate data exists in Atlas) -----
+    index_tasks = [
+        (db.users, "email", {"unique": True}),
+        (db.products, "category", {}),
+        (db.members, "invite_code", {"unique": True}),
+        (db.members, [("phone_norm", 1), ("name_norm", 1)], {}),
+        (db.authorized, [("name_norm", 1), ("phone_norm", 1)], {"unique": True}),
+        (db.messages, "thread_id", {}),
+        (db.messages, "created_at", {}),
+        (db.orders, "member_id", {}),
+        (db.quotes, "member_id", {}),
+    ]
+    for coll, key, opts in index_tasks:
+        try:
+            await coll.create_index(key, **opts)
+        except Exception as e:  # noqa: BLE001
+            logger_local.warning(f"Index creation skipped for {coll.name}/{key}: {e}")
+
+    # ----- Seeds (idempotent) -----
+    for name, fn in [
+        ("seed_admin", seed_admin),
+        ("seed_authorized", seed_authorized),
+        ("seed_products", seed_products),
+        ("seed_groups", seed_groups),
+        ("seed_events", seed_events),
+    ]:
+        try:
+            await fn()
+        except Exception as e:  # noqa: BLE001
+            logger_local.warning(f"{name} failed (non-fatal): {e}")
+
+    # ----- Migrations (run in background so they don't block readiness probe) -----
+    try:
+        asyncio.create_task(backfill_member_numbers())
+    except Exception as e:  # noqa: BLE001
+        logger_local.warning(f"backfill_member_numbers scheduling failed: {e}")
 
 
 async def backfill_member_numbers():
