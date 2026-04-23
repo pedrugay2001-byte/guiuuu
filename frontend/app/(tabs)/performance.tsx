@@ -48,9 +48,11 @@ function statusLabel(s: string): { text: string; color: string } {
 
 function fmtVal(v: number, unit?: string) {
   const abs = Math.abs(v);
+  if (unit === "R$") return `R$ ${abs.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
   const isInt = Math.abs(v - Math.round(v)) < 0.01;
-  const txt = isInt ? Math.round(v).toString() : v.toFixed(1);
-  if (unit === "R$") return `R$ ${abs.toLocaleString("pt-BR")}`;
+  // kg (e congêneres) aceitam casas decimais (gramas): 2,5 kg | 95,750 g
+  // Mostramos 1 casa decimal sempre (0,5 kg), vírgula como separador pt-BR.
+  const txt = isInt ? Math.round(v).toString() : v.toFixed(1).replace(".", ",");
   return `${txt}${unit ? " " + unit : ""}`;
 }
 

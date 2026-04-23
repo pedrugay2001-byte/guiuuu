@@ -25,9 +25,14 @@ const INNER_CARD_BG = "#101010";
 type AreaId = "ai" | "community" | "marketplace" | "planos" | "wallet" | "performance" | "chat" | "profissionais";
 type Area = { id: AreaId; label: string; icon: { lib: "ion" | "mci"; name: string }; route: string };
 
+// Grid 2x4 = 8 atalhos no estilo "quadrado cinza" da referência do usuário.
 const AREAS: Area[] = [
-  { id: "cart",          label: "Carrinho",      icon: { lib: "ion", name: "cart" },               route: "/(tabs)/cart" },
+  { id: "ai",            label: "BLACK AI",      icon: { lib: "mci", name: "brain" },              route: "/black-ai" },
+  { id: "community",     label: "Comunidade",    icon: { lib: "ion", name: "chatbubbles" },        route: "/(tabs)/community" },
+  { id: "marketplace",   label: "Marketplace",   icon: { lib: "ion", name: "storefront" },         route: "/ads" },
   { id: "planos",        label: "Planos",        icon: { lib: "mci", name: "diamond-stone" },      route: "/(tabs)/negocios" },
+  { id: "wallet",        label: "Banco",         icon: { lib: "ion", name: "wallet" },             route: "/(tabs)/wallet" },
+  { id: "performance",   label: "Performance",   icon: { lib: "mci", name: "chart-line-variant" }, route: "/(tabs)/performance" },
   { id: "chat",          label: "Suporte",       icon: { lib: "ion", name: "headset" },            route: "/chat" },
   { id: "profissionais", label: "Profissionais", icon: { lib: "mci", name: "stethoscope" },        route: "/ai" },
 ];
@@ -160,6 +165,43 @@ export default function Home() {
               <Text style={s.centralUser}>{name}</Text>
             </View>
 
+            {/* Buttons row — nome da meta ativa (cor da meta) + BLACK AI (preto) */}
+            <View style={s.aiBtnRow}>
+              <TouchableOpacity
+                style={[
+                  s.btnGhost,
+                  hasGoals && forecastGoal?.color
+                    ? { borderColor: `${forecastGoal.color}90`, backgroundColor: `${forecastGoal.color}18` }
+                    : null,
+                ]}
+                onPress={() => router.push("/(tabs)/performance")}
+                activeOpacity={0.85}
+                testID="btn-meta-nome"
+              >
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    s.btnGhostTxt,
+                    hasGoals && forecastGoal?.color ? { color: forecastGoal.color } : null,
+                  ]}
+                >
+                  {hasGoals ? (forecastGoal?.title || "Sua meta") : "Criar meta"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.btnPrimary}
+                onPress={() => {
+                  const gid = forecastGoal?.goal_id;
+                  router.push(gid ? `/black-ai?goalId=${gid}` as any : "/black-ai" as any);
+                }}
+                activeOpacity={0.9}
+                testID="btn-black-ai"
+              >
+                <MaterialCommunityIcons name="brain" size={13} color="#FFF" />
+                <Text style={s.btnPrimaryTxt}>BLACK AI</Text>
+              </TouchableOpacity>
+            </View>
+
             {/* STATS — 4 columns with vertical dividers */}
             <View style={s.statsRow}>
               <Stat
@@ -178,13 +220,50 @@ export default function Home() {
                 captionColor={GREEN}
               />
               <View style={s.statDividerV} />
-              <Stat
-                iconCircle={<Ionicons name="trending-up" size={20} color="#EEE" />}
-                label="RITMO ATUAL"
-                value={hasGoals ? `${Math.abs(stats.rhythm)}%` : "—"}
-                caption={hasGoals ? "abaixo do ideal" : "sem dados"}
-                captionColor={hasGoals ? RED : "#777"}
-              />
+              {/* RITMO ATUAL — mostra kg perdidos/ganhos com frase dinâmica verde/vermelho */}
+              {(() => {
+                // Calcula delta da meta crítica (em kg/R$/etc.) para exibir no stat.
+                const g: any = forecastGoal;
+                const hasData = !!g && typeof g.current_value === "number" && typeof g.initial_value === "number";
+                const init = hasData ? g.initial_value : 0;
+                const cur = hasData ? g.current_value : 0;
+                const tgt = hasData ? g.target_value : 0;
+                const losing = hasData ? tgt < init : false; // meta de emagrecer/reduzir
+                // achieved (sempre positivo): o quanto andou na direção certa
+                const achievedRaw = losing ? init - cur : cur - init;
+                const achieved = Math.max(0, achievedRaw);
+                const regressing = achievedRaw < 0;
+                const unit = g?.unit || (g?.type === "financial" ? "R$" : g?.type === "productivity" ? "h" : "kg");
+                const fmt = (n: number) => {
+                  const abs = Math.abs(n);
+                  if (unit === "R$") return `R$ ${abs.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
+                  // 1 casa decimal com vírgula (ex.: 2,5 kg / 0,3 kg)
+                  const isInt = Math.abs(abs - Math.round(abs)) < 0.01;
+                  return `${isInt ? Math.round(abs) : abs.toFixed(1).replace(".", ",")} ${unit}`;
+                };
+                const verb = g?.type === "financial" ? "acumulou"
+                  : g?.type === "productivity" ? "entregou"
+                  : losing ? "perdeu" : "ganhou";
+                const verbBad = g?.type === "financial" ? "recuou" : losing ? "voltou a ganhar" : "recuou";
+                const value = hasData ? fmt(regressing ? Math.abs(achievedRaw) : achieved) : "—";
+                const caption = !hasData ? "sem dados"
+                  : regressing ? `Cuidado — ${verbBad}`
+                  : achieved > 0 ? `Boa! Você já ${verb}`
+                  : "comece a registrar";
+                const captionColor = !hasData ? "#777"
+                  : regressing ? RED
+                  : achieved > 0 ? GREEN
+                  : "#888";
+                return (
+                  <Stat
+                    iconCircle={<Ionicons name={regressing ? "trending-down" : "trending-up"} size={20} color="#EEE" />}
+                    label="RITMO ATUAL"
+                    value={value}
+                    caption={caption}
+                    captionColor={captionColor}
+                  />
+                );
+              })()}
               <View style={s.statDividerV} />
               <Stat
                 iconCircle={<MaterialCommunityIcons name="calendar-month" size={20} color="#EEE" />}
@@ -196,8 +275,7 @@ export default function Home() {
             </View>
           </View>
 
-          {/* ACESSO RÁPIDO — quadrado cinza minimalista (estilo original) */}
-          <Text style={s.sectionLbl}>ACESSO RÁPIDO</Text>
+          {/* ACESSO RÁPIDO — grid 2x4 em quadrados cinza (sem título) */}
           <View style={s.grid}>
             {AREAS.map((a) => (
               <TouchableOpacity
@@ -207,7 +285,7 @@ export default function Home() {
                 activeOpacity={0.85}
                 testID={`area-${a.id}`}
               >
-                <AreaIcon icon={a.icon} size={22} color="#FFF" />
+                <AreaIcon icon={a.icon} size={34} color="#FFF" />
                 <Text style={s.tileLbl} numberOfLines={1}>{a.label}</Text>
               </TouchableOpacity>
             ))}
@@ -387,17 +465,21 @@ const s = StyleSheet.create({
   seeAllGrey: { color: "#888", fontSize: 11, fontWeight: "700" },
   seeAllGold: { color: GOLD, fontSize: 11, fontWeight: "800" },
 
-  // TILES 4 col — flex robusto, 4 por linha
-  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 4, justifyContent: "space-between" },
+  // TILES 4 col — quadrados cinza (estilo referência do usuário)
+  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 8, justifyContent: "space-between", marginTop: 8 },
   tile: {
-    flexBasis: "23.5%",
-    height: 78,
-    backgroundColor: "transparent",
+    flexBasis: "23%",
+    aspectRatio: 0.92, // quase quadrado (levemente retrato)
+    backgroundColor: "#0E0E0E",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
     alignItems: "center", justifyContent: "center",
-    gap: 6,
-    paddingVertical: 6,
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
   },
-  tileLbl: { color: "#F5F5F5", fontSize: 10, fontWeight: "700", textAlign: "center", letterSpacing: 0.2 },
+  tileLbl: { color: "#F5F5F5", fontSize: 10.5, fontWeight: "700", textAlign: "center", letterSpacing: 0.2 },
 
   // Below-fold
   postCard: { width: 170, borderRadius: 14, backgroundColor: "#0E0E0E", borderWidth: 1, borderColor: "#1A1A1A", padding: 12 },
