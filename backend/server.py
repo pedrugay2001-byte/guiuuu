@@ -53,24 +53,28 @@ api_router = APIRouter(prefix="/api")
 
 # -------------- Health checks (for Kubernetes liveness/readiness probes) --------------
 @app.get("/")
+@app.head("/")
 async def root():
     """Root endpoint — Kubernetes liveness probe hits GET / and expects 2xx."""
     return {"status": "ok", "service": "blacksclub-api", "api": "/api"}
 
 
 @app.get("/health")
+@app.head("/health")
 async def health_check():
     """Liveness probe — always returns 200 if the process is up."""
     return {"status": "ok", "service": "blacksclub-api"}
 
 
 @app.get("/api/health")
+@app.head("/api/health")
 async def api_health_check():
     """API-level health check. Does NOT depend on MongoDB to avoid cascading failures."""
     return {"status": "ok", "service": "blacksclub-api"}
 
 
 @app.get("/ready")
+@app.head("/ready")
 async def readiness_check():
     """Readiness probe — returns 200 if the app can serve traffic (lightweight MongoDB ping)."""
     try:
@@ -4438,5 +4442,72 @@ async def shutdown_db_client():
 
 
 app.include_router(api_router)
-app.include_router(api_router)
+
+
+# ============================================================
+# STATIC FILES — serve frontend build as fallback for SPA routing
+# ============================================================
+# Priority order:
+# 1) /api/*        → API routes (included above)
+# 2) /health, /ready, /, /favicon.ico → FastAPI handlers
+# 3) /<path>       → static file from /app/frontend/dist (if exists)
+# 4) /<path>       → index.html (SPA fallback)
+#
+# This ensures:
+# - Kubernetes liveness probe on "/" returns 200
+# - Favicon, images, JS, CSS all served correctly
+# - React Router client-side routes work (any unknown path → index.html)
+
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
+
+FRONTEND_DIST = "/app/frontend/dist"
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Serve favicon from frontend dist if present, otherwise return empty 200."""
+    fav = os.path.join(FRONTEND_DIST, "favicon.ico")
+    if os.path.exists(fav):
+        return FileResponse(fav, media_type="image/x-icon")
+    # Return empty favicon to avoid 404 noise in logs / probe failures
+    return Response(content=b"", media_type="image/x-icon", status_code=200)
+
+
+if os.path.isdir(FRONTEND_DIST):
+    # Mount static assets directory (Expo/Metro outputs to _expo/static)
+    _expo_static = os.path.join(FRONTEND_DIST, "_expo")
+    if os.path.isdir(_expo_static):
+        app.mount("/_expo", StaticFiles(directory=_expo_static), name="expo-static")
+    _assets_dir = os.path.join(FRONTEND_DIST, "assets")
+    if os.path.isdir(_assets_dir):
+        app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        """
+        Serve any non-API path from the frontend build.
+        - Existing file in dist → serve it
+        - Unknown path → serve index.html (for client-side routing)
+        """
+        # Never catch API routes (double safety)
+        if full_path.startswith("api/"):
+            return Response(status_code=404)
+
+        candidate = os.path.join(FRONTEND_DIST, full_path)
+        if os.path.isfile(candidate):
+            return FileResponse(candidate)
+        # Some Expo routes build as `path.html`
+        html_candidate = os.path.join(FRONTEND_DIST, full_path + ".html")
+        if os.path.isfile(html_candidate):
+            return FileResponse(html_candidate)
+        # Fallback to SPA entry point
+        index = os.path.join(FRONTEND_DIST, "index.html")
+        if os.path.isfile(index):
+            return FileResponse(index)
+        return Response(status_code=404)
+
+    logger.info(f"Frontend dist mounted from {FRONTEND_DIST}")
+else:
+    logger.warning(f"Frontend dist directory NOT found at {FRONTEND_DIST} — API-only mode")
 
