@@ -70,7 +70,7 @@ export default function Home() {
     <View style={{ flex: 1, backgroundColor: BG }}>
       <View style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: 20, flexGrow: 1 }}
           showsVerticalScrollIndicator={false}
           testID="home-scroll"
         >
@@ -297,7 +297,6 @@ const s = StyleSheet.create({
   central: {
     marginHorizontal: 12,
     backgroundColor: CARD_BG,
-    borderWidth: 1, borderColor: SILVER_DIM,
     borderRadius: 18,
     padding: 12,
   },
@@ -306,7 +305,6 @@ const s = StyleSheet.create({
     width: 26, height: 26, borderRadius: 13,
     alignItems: "center", justifyContent: "center",
     backgroundColor: "rgba(200,200,200,0.08)",
-    borderWidth: 1, borderColor: "rgba(200,200,200,0.35)",
   },
   centralHeadTxt: { color: SILVER, fontSize: 11, fontWeight: "900", letterSpacing: 2, flex: 1 },
   centralUser: { color: "#9E9E9E", fontSize: 12, fontWeight: "600" },
@@ -316,7 +314,6 @@ const s = StyleSheet.create({
     position: "relative",
     flexDirection: "row",
     backgroundColor: "#000",
-    borderWidth: 1, borderColor: "rgba(200,200,200,0.18)",
     borderRadius: 12, padding: 12, gap: 6,
   },
   aiLeft: { width: 72, alignItems: "center", justifyContent: "center" },

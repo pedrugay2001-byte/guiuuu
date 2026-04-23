@@ -65,7 +65,7 @@ const globalCss = `
 html, body {
   margin: 0;
   padding: 0;
-  background-color: #050505;
+  background-color: #050505 !important;
   color: #FFFFFF;
   min-height: 100vh;
   min-height: 100dvh;
@@ -77,8 +77,9 @@ html, body {
   overscroll-behavior: none;
   touch-action: manipulation;
   overflow-x: hidden;
-  border: none;
-  outline: none;
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
 }
 
 #root {
@@ -87,9 +88,10 @@ html, body {
   width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
-  background-color: #050505;
-  border: none;
-  outline: none;
+  background-color: #050505 !important;
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
 }
 
 #root > * {
@@ -97,14 +99,18 @@ html, body {
   width: 100%;
   min-height: 0;
   background-color: #050505;
-  border: none;
-  outline: none;
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
 }
 
-/* Zera QUALQUER borda/outline em QUALQUER elemento filho — mata linhas fantasmas globais */
-div, section, main, header, footer, nav, article, aside {
-  border: 0;
-  outline: 0;
+/* Mata QUALQUER borda fantasma de wrappers do expo-router/react-navigation.
+ * Aplica APENAS a elementos que NÃO são componentes React Native com borda intencional
+ * (RN vira inline style, que prevalece). Isso mata wrappers de navegação e ScrollViews. */
+div[role="tablist"], div[role="tab"], div[role="tabpanel"], div[role="presentation"] {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
 }
 
 * { -webkit-user-select: none; user-select: none; box-sizing: border-box; }
