@@ -26,10 +26,13 @@ export default function AdminMembers() {
       const data = await api.adminListAuthorized();
       setList(data);
     } catch (e: any) {
-      if (String(e.message).includes("Admin")) {
-        Alert.alert("Apenas admin", "Faça login como administrador.", [
+      const msg = String(e?.message || "").toLowerCase();
+      if (msg.includes("staff") || msg.includes("admin") || msg.includes("401") || msg.includes("403")) {
+        Alert.alert("Acesso negado", "Faça login novamente.", [
           { text: "OK", onPress: () => router.replace("/staff/login") },
         ]);
+      } else {
+        Alert.alert("Erro ao carregar", e?.message || "Tente novamente");
       }
     } finally {
       setLoading(false);

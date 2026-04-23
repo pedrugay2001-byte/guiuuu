@@ -25,8 +25,8 @@ export default function StaffLogin() {
     setLoading(true);
     try {
       const res = await api.login(email.trim().toLowerCase(), password);
-      if (!["support", "admin"].includes(res.user.role)) {
-        setError("Conta sem permissão de suporte");
+      if (!["support", "admin", "financeiro"].includes(res.user.role)) {
+        setError("Conta sem permissão de equipe");
         return;
       }
       await setToken(res.token);

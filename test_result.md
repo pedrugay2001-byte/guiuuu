@@ -795,6 +795,38 @@ agent_communication:
 
 
 
+    - agent: "testing"
+      message: |
+        [Validação focada de permissões staff — /app/tests/test_staff_permissions.py — 21/21 PASS]
+
+        Escopo: validar apenas o relaxamento de permissões de require_admin → require_staff em
+        /api/admin/authorized (GET/POST/DELETE) e /api/admin/stats, e confirmar que
+        DELETE /api/admin/members/{id} continua exclusivo de admin.
+
+        ## 1. SUPPORT FLOW (suporte@blacksclub.com / suporte123) ✅
+        - POST /api/auth/login → 200, role="support", token retornado.
+        - GET /api/admin/authorized (Bearer support) → 200, lista com 3 entradas (antes dava 403). ✅
+        - POST /api/admin/authorized {name:"Teste QA Suporte", phone:"+5511900001111", code:"QA-SUPP", tier:"black"}
+          → 200 com {ok:true, code:"QA-SUPP"}. ✅
+        - DELETE /api/admin/authorized/{auth_id} → 200 com {ok:true}. ✅
+
+        ## 2. FINANCEIRO FLOW (financeiro@blacksclub.com / financeiro123) ✅
+        - POST /api/auth/login → 200, role="financeiro" (seed criado corretamente em startup). ✅
+        - GET /api/admin/stats (Bearer financeiro) → 200 (antes 403). ✅
+        - POST /api/admin/authorized (Bearer financeiro) → 200 com {ok:true, code:"QA-FIN"}. ✅
+        - DELETE /api/admin/authorized/{auth_id} com token financeiro → 200. ✅
+
+        ## 3. ADMIN REGRESSION (admin@farmaclube.com / admin123) ✅
+        - POST /api/auth/login → 200, role="admin". ✅
+        - POST /api/admin/authorized → 200. ✅
+        - DELETE /api/admin/members/{id} com token de SUPPORT → 403 {"detail":"Admin access required"}. ✅
+        - DELETE /api/admin/members/{id} com token de FINANCEIRO → 403 {"detail":"Admin access required"}. ✅
+        - DELETE /api/admin/members/{id} com token de ADMIN → NÃO 403 (passa pelo guard). ✅
+
+        CONCLUSÃO: require_staff agora aceita admin + support + financeiro corretamente em
+        admin/authorized e admin/stats. require_admin mantém exclusividade em admin/members DELETE.
+        Nenhum bug encontrado. Nenhuma regressão. Base URL testada: https://member-shop-2.preview.emergentagent.com/api.
+
     - agent: "main"
       message: |
         [Sessão atual — Simplificação Home + Black AI Analysis + Cross-platform ActionSheet]

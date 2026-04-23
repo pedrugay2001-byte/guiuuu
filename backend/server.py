@@ -95,7 +95,7 @@ async def require_admin(user: dict = Depends(get_current_user)) -> dict:
 
 
 async def require_staff(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") not in ("admin", "support"):
+    if user.get("role") not in ("admin", "support", "financeiro"):
         raise HTTPException(status_code=403, detail="Staff access required")
     return user
 
@@ -487,7 +487,7 @@ class AuthorizedCreate(BaseModel):
 
 
 @api_router.post("/admin/authorized")
-async def admin_authorize(data: AuthorizedCreate, admin: dict = Depends(require_admin)):
+async def admin_authorize(data: AuthorizedCreate, staff: dict = Depends(require_staff)):
     nname = normalize_name(data.name)
     nphone = normalize_phone(data.phone)
     code = data.code.strip().upper()
@@ -513,13 +513,13 @@ async def admin_authorize(data: AuthorizedCreate, admin: dict = Depends(require_
 
 
 @api_router.get("/admin/authorized")
-async def admin_list_authorized(admin: dict = Depends(require_admin)):
+async def admin_list_authorized(staff: dict = Depends(require_staff)):
     cursor = db.authorized.find({}, {"_id": 0}).sort("created_at", -1)
     return await cursor.to_list(length=500)
 
 
 @api_router.delete("/admin/authorized/{auth_id}")
-async def admin_delete_authorized(auth_id: str, admin: dict = Depends(require_admin)):
+async def admin_delete_authorized(auth_id: str, staff: dict = Depends(require_staff)):
     r = await db.authorized.delete_one({"auth_id": auth_id})
     if r.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Entrada não encontrada")
@@ -1653,6 +1653,24 @@ async def seed_admin():
         await db.users.update_one(
             {"email": support_email},
             {"$set": {"password_hash": hash_password(support_password), "role": "support"}},
+        )
+
+    financeiro_email = "financeiro@blacksclub.com"
+    financeiro_password = "financeiro123"
+    financeiro_existing = await db.users.find_one({"email": financeiro_email})
+    if not financeiro_existing:
+        await db.users.insert_one({
+            "user_id": f"user_{uuid.uuid4().hex[:12]}",
+            "email": financeiro_email,
+            "name": "Financeiro BLACKSCLUB",
+            "password_hash": hash_password(financeiro_password),
+            "role": "financeiro",
+            "created_at": datetime.now(timezone.utc),
+        })
+    elif not verify_password(financeiro_password, financeiro_existing["password_hash"]):
+        await db.users.update_one(
+            {"email": financeiro_email},
+            {"$set": {"password_hash": hash_password(financeiro_password), "role": "financeiro"}},
         )
 
 
