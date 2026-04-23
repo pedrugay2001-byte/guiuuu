@@ -26,12 +26,8 @@ type AreaId = "ai" | "community" | "marketplace" | "planos" | "wallet" | "perfor
 type Area = { id: AreaId; label: string; icon: { lib: "ion" | "mci"; name: string }; route: string };
 
 const AREAS: Area[] = [
-  { id: "ai",            label: "BLACK AI",      icon: { lib: "mci", name: "brain" },              route: "/ai" },
-  { id: "community",     label: "Comunidade",    icon: { lib: "ion", name: "chatbubbles" },        route: "/(tabs)/community" },
   { id: "marketplace",   label: "Marketplace",   icon: { lib: "ion", name: "storefront" },         route: "/(tabs)/catalog" },
   { id: "planos",        label: "Planos",        icon: { lib: "mci", name: "diamond-stone" },      route: "/(tabs)/negocios" },
-  { id: "wallet",        label: "Banco",         icon: { lib: "ion", name: "wallet" },             route: "/(tabs)/wallet" },
-  { id: "performance",   label: "Performance",   icon: { lib: "mci", name: "chart-line-variant" }, route: "/(tabs)/performance" },
   { id: "chat",          label: "Suporte",       icon: { lib: "ion", name: "headset" },            route: "/chat" },
   { id: "profissionais", label: "Profissionais", icon: { lib: "mci", name: "stethoscope" },        route: "/ai" },
 ];
