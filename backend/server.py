@@ -3053,39 +3053,67 @@ async def goal_what_to_do(goal_id: str):
     entries = await db.goal_entries.find({"goal_id": goal_id}).sort("date", 1).to_list(length=500)
     snap = _compute_goal_snapshot(goal, entries)
 
+    member = await db.members.find_one({"member_id": goal["member_id"]})
+    member_name = (member or {}).get("nickname") or (member or {}).get("name") or "Membro"
+    member_tier = (member or {}).get("tier", "silver")
+
+    system_prompt = (
+        "Você é o ASSISTENTE BLACK do BLACKSCLUB — o coach pessoal exclusivo de um clube "
+        "privado premium. Seu tom é sofisticado, elegante, direto e magnético, sem clichês "
+        "motivacionais baratos. Fale como um mentor de elite que trata o membro como VIP. "
+        "Use vocabulário refinado, metáforas precisas e impacto em poucas palavras. "
+        "Nunca seja genérico. Nunca diga 'você consegue!'. Seja concreto, cirúrgico, premium.\n"
+        "Responda SEMPRE em JSON válido no formato exato pedido. Nada mais."
+    )
+
     prompt = (
-        f"Você é o ASSISTENTE BLACK do BLACKSCLUB — um coach premium.\n"
-        f"Meta do membro: '{goal['title']}' ({goal['type']}).\n"
-        f"Valor atual: {snap['current_value']} {goal.get('unit','')}, meta: {goal['target_value']} {goal.get('unit','')}.\n"
-        f"Progresso: {snap['progress_pct']}% em {snap['days_elapsed']}/{snap['days_total']} dias.\n"
-        f"Ritmo: {snap['rhythm']}% ({snap['rhythm_status']}). Faltam {snap['days_remaining']} dias.\n\n"
-        f"Retorne em JSON:\n"
+        f"MEMBRO: {member_name} ({member_tier.upper()})\n"
+        f"META ATIVA: \"{goal['title']}\" · tipo {goal['type']}\n"
+        f"Baseline: {goal['current_value']} → Alvo: {goal['target_value']} {goal.get('unit','')}\n"
+        f"Valor atual: {snap['current_value']} {goal.get('unit','')}\n"
+        f"Progresso: {snap['progress_pct']}% em {snap['days_elapsed']} de {snap['days_total']} dias.\n"
+        f"Ritmo: {snap['rhythm']:+.1f}% ({snap['rhythm_status']}). Restam {snap['days_remaining']} dias.\n"
+        f"Previsão no pace atual: {snap['forecast_days']} dias.\n\n"
+        f"Diagnóstico e prescrição para HOJE. Retorne JSON EXATO:\n"
         f"{{\n"
-        f'  "headline": "frase curta motivadora (máx 80 chars)",\n'
-        f'  "actions": ["ação 1 concreta e específica", "ação 2", "ação 3"],\n'
-        f'  "warning": "um alerta se necessário ou string vazia"\n'
+        f'  "headline": "frase de impacto, sofisticada, máx 75 chars — diagnóstico do momento",\n'
+        f'  "actions": [\n'
+        f'     "ação 1 — concreta, específica, com tempo/quantidade",\n'
+        f'     "ação 2 — ritual ou hábito premium",\n'
+        f'     "ação 3 — bloqueio ou eliminação estratégica"\n'
+        f'  ],\n'
+        f'  "warning": "alerta caso fuja do ritmo, ou string vazia"\n'
         f"}}\n"
-        f"Seja direto, premium, sem clichês. Ações concretas (ex: 'Treino de 45min tipo HIIT')."
+        f"Regras: sem emojis, sem exclamações excessivas, sem clichês. Nível luxo, discrição, precisão."
     )
 
     try:
-        llm = _get_llm_chat(system="Você é um coach premium objetivo. Responda APENAS JSON válido.")
+        key = os.environ.get("EMERGENT_LLM_KEY")
+        if not LlmChat or not key:
+            raise RuntimeError("LLM indisponível")
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"wtd_{goal_id}",
+            system_message=system_prompt,
+        ).with_model("openai", "gpt-4o")
         from emergentintegrations.llm.chat import UserMessage  # type: ignore
-        reply = await llm.send_message(UserMessage(text=prompt))
+        reply = await chat.send_message(UserMessage(text=prompt))
         import re as _re, json as _json
         match = _re.search(r"\{.*\}", reply, _re.DOTALL)
         if match:
             data = _json.loads(match.group(0))
+            if not isinstance(data.get("actions"), list):
+                data["actions"] = []
         else:
             data = {"headline": reply.strip()[:80], "actions": [], "warning": ""}
     except Exception as e:
         logger.exception("what-to-do failed: %s", e)
         data = {
-            "headline": "Foque no próximo passo pequeno, hoje.",
+            "headline": "Disciplina hoje. Resultado amanhã.",
             "actions": [
-                "Registre seu progresso agora para não perder o ritmo.",
-                "Faça 30 minutos da ação principal da sua meta.",
-                "Revise sua meta e elimine uma distração comum.",
+                "Execute o gesto técnico da sua meta por 45 minutos, sem distrações.",
+                "Registre o progresso antes de dormir — dados geram consciência.",
+                "Elimine UM hábito hoje que compete com o seu objetivo.",
             ],
             "warning": "",
         }

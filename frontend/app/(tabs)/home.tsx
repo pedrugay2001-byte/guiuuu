@@ -471,8 +471,8 @@ const s = StyleSheet.create({
   aiCard: {
     position: "relative",
     flexDirection: "row",
-    backgroundColor: INNER_CARD_BG,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.05)",
+    backgroundColor: "#000",
+    borderWidth: 1, borderColor: "rgba(245,193,80,0.25)",
     borderRadius: 12, padding: 12, gap: 6,
   },
   aiLeft: { width: 72, alignItems: "center", justifyContent: "center" },
