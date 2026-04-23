@@ -77,9 +77,9 @@ export default function TabsLayout() {
         },
         tabBarActiveTintColor: GOLD,
         tabBarInactiveTintColor: "#6A6A6A",
-        tabBarLabelStyle: { fontSize: 9.5, fontWeight: "700", letterSpacing: 0, marginTop: 4 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "700", letterSpacing: 0.2, marginTop: 4 },
         tabBarLabelPosition: "below-icon",
-        tabBarItemStyle: { paddingHorizontal: 1 },
+        tabBarItemStyle: { paddingHorizontal: 0 },
       }}
     >
       <Tabs.Screen
@@ -95,7 +95,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="catalog"
         options={{
-          title: "Marketplace",
+          title: "Mercado",
           headerStyle: { backgroundColor: theme.colors.bg, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
           headerTitle: () => <Text style={styles.screenTitle}>MARKETPLACE</Text>,
           tabBarIcon: ({ color, size, focused }) => (
@@ -106,7 +106,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="community"
         options={{
-          title: "Comunidade",
+          title: "Social",
           headerShown: false,
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? "people" : "people-outline"} color={color} size={size} />
@@ -116,7 +116,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="performance"
         options={{
-          title: "Performance",
+          title: "Metas",
           headerStyle: { backgroundColor: theme.colors.bg, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
           headerTitle: () => <Text style={[styles.screenTitle, { color: GOLD }]}>PERFORMANCE</Text>,
           tabBarIcon: ({ color, size, focused }) => (
