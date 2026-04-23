@@ -67,8 +67,6 @@ const st = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 18,
     paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#141414",
     backgroundColor: "#050505",
   },
   right: { flexDirection: "row", alignItems: "center", gap: 12 },

@@ -998,6 +998,47 @@ agent_communication:
         - Status bar preta nativa (theme-color + status-bar-style)
 
         ==== 6. O que NÃO foi alterado (intencionalmente) ====
+
+    - agent: "main"
+      message: |
+        [Sessão — Fix de aproveitamento de tela + remoção de bordas fantasmas]
+
+        Usuário reportou que a refatoração anterior prendeu o layout num container estreito,
+        somou safe-area duas vezes (CSS global + SafeAreaView das telas → padding duplicado)
+        e manteve bordas sutis (linhas fantasmas) no topo e rodapé.
+
+        ==== Correções aplicadas ====
+
+        1. **+html.tsx reescrito com princípio minimal**:
+           - REMOVIDO padding de safe-area do #root (causava duplicação com SafeAreaView).
+             Cada tela já usa SafeAreaView (react-native-safe-area-context); o shell não
+             deve somar mais nada.
+           - REMOVIDO max-width fixo de 560px no #root > * para mobile.
+           - Adicionada media query: em telas >= 600px (desktop/tablet), app fica centralizado
+             em max-width 430px simulando mobile. Em telas < 600px (celular real), ocupa 100%.
+           - REMOVIDAS CSS variables de safe-area que não eram mais usadas.
+           - REMOVIDOS outlines/position:relative redundantes.
+           - Scrollbar com largura 0 (invisível mas funcional).
+
+        2. **Bordas fantasmas removidas**:
+           - src/top-tab-bar.tsx: removido borderBottomWidth:1 / borderBottomColor:#141414
+           - src/bottom-brand-bar.tsx: removido borderTopWidth:1 / borderTopColor:#141414
+           - Agora topo e rodapé fundem continuamente com o fundo #050505 do app.
+
+        ==== Validação runtime (mobile 390px) ====
+        - #root width: 100% (expande normalmente)
+        - #root > * width: 100% em mobile, 430px em desktop
+        - childW medido: 430px em viewport desktop (1920), max-width correto
+        - Screenshot confirma ausência de linhas/divisórias no topo e rodapé
+        - Conteúdo central respirando corretamente, stats da Central de Performance
+          com espaçamento adequado, tiles do Acesso Rápido bem dimensionados
+
+        ==== Princípios aplicados ====
+        - Safe-area É responsabilidade do SafeAreaView local, NUNCA do CSS global
+        - Max-width apenas em desktop via media query, NUNCA em mobile
+        - Bordas sutis (cor próxima ao fundo) SEMPRE parecem falhas visuais — remover
+        - Container principal = #root (flex:1, 100dvh) e um filho (flex:1, 100%)
+
         - Nenhum visual foi mudado (só infraestrutura de shell)
         - Nenhuma rota ou lógica de negócio foi tocada
         - Nenhuma tela teve seu layout mexido — todas continuam usando os mesmos SafeAreaView

@@ -85,8 +85,6 @@ const st = StyleSheet.create({
   bar: {
     flexDirection: "row",
     backgroundColor: BG,
-    borderBottomWidth: 1,
-    borderBottomColor: "#141414",
     paddingTop: 8,
     paddingBottom: 8,
     paddingHorizontal: 4,
