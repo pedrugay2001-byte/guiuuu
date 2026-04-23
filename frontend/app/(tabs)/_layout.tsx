@@ -7,7 +7,7 @@ import { theme } from "../../src/theme";
 import { BrandLogo } from "../../src/brand";
 import { api } from "../../src/api";
 
-const GOLD = "#D4AF37";
+const GOLD = "#F5C150";
 
 export default function TabsLayout() {
   const router = useRouter();
@@ -67,16 +67,18 @@ export default function TabsLayout() {
         headerLeft: () => <View style={{ width: 14 }} />,
         headerRight: () => <HeaderRight />,
         tabBarStyle: {
-          backgroundColor: theme.colors.bg,
-          borderTopColor: theme.colors.border,
+          backgroundColor: "#050505",
+          borderTopColor: "#1A1A1A",
           borderTopWidth: 1,
-          height: 72,
-          paddingTop: 8,
-          paddingBottom: 14,
+          height: 78,
+          paddingTop: 10,
+          paddingBottom: 16,
+          paddingHorizontal: 4,
         },
-        tabBarActiveTintColor: theme.colors.white,
-        tabBarInactiveTintColor: theme.colors.textMuted,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "800", letterSpacing: 0.6, marginTop: 2 },
+        tabBarActiveTintColor: GOLD,
+        tabBarInactiveTintColor: "#6A6A6A",
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "700", letterSpacing: 0.3, marginTop: 4 },
+        tabBarItemStyle: { paddingHorizontal: 2 },
       }}
     >
       <Tabs.Screen
