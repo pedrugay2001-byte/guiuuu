@@ -99,23 +99,44 @@ export default function PerformanceTab() {
 
         {/* HEADER */}
         <View style={st.headerRow}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={st.kicker}>CENTRAL DE PERFORMANCE</Text>
-            <Text style={st.h1}>Seu painel de evolução</Text>
+            <Text style={st.h1}>Foco hoje, resultado amanhã</Text>
           </View>
-          <TouchableOpacity style={st.addBtn} onPress={() => setCreateOpen(true)} activeOpacity={0.85}>
-            <Ionicons name="add" size={18} color="#000" />
-          </TouchableOpacity>
         </View>
+
+        {/* BOTÃO NOVA META — dourado destacado */}
+        {hasGoals && (
+          <TouchableOpacity
+            style={st.newGoalBtn}
+            onPress={() => setCreateOpen(true)}
+            activeOpacity={0.85}
+            testID="btn-nova-meta"
+          >
+            <Ionicons name="add-circle" size={18} color="#000" />
+            <Text style={st.newGoalTxt}>NOVA META</Text>
+          </TouchableOpacity>
+        )}
 
         {!hasGoals && <EmptyExplainer />}
 
         {hasGoals && (
           <>
-            {/* SELETOR DE METAS */}
+            {/* SELETOR DE METAS com "Visão Geral" */}
             <Text style={st.sectionLbl}>SUAS METAS</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: 10, paddingVertical: 4, paddingRight: 10 }}>
+              {/* Chip "Visão Geral" */}
+              <TouchableOpacity
+                onPress={() => setSelectedId(null as any)}
+                activeOpacity={0.85}
+                style={[st.goalChip, !selectedId && { borderColor: "#D4AF37", backgroundColor: "rgba(212,175,55,0.12)" }]}
+              >
+                <Ionicons name="grid" size={14} color={!selectedId ? "#D4AF37" : "#888"} />
+                <Text style={[st.goalChipTxt, !selectedId && { color: "#FFF" }]} numberOfLines={1}>
+                  Visão Geral
+                </Text>
+              </TouchableOpacity>
               {goals.map(g => {
                 const selected = g.goal_id === selectedId;
                 const meta = TYPE_META[g.type];
