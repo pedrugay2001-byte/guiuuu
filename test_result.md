@@ -861,3 +861,84 @@ agent_communication:
         - BottomBrandBar (logo + notif + profile) continua presente em todas as tabs.
 
         Backend: Nenhuma mudança. Rotas inalteradas.
+
+    - agent: "main"
+      message: |
+        [Sessão — Revisão completa: Partes 1, 2 e 3 (Acesso, Marketplace, Black Coins)]
+
+        ==== PARTE 1 — Controle de Acesso, Permissões e Segurança ====
+        Backend (server.py):
+        - Novo endpoint GET /api/categories?member_id= com gating por tier:
+          · Black comum → 403 "Marketplace exclusivo para Silver/Gold/Diamante"
+          · Silver/Gold → retorna 5 categorias públicas
+          · Diamond → retorna 5 públicas + 4 de saúde (group="saude")
+        - GET /api/products e /api/subcategories agora aceitam member_id e validam tier:
+          · Black puro → 403
+          · Silver/Gold → 403 em emagrecedores/peptideos/landerlan/hormonios restrito
+          · Diamond → acesso completo
+        - Endpoints de produto (POST/PUT/DELETE) seguem protegidos por require_staff
+          (admin + support + financeiro).
+        - require_staff agora aceita role "financeiro" também.
+        - Seed cria usuário financeiro: financeiro@blacksclub.com / financeiro123.
+        - /api/admin/authorized (POST/GET/DELETE) passou de require_admin → require_staff
+          para o Suporte conseguir cadastrar novos membros pelo dashboard.
+
+        Frontend:
+        - /app/frontend/app/(tabs)/catalog.tsx reescrito:
+          · Black comum → tela de "ÁREA EXCLUSIVA" com ícone de cadeado e CTA FALAR COM SUPORTE.
+          · Silver/Gold → 5 categorias públicas + Marketplace P2P + Catálogo oficial (com desconto por tier).
+          · Diamond → seção "SAÚDE · DIAMANTE" alinhada à esquerda em chips compactos
+            (Emagrecedores / Peptídeos / Landerlan / Hormônios) + 5 públicas abaixo.
+        - /app/frontend/app/category/[id].tsx: trata 403 do backend e mostra tela "ÁREA RESTRITA"
+          se o usuário tentar direct-link numa categoria de saúde sem ser Diamond.
+        - /app/frontend/app/(tabs)/member.tsx: seção "GERENCIAR CATÁLOGO" continua gated por isStaff
+          (admin|support|financeiro); usuários comuns não veem.
+        - /app/frontend/src/api.ts: listProducts/subcategories/categories agora recebem member_id.
+
+        ==== PARTE 2 — Organização do Marketplace ====
+        Backend constants:
+        - PUBLIC_CATEGORIES = [hormonios, suplementos, tecnologia, bem_estar, beleza, pre_treinos]
+        - HEALTH_CATEGORIES = [emagrecedores, peptideos, landerlan]  (+ hormonios duplicado no retorno)
+
+        Frontend (catalog.tsx):
+        - Categorias públicas (Silver/Gold/Diamond): Hormônios · Suplementos · Tecnologia · Bem-estar · Beleza
+        - Área Saúde (Diamond only): chips compactos alinhados à esquerda, ocupando pouco espaço horizontal
+        - Foco visual no grid de produtos e anúncios P2P
+        - Layout limpo, espaçamento consistente (8pt grid)
+
+        ==== PARTE 3 — Sistema de Black Coins e Controle Financeiro ====
+        Backend:
+        - POST /api/wallet/topup e /api/wallet/withdraw agora exigem token staff (require_staff).
+          Usuário comum não consegue creditar/debitar via API — somente admin/suporte/financeiro.
+        - Nota da transação agora inclui email do staff que realizou a operação (audit trail).
+        - Saldo continua visível publicamente via GET /api/wallet/{member_id} (só leitura).
+
+        Frontend (/app/frontend/app/(tabs)/wallet.tsx):
+        - Hero card mostra saldo em formato "3.100 BLACK" (não mais R$).
+        - Escrow e "A receber" também em BLACK.
+        - REMOVIDOS botões RECARREGAR e SACAR.
+        - Novo aviso: "Para adicionar saldo, entre em contato com o suporte. Pagamentos são validados manualmente."
+        - Botão único "FALAR COM SUPORTE" (CTA dourado) → rota /chat.
+        - Transações do histórico todas em BLACK.
+        - Deletado placeholder /app/frontend/app/wallet.tsx (conflito de rota com /(tabs)/wallet).
+
+        ==== VALIDAÇÃO ====
+        Deep testing backend: 21/21 cenários passaram:
+        - 9/9 Controle de acesso ao marketplace por tier (black bloqueado, silver/gold sem saúde, diamond completo)
+        - 6/6 Wallet protegida (sem token → 401; admin/support/financeiro → 200)
+        - 2/2 Criação de produtos (sem token → 401; staff → 200)
+        - 4/4 Regressão (login, dashboard, subcategorias)
+
+        Screenshots validados:
+        - /catalog como diamond → seção saúde + públicas + catálogo oficial com -30%
+        - /catalog como black → tela "ÁREA EXCLUSIVA" com botão FALAR COM SUPORTE
+        - /wallet como diamond → saldo em BLACK, sem botões de recarga, botão FALAR COM SUPORTE
+
+        ACESSO DE STAFF (atualizado):
+        - Admin: admin@farmaclube.com / admin123
+        - Suporte: suporte@blacksclub.com / suporte123
+        - Financeiro: financeiro@blacksclub.com / financeiro123
+
+        PENDÊNCIAS:
+        - Parte 4 (Central de Performance refeita do zero) ainda não iniciada — aguardando usuário enviar a parte 4 do plano.
+
