@@ -1362,11 +1362,43 @@ class Product(BaseModel):
     created_at: datetime
 
 
+# -------------- Marketplace Category Access Rules --------------
+# Apenas Silver, Gold e Diamante acessam o marketplace.
+# Categorias "saúde" (sensíveis) só para Black Diamante.
+PUBLIC_CATEGORIES = ["hormonios", "suplementos", "tecnologia", "bem_estar", "beleza", "pre_treinos"]
+HEALTH_CATEGORIES = ["emagrecedores", "peptideos", "landerlan"]
+
 @api_router.get("/products", response_model=List[Product])
-async def list_products(category: Optional[str] = None, subcategory: Optional[str] = None, q: Optional[str] = None):
+async def list_products(category: Optional[str] = None, subcategory: Optional[str] = None, q: Optional[str] = None, member_id: Optional[str] = None):
+    # Descobre o tier do membro (se enviado)
+    tier = "black"
+    if member_id:
+        m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "tier": 1})
+        if m:
+            tier = (m.get("tier") or "black").lower()
+
+    # Regras de acesso por categoria
+    if category and category != "all":
+        if category in HEALTH_CATEGORIES and tier != "diamond":
+            raise HTTPException(status_code=403, detail="Categoria exclusiva para membros Black Diamante")
+        if category not in HEALTH_CATEGORIES and category not in PUBLIC_CATEGORIES:
+            # categoria inválida
+            return []
+        # Usuário "black" puro não acessa marketplace
+        if tier == "black":
+            raise HTTPException(status_code=403, detail="Marketplace exclusivo para membros Silver, Gold e Diamante")
+
     query: dict = {}
     if category and category != "all":
         query["category"] = category
+    else:
+        # Sem filtro: mostra só categorias permitidas pelo tier
+        if tier == "black":
+            raise HTTPException(status_code=403, detail="Marketplace exclusivo para membros Silver, Gold e Diamante")
+        if tier == "diamond":
+            query["category"] = {"$in": PUBLIC_CATEGORIES + HEALTH_CATEGORIES}
+        else:
+            query["category"] = {"$in": PUBLIC_CATEGORIES}
     if subcategory and subcategory != "all":
         query["subcategory"] = subcategory
     if q:
@@ -1380,7 +1412,16 @@ async def list_products(category: Optional[str] = None, subcategory: Optional[st
 
 
 @api_router.get("/subcategories/{category}")
-async def subcategories(category: str):
+async def subcategories(category: str, member_id: Optional[str] = None):
+    tier = "black"
+    if member_id:
+        m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "tier": 1})
+        if m:
+            tier = (m.get("tier") or "black").lower()
+    if tier == "black":
+        raise HTTPException(status_code=403, detail="Marketplace exclusivo para membros Silver, Gold e Diamante")
+    if category in HEALTH_CATEGORIES and tier != "diamond":
+        raise HTTPException(status_code=403, detail="Categoria exclusiva para membros Black Diamante")
     cursor = db.products.aggregate([
         {"$match": {"category": category, "subcategory": {"$ne": None}}},
         {"$group": {"_id": "$subcategory", "count": {"$sum": 1}}},
@@ -1443,17 +1484,38 @@ async def delete_product(product_id: str, admin: dict = Depends(require_staff)):
 
 
 @api_router.get("/categories")
-async def get_categories():
-    return [
-        {"id": "emagrecedores", "name": "Emagrecedores", "icon": "flame"},
-        {"id": "peptideos", "name": "Peptídeos", "icon": "flask"},
-        {"id": "landerlan", "name": "Linha Landerlan", "icon": "shield-checkmark"},
-        {"id": "hormonios", "name": "Hormônios", "icon": "pulse"},
-        {"id": "pre_treinos", "name": "Pré-treinos", "icon": "rocket"},
-        {"id": "suplementos", "name": "Suplementos", "icon": "nutrition"},
-        {"id": "tecnologia", "name": "Tecnologia", "icon": "hardware-chip"},
-        {"id": "bem_estar", "name": "Bem-estar", "icon": "leaf"},
+async def get_categories(member_id: Optional[str] = None):
+    """Retorna categorias do marketplace, com metadata de restrição.
+    - Black comum: 403 (não pode ver marketplace)
+    - Silver/Gold: vê apenas públicas
+    - Diamond: vê todas (públicas + saúde)
+    """
+    tier = "black"
+    if member_id:
+        m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "tier": 1})
+        if m:
+            tier = (m.get("tier") or "black").lower()
+
+    if tier == "black":
+        raise HTTPException(status_code=403, detail="Marketplace exclusivo para membros Silver, Gold e Diamante")
+
+    public = [
+        {"id": "hormonios",   "name": "Hormônios",   "icon": "pulse",          "restricted": False, "group": "public"},
+        {"id": "suplementos", "name": "Suplementos", "icon": "nutrition",      "restricted": False, "group": "public"},
+        {"id": "tecnologia",  "name": "Tecnologia",  "icon": "hardware-chip",  "restricted": False, "group": "public"},
+        {"id": "bem_estar",   "name": "Bem-estar",   "icon": "leaf",           "restricted": False, "group": "public"},
+        {"id": "beleza",      "name": "Beleza",      "icon": "sparkles",       "restricted": False, "group": "public"},
     ]
+    if tier != "diamond":
+        return public
+
+    health = [
+        {"id": "emagrecedores", "name": "Emagrecedores",    "icon": "flame",              "restricted": True, "group": "saude"},
+        {"id": "peptideos",     "name": "Peptídeos",        "icon": "flask",              "restricted": True, "group": "saude"},
+        {"id": "landerlan",     "name": "Linha Landerlan",  "icon": "shield-checkmark",   "restricted": True, "group": "saude"},
+        {"id": "hormonios",     "name": "Hormônios",        "icon": "pulse",              "restricted": True, "group": "saude"},
+    ]
+    return public + health
 
 
 # -------------- Seed --------------
@@ -2243,8 +2305,8 @@ class TopupRequest(BaseModel):
 
 
 @api_router.post("/wallet/topup")
-async def wallet_topup(data: TopupRequest):
-    """Mock Pix: instantly credits member wallet. Replace with real Pix gateway when API keys are provided."""
+async def wallet_topup(data: TopupRequest, staff: dict = Depends(require_staff)):
+    """Admin/Suporte/Financeiro creditam saldo manualmente (após pagamento externo validado)."""
     amt = float(data.amount)
     if amt <= 0 or amt > 100000:
         raise HTTPException(status_code=400, detail="Valor inválido")
@@ -2257,7 +2319,7 @@ async def wallet_topup(data: TopupRequest):
         "to_id": data.member_id,
         "amount": amt,
         "status": "settled",
-        "note": "Recarga via Pix (simulado)",
+        "note": f"Crédito BLACK COINS (admin: {staff.get('email','')})",
         "created_at": datetime.now(timezone.utc),
     }
     await db.wallet_txs.insert_one(tx.copy())
@@ -2272,7 +2334,8 @@ class WithdrawRequest(BaseModel):
 
 
 @api_router.post("/wallet/withdraw")
-async def wallet_withdraw(data: WithdrawRequest):
+async def wallet_withdraw(data: WithdrawRequest, staff: dict = Depends(require_staff)):
+    """Apenas staff pode debitar saldo (ajuste administrativo)."""
     w = await _wallet_get_or_create(data.member_id)
     amt = float(data.amount)
     if amt <= 0 or amt > w["balance"]:
@@ -2285,7 +2348,7 @@ async def wallet_withdraw(data: WithdrawRequest):
         "to_id": None,
         "amount": amt,
         "status": "settled",
-        "note": f"Saque Pix {data.pix_key or ''} (simulado)",
+        "note": f"Débito BLACK COINS (admin: {staff.get('email','')})",
         "created_at": datetime.now(timezone.utc),
     }
     await db.wallet_txs.insert_one(tx.copy())

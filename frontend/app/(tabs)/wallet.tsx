@@ -45,31 +45,39 @@ export default function WalletScreen() {
           <Text style={styles.kick}>BLACK COINS · CARTEIRA</Text>
           <View style={styles.balanceRow}>
             <MaterialCommunityIcons name="diamond-stone" size={22} color="#D4AF37" />
-            <Text style={styles.balance}>{formatBRL(w.balance)}</Text>
+            <Text style={styles.balance}>{Math.round(w.balance).toLocaleString("pt-BR")}</Text>
+            <Text style={styles.balanceCoin}>BLACK</Text>
           </View>
-          <Text style={styles.sub}>1 BLACK = R$ 1,00 · conversor interno do clube</Text>
+          <Text style={styles.sub}>Moeda interna do clube · controlada pela administração</Text>
 
           <View style={styles.escrowRow}>
             <View style={[styles.escrowBox, { borderColor: "#F5C150" }]}>
               <Text style={[styles.eLbl, { color: "#F5C150" }]}>SAÍDA EM ESCROW</Text>
-              <Text style={styles.eVal}>{formatBRL(totalEscrow)}</Text>
+              <Text style={styles.eVal}>{Math.round(totalEscrow).toLocaleString("pt-BR")} BLACK</Text>
             </View>
             <View style={[styles.escrowBox, { borderColor: "#4EE07F" }]}>
               <Text style={[styles.eLbl, { color: "#4EE07F" }]}>A RECEBER</Text>
-              <Text style={styles.eVal}>{formatBRL(incomingEscrow)}</Text>
+              <Text style={styles.eVal}>{Math.round(incomingEscrow).toLocaleString("pt-BR")} BLACK</Text>
             </View>
           </View>
 
-          <View style={styles.actionRow}>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: "#D4AF37" }]} onPress={() => router.push("/wallet/topup")} testID="wallet-topup">
-              <Ionicons name="add" size={18} color="#000" />
-              <Text style={[styles.actionTxt, { color: "#000" }]}>RECARREGAR</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtnGhost} onPress={() => router.push("/wallet/withdraw")} testID="wallet-withdraw">
-              <Ionicons name="arrow-down" size={18} color="#FFF" />
-              <Text style={styles.actionTxt}>SACAR</Text>
-            </TouchableOpacity>
+          {/* Aviso: saldo é controlado por admin */}
+          <View style={styles.infoBox}>
+            <Ionicons name="shield-checkmark" size={16} color="#7FD7E5" />
+            <Text style={styles.infoTxt}>
+              Para adicionar saldo, entre em contato com o suporte. Pagamentos são validados manualmente.
+            </Text>
           </View>
+
+          <TouchableOpacity
+            style={styles.supportBtn}
+            onPress={() => router.push("/chat" as any)}
+            activeOpacity={0.85}
+            testID="wallet-contact-support"
+          >
+            <Ionicons name="headset" size={16} color="#000" />
+            <Text style={styles.supportTxt}>FALAR COM SUPORTE</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Transactions */}
@@ -110,7 +118,7 @@ export default function WalletScreen() {
                     </TouchableOpacity>
                   )}
                 </View>
-                <Text style={[styles.txAmt, { color: iAmBuyer || tx.type === "withdraw" ? "#F87171" : "#4EE07F" }]}>{sign}{formatBRL(tx.amount)}</Text>
+                <Text style={[styles.txAmt, { color: iAmBuyer || tx.type === "withdraw" ? "#F87171" : "#4EE07F" }]}>{sign}{Math.round(tx.amount).toLocaleString("pt-BR")} BLACK</Text>
               </View>
             );
           })
@@ -134,6 +142,20 @@ const styles = StyleSheet.create({
   actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 10 },
   actionBtnGhost: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 10, borderWidth: 1, borderColor: "#333" },
   actionTxt: { color: "#FFF", fontSize: 11, fontWeight: "900", letterSpacing: 1.5 },
+  balanceCoin: { color: "#D4AF37", fontSize: 14, fontWeight: "900", letterSpacing: 1.5, marginLeft: 4, marginTop: 6 },
+  infoBox: {
+    flexDirection: "row", alignItems: "flex-start", gap: 10, marginTop: 16,
+    padding: 12, borderRadius: 10,
+    backgroundColor: "rgba(127,215,229,0.08)",
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.25)",
+  },
+  infoTxt: { flex: 1, color: "#C8E8EE", fontSize: 11.5, lineHeight: 16, fontWeight: "500" },
+  supportBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 13, borderRadius: 10, marginTop: 12,
+    backgroundColor: "#D4AF37",
+  },
+  supportTxt: { color: "#000", fontSize: 11, fontWeight: "900", letterSpacing: 1.5 },
 
   sectionTitle: { color: "#888", fontSize: 10, fontWeight: "900", letterSpacing: 2.5, paddingHorizontal: 22, marginTop: 22, marginBottom: 10 },
   txRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#121212" },

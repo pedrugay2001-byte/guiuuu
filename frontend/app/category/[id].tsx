@@ -8,6 +8,7 @@ import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from "expo-rou
 import { Ionicons } from "@expo/vector-icons";
 import { api, Product, Category, formatBRL } from "../../src/api";
 import { theme } from "../../src/theme";
+import { useGate } from "../../src/gate";
 
 const CATEGORY_COLORS: Record<string, string> = {
   emagrecedores: "#F5C150", peptideos: "#7FD7E5", landerlan: "#D4AF37",
@@ -23,26 +24,36 @@ const CATEGORY_ICONS: Record<string, any> = {
 export default function CategoryPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { member } = useGate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [subs, setSubs] = useState<{ id: string; count: number }[]>([]);
   const [activeSub, setActiveSub] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [blocked, setBlocked] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!id) return;
+    if (!id || !member) return;
     setLoading(true);
+    setBlocked(null);
     try {
       const [cats, subsList, prods] = await Promise.all([
-        api.categories(),
-        api.subcategories(id),
-        api.listProducts({ category: id }),
+        api.categories(member.member_id).catch(() => []),
+        api.subcategories(id, member.member_id).catch(() => []),
+        api.listProducts({ category: id, member_id: member.member_id }),
       ]);
       setCategories(cats);
       setSubs(subsList);
       setProducts(prods);
+    } catch (e: any) {
+      const msg = String(e?.message || "");
+      if (msg.includes("Diamante") || msg.includes("403")) {
+        setBlocked(msg.includes("Diamante") ? msg : "Categoria exclusiva para membros Black Diamante.");
+      } else if (msg.includes("Silver") || msg.includes("Gold")) {
+        setBlocked(msg);
+      }
     } finally { setLoading(false); }
-  }, [id]);
+  }, [id, member]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -50,13 +61,36 @@ export default function CategoryPage() {
     setActiveSub(s);
     setLoading(true);
     try {
-      const prods = await api.listProducts({ category: id, subcategory: s || undefined });
+      const prods = await api.listProducts({ category: id, subcategory: s || undefined, member_id: member?.member_id });
       setProducts(prods);
     } finally { setLoading(false); }
   };
 
   const current = categories.find((c) => c.id === id);
   const color = (id && CATEGORY_COLORS[id]) || theme.colors.silver;
+
+  // Bloqueio por tier (via 403 do backend)
+  if (blocked) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+        <Stack.Screen options={{ title: "Área restrita" }} />
+        <SafeAreaView style={{ flex: 1 }}>
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 30, gap: 14 }}>
+            <Ionicons name="lock-closed" size={48} color="#D4AF37" />
+            <Text style={{ color: "#D4AF37", fontSize: 12, fontWeight: "900", letterSpacing: 3 }}>ÁREA RESTRITA</Text>
+            <Text style={{ color: "#EEE", fontSize: 14, textAlign: "center", lineHeight: 20 }}>{blocked}</Text>
+            <TouchableOpacity
+              style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 10, backgroundColor: "#D4AF37", marginTop: 14 }}
+              onPress={() => router.back()}
+              activeOpacity={0.85}
+            >
+              <Text style={{ color: "#000", fontWeight: "900", letterSpacing: 1.2 }}>VOLTAR</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>

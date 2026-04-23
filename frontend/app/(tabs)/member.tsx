@@ -15,7 +15,7 @@ export default function Member() {
   const router = useRouter();
   const { member, clear, updateMember } = useGate();
   const { user: authUser } = useAuth();
-  const isStaff = authUser?.role === "admin" || authUser?.role === "support";
+  const isStaff = ["admin", "support", "financeiro"].includes(authUser?.role || "");
   const [adminProducts, setAdminProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalMembers, setTotalMembers] = useState<number | null>(null);

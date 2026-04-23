@@ -16,7 +16,7 @@ export type Product = {
   stock: number; featured: boolean; created_at: string;
 };
 
-export type Category = { id: string; name: string; icon: string };
+export type Category = { id: string; name: string; icon: string; restricted?: boolean; group?: "public" | "saude" };
 
 const TOKEN_KEY = "blacksclub_token";
 
@@ -107,16 +107,19 @@ export const api = {
     request<{ ok: boolean; nickname: string }>(`/members/${member_id}/nickname`, {
       method: "PUT", body: JSON.stringify({ nickname }),
     }),
-  listProducts: (params?: { category?: string; subcategory?: string; q?: string }) => {
+  listProducts: (params?: { category?: string; subcategory?: string; q?: string; member_id?: string }) => {
     const qs = new URLSearchParams();
     if (params?.category && params.category !== "all") qs.set("category", params.category);
     if (params?.subcategory && params.subcategory !== "all") qs.set("subcategory", params.subcategory);
     if (params?.q) qs.set("q", params.q);
+    if (params?.member_id) qs.set("member_id", params.member_id);
     const s = qs.toString();
     return request<Product[]>(`/products${s ? "?" + s : ""}`);
   },
-  subcategories: (category: string) =>
-    request<{ id: string; name: string; count: number }[]>(`/subcategories/${category}`),
+  subcategories: (category: string, member_id?: string) =>
+    request<{ id: string; name: string; count: number }[]>(
+      `/subcategories/${category}${member_id ? `?member_id=${member_id}` : ""}`
+    ),
   aiSpecialists: () =>
     request<{
       id: string; name: string; title: string; tagline: string;
@@ -138,7 +141,7 @@ export const api = {
     ),
   featured: () => request<Product[]>("/products/featured"),
   product: (id: string) => request<Product>(`/products/${id}`),
-  categories: () => request<Category[]>("/categories"),
+  categories: (member_id?: string) => request<Category[]>(`/categories${member_id ? `?member_id=${member_id}` : ""}`),
   createProduct: (body: Partial<Product>) =>
     request<Product>("/products", { method: "POST", body: JSON.stringify(body) }),
   updateProduct: (id: string, body: Partial<Product>) =>
