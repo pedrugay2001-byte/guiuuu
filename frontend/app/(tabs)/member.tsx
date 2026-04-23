@@ -214,8 +214,18 @@ export default function Member() {
         <View style={styles.menu}>
           <MenuRow icon="sparkles-outline" label="Solicitar orçamento" onPress={() => router.push("/quote")} testID="member-quote" />
           <MenuRow icon="share-social-outline" label="Compartilhar referência" onPress={shareGeneric} testID="member-share" />
-          <MenuRow icon="lock-closed-outline" label="Sair do clube" onPress={lockClub} testID="logout-button" />
         </View>
+
+        {/* Botão SAIR DO CLUBE — vermelho, ação crítica, destacado */}
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={lockClub}
+          activeOpacity={0.85}
+          testID="logout-button"
+        >
+          <Ionicons name="log-out-outline" size={18} color="#FF6B6B" />
+          <Text style={styles.logoutTxt}>SAIR DO CLUBE</Text>
+        </TouchableOpacity>
 
         {totalMembers !== null && (
           <View style={styles.statRow}>
@@ -431,6 +441,13 @@ const styles = StyleSheet.create({
   supportTitle: { color: theme.colors.bg, fontSize: 13, fontWeight: "900", letterSpacing: 1 },
   supportSub: { color: "#333", fontSize: 11, marginTop: 2 },
   menu: { marginHorizontal: theme.spacing.lg, gap: 2 },
+  logoutBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    marginHorizontal: theme.spacing.lg, marginTop: 16, paddingVertical: 14,
+    borderRadius: 12, backgroundColor: "rgba(255,107,107,0.08)",
+    borderWidth: 1, borderColor: "rgba(255,107,107,0.35)",
+  },
+  logoutTxt: { color: "#FF6B6B", fontSize: 12.5, fontWeight: "900", letterSpacing: 2.5 },
   menuRow: {
     flexDirection: "row", alignItems: "center", gap: 14,
     paddingVertical: 14, paddingHorizontal: 14,

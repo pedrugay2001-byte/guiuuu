@@ -896,7 +896,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Emagrecimento, GLP-1 e metabolismo",
         "description": "Médico nutrólogo com foco em controle de peso, GLP-1 (Ozempic, Mounjaro, Retatrutida), síndrome metabólica e déficit calórico inteligente.",
         "color": "#F5C150",
-        "avatar": "https://images.unsplash.com/photo-1645066928295-2506defde470?auto=format&fit=crop&w=400&q=80",
+        "avatar": "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80",
         "starters": [
             "Qual a diferença entre Tirzepatida e Retatrutida?",
             "Como funciona o GLP-1 pra emagrecer?",
@@ -917,7 +917,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Hormônios, TRT, HGH, HCG",
         "description": "Endocrinologista com foco em reposição hormonal, testosterona, HGH, HCG, tireoide e eixos endócrinos.",
         "color": "#E57FD7",
-        "avatar": "https://images.unsplash.com/photo-1678695972687-033fa0bdbac9?auto=format&fit=crop&w=400&q=80",
+        "avatar": "https://images.pexels.com/photos/5327585/pexels-photo-5327585.jpeg?auto=compress&cs=tinysrgb&w=400",
         "starters": [
             "Sintomas de baixa testosterona em homens",
             "O que é TRT e quando é indicada?",
@@ -938,7 +938,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Dieta, macros e composição corporal",
         "description": "Nutricionista esportiva, planejamento alimentar, cutting, bulking, recomposição e suplementação.",
         "color": "#4EE07F",
-        "avatar": "https://images.unsplash.com/photo-1675270882554-ab6817fb44f3?auto=format&fit=crop&w=400&q=80",
+        "avatar": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=400&q=80",
         "starters": [
             "Como montar uma dieta de cutting?",
             "Quanto de proteína por kg pra hipertrofia?",
@@ -959,7 +959,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Performance, lesões e recuperação",
         "description": "Medicina esportiva: performance, prevenção e tratamento de lesões, recuperação e longevidade atlética.",
         "color": "#7FD7E5",
-        "avatar": "https://images.pexels.com/photos/6050276/pexels-photo-6050276.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "avatar": "https://images.pexels.com/photos/5327921/pexels-photo-5327921.jpeg?auto=compress&cs=tinysrgb&w=400",
         "starters": [
             "Como acelerar recuperação entre treinos?",
             "BPC-157 ajuda em lesões mesmo?",
@@ -980,7 +980,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Hipertrofia, força e periodização",
         "description": "Preparador físico experiente: hipertrofia, força, técnica de execução e periodização.",
         "color": "#FF7A4D",
-        "avatar": "https://images.pexels.com/photos/32695890/pexels-photo-32695890.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "avatar": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80",
         "starters": [
             "Qual o melhor split pra hipertrofia?",
             "Periodizar treino pra força máxima, como?",
@@ -1001,7 +1001,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Peptídeos, interações e procedência",
         "description": "Farmácia clínica: peptídeos, farmacocinética, interações, armazenamento e rastreabilidade.",
         "color": "#D4AF37",
-        "avatar": "https://images.pexels.com/photos/8376273/pexels-photo-8376273.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "avatar": "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=400&q=80",
         "starters": [
             "Como armazenar peptídeos direito?",
             "O que verificar na procedência de um produto?",
@@ -1022,7 +1022,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Pele, colágeno e longevidade",
         "description": "Dermatologia: colágeno, peptídeos estéticos (GHK-Cu, Epitalon), anti-aging e skincare.",
         "color": "#A8E04E",
-        "avatar": "https://images.unsplash.com/photo-1635784134333-e359347877d6?auto=format&fit=crop&w=400&q=80",
+        "avatar": "https://images.pexels.com/photos/5327545/pexels-photo-5327545.jpeg?auto=compress&cs=tinysrgb&w=400",
         "starters": [
             "Como aumentar colágeno de forma inteligente?",
             "O que é GHK-Cu e pra que serve?",
@@ -1043,7 +1043,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Estética feminina e emagrecimento",
         "description": "Preparação física com foco feminino: glúteos, emagrecimento, ciclo menstrual e treino.",
         "color": "#4E8FE0",
-        "avatar": "https://images.unsplash.com/photo-1746559845070-10aa66800280?auto=format&fit=crop&w=400&q=80",
+        "avatar": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80",
         "starters": [
             "Melhor treino pra hipertrofia de glúteos?",
             "Como treinar conforme o ciclo menstrual?",
@@ -1067,7 +1067,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Ansiedade, depressão, TDAH e sono",
         "description": "Psiquiatra do BLACKSCLUB. Fala sobre ansiedade, depressão, TDAH, insônia, transtornos de humor e uso consciente de medicação.",
         "color": "#B287FF",
-        "avatar": "https://images.pexels.com/photos/5234490/pexels-photo-5234490.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "avatar": "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=400&q=80",
         "starters": ["Como saber se é ansiedade ou só estresse?", "Insônia já virou problema, o que fazer?", "TDAH em adulto, como é?", "Quando procurar psiquiatra?"],
         "topics": [
             {"title": "Ansiedade não é frescura", "body": "É real, tem base neuroquímica (serotonina, GABA, noradrenalina). Dá pra tratar com terapia, hábito e, quando precisa, remédio certo."},
@@ -1083,7 +1083,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Relacionamentos, autoestima e propósito",
         "description": "Psicólogo do BLACKSCLUB. Escuta aberta sobre relacionamentos, autoestima, propósito, carreira e emoções do dia a dia.",
         "color": "#7FD7E5",
-        "avatar": "https://images.pexels.com/photos/8410096/pexels-photo-8410096.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "avatar": "https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=400&q=80",
         "starters": ["Brigo com minha esposa toda semana, como mudar isso?", "Autoestima baixa, por onde começar?", "Tô perdido com carreira, me ajuda?", "Como lidar com medo de falhar?"],
         "topics": [
             {"title": "A gente não nasce sabendo sentir", "body": "Emoção se aprende a nomear e a regular. Quem consegue colocar em palavras o que sente, sofre menos — literalmente."},
@@ -1099,7 +1099,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Ciência do dia a dia, estudos e verdade",
         "description": "Doutor em biologia molecular. Desmonta fake news, explica estudos recentes e traz ciência pro dia a dia sem complicar.",
         "color": "#4EE07F",
-        "avatar": "https://images.pexels.com/photos/2280547/pexels-photo-2280547.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80",
         "starters": ["Esse estudo que saiu é verdade?", "Como saber se uma notícia de saúde é confiável?", "Genética influencia quanto no shape?", "IA vai dominar mesmo?"],
         "topics": [
             {"title": "Correlação não é causa", "body": "Só porque duas coisas andam juntas, não quer dizer que uma causa a outra. Saber essa diferença muda como você lê o mundo."},
@@ -1117,7 +1117,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Direito do dia a dia: trabalho, família, contratos",
         "description": "Advogada com ~20 anos de OAB. Explica direitos de forma simples: trabalho, consumidor, família, contratos, imóveis.",
         "color": "#D4AF37",
-        "avatar": "https://images.pexels.com/photos/5668473/pexels-photo-5668473.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "avatar": "https://images.pexels.com/photos/2182975/pexels-photo-2182975.jpeg?auto=compress&cs=tinysrgb&w=400",
         "starters": ["Fui demitido, o que tenho direito?", "Compra em loja online que não entregou, e agora?", "Separei, como funciona divisão de bens?", "Fui multado injusto, posso contestar?"],
         "topics": [
             {"title": "O brasileiro não sabe seus direitos", "body": "Isso faz muita gente aceitar muita coisa errada por medo ou falta de info. Saber o básico da CLT, CDC e Constituição resolve 80% das brigas."},
@@ -1133,7 +1133,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Segurança pessoal, o que fazer em situações de risco",
         "description": "Sargento da PM na reserva, instrutor de defesa pessoal. Orienta sobre segurança pessoal, residencial e do dia a dia.",
         "color": "#4E8FE0",
-        "avatar": "https://images.pexels.com/photos/8065590/pexels-photo-8065590.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "avatar": "https://images.pexels.com/photos/7580245/pexels-photo-7580245.jpeg?auto=compress&cs=tinysrgb&w=400",
         "starters": ["Fui abordado na rua, o que devo fazer?", "Como deixar minha casa mais segura?", "Vale a pena ter arma em casa?", "Me seguindo no carro, e agora?"],
         "topics": [
             {"title": "Atitude > arma", "body": "A maioria dos assaltos é por oportunidade. Quem anda atento, evita. Arma sem treino e cabeça fria cria mais problema que resolve."},
@@ -1149,7 +1149,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Emergências, incêndio e resgate",
         "description": "Tenente do Corpo de Bombeiros. Ensina o que fazer em incêndio, acidente, afogamento, choque e outras emergências do dia a dia.",
         "color": "#FF7A4D",
-        "avatar": "https://images.pexels.com/photos/8942879/pexels-photo-8942879.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "avatar": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=400&q=80",
         "starters": ["Tem fumaça em casa, o que faço?", "Como agir em acidente de carro?", "Alguém engasgou, e agora?", "Extintor em casa precisa mesmo?"],
         "topics": [
             {"title": "30 segundos fazem diferença", "body": "Em incêndio residencial, os 30 primeiros segundos definem se você sai a tempo. Ter plano de fuga e detector de fumaça muda o jogo."},
@@ -1165,7 +1165,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Primeiros socorros e o básico que salva",
         "description": "Enfermeira de UTI e resgate. Ensina primeiros socorros reais pra quem não tem noção: parada, convulsão, queimadura, corte, febre em criança.",
         "color": "#FF6BD5",
-        "avatar": "https://images.pexels.com/photos/7407784/pexels-photo-7407784.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "avatar": "https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=400",
         "starters": ["Bebê com febre alta, o que fazer?", "Como fazer massagem cardíaca?", "Queimadura de óleo, passo o quê?", "Convulsão na família, ajudo como?"],
         "topics": [
             {"title": "Massagem cardíaca salva vida de verdade", "body": "30 compressões fortes no meio do peito, ritmo de 'Stayin' Alive'. Qualquer um pode fazer. Não precisa ter medo de quebrar costela — desmaio sem massagem mata em 4 minutos."},
@@ -1183,7 +1183,7 @@ SPECIALISTS: List[Dict[str, Any]] = [
         "tagline": "Bíblia, fé e vida prática",
         "description": "Pastor com décadas estudando as Escrituras. Ajuda a entender passagens, aplicar a Bíblia na vida real e responder dúvidas de fé sem julgar.",
         "color": "#F5C150",
-        "avatar": "https://images.pexels.com/photos/8107967/pexels-photo-8107967.jpeg?auto=compress&cs=tinysrgb&w=400",
+        "avatar": "https://images.unsplash.com/photo-1556157382-97eda2d62296?auto=format&fit=crop&w=400&q=80",
         "starters": ["O que a Bíblia diz sobre perdão?", "Tô passando por tempo difícil, como orar?", "Qual é o significado de Romanos 8?", "Fé e ciência se batem mesmo?"],
         "topics": [
             {"title": "A Bíblia é prática, não só ritual", "body": "Provérbios, Eclesiastes, Cartas de Paulo — tem conselho pra trabalho, dinheiro, casamento, ansiedade. Ler com calma muda como você enxerga o dia."},

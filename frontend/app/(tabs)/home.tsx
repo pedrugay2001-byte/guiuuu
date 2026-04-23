@@ -281,7 +281,7 @@ export default function Home() {
                 activeOpacity={0.85}
                 testID={`area-${a.id}`}
               >
-                <AreaIcon icon={a.icon} size={34} color="#FFF" />
+                <AreaIcon icon={a.icon} size={26} color="#F5F5F5" />
                 <Text style={s.tileLbl} numberOfLines={1}>{a.label}</Text>
               </TouchableOpacity>
             ))}
@@ -465,17 +465,17 @@ const s = StyleSheet.create({
   grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 8, justifyContent: "space-between", marginTop: 8 },
   tile: {
     flexBasis: "23%",
-    aspectRatio: 0.92, // quase quadrado (levemente retrato)
+    aspectRatio: 0.95,
     backgroundColor: "#0E0E0E",
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.05)",
     alignItems: "center", justifyContent: "center",
-    gap: 10,
+    gap: 8,
     paddingVertical: 14,
     paddingHorizontal: 4,
   },
-  tileLbl: { color: "#F5F5F5", fontSize: 10.5, fontWeight: "700", textAlign: "center", letterSpacing: 0.2 },
+  tileLbl: { color: "#E8E8E8", fontSize: 10, fontWeight: "800", textAlign: "center", letterSpacing: 0.8 },
 
   // Below-fold
   postCard: { width: 170, borderRadius: 14, backgroundColor: "#0E0E0E", borderWidth: 1, borderColor: "#1A1A1A", padding: 12 },

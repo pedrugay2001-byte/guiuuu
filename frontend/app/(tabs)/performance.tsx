@@ -109,14 +109,14 @@ export default function PerformanceTab() {
           </View>
         </View>
 
-        {/* BOTÃO NOVA META — sempre visível, dourado destacado */}
+        {/* BOTÃO NOVA META — sempre visível, cinza elegante e discreto */}
         <TouchableOpacity
           style={st.newGoalBtn}
           onPress={() => setCreateOpen(true)}
           activeOpacity={0.85}
           testID="btn-nova-meta"
         >
-          <Ionicons name="add-circle" size={18} color="#000" />
+          <Ionicons name="add-circle-outline" size={18} color="#EEE" />
           <Text style={st.newGoalTxt}>{hasGoals ? "NOVA META" : "CRIAR MINHA PRIMEIRA META"}</Text>
         </TouchableOpacity>
 
@@ -1195,9 +1195,9 @@ const st = StyleSheet.create({
 
   // NOVO — Botão "Nova Meta" dourado
   newGoalBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    paddingVertical: 13, borderRadius: 14, marginBottom: 6, backgroundColor: GOLD,
-    shadowColor: GOLD, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  newGoalTxt: { color: "#000", fontWeight: "900", letterSpacing: 2, fontSize: 12 },
+    paddingVertical: 13, borderRadius: 14, marginBottom: 6,
+    backgroundColor: "#121212", borderWidth: 1, borderColor: "#262626" },
+  newGoalTxt: { color: "#EEE", fontWeight: "900", letterSpacing: 2, fontSize: 12 },
 
   // NOVO — Mini Stories (filtro circular de metas)
   msWrap: { alignItems: "center", width: 72 },

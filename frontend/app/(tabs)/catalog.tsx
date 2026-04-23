@@ -178,10 +178,10 @@ export default function Marketplace() {
                 <Ionicons name="diamond" size={26} color="#FFF" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={st.diamondKicker}>EXCLUSIVO BLACK DIAMOND</Text>
-                <Text style={st.diamondTitle}>Marketplace entre membros</Text>
+                <Text style={st.diamondKicker}>CÍRCULO BLACK DIAMOND</Text>
+                <Text style={st.diamondTitle}>Transações privadas entre membros</Text>
                 <Text style={st.diamondSub}>
-                  Só quem é Diamante acessa. Negocie direto com a elite do clube em um ambiente privado, verificado e com escrow em Black Coins.
+                  Acesso restrito ao tier Diamante. Ambiente verificado, custódia em BLEX Token e liquidação instantânea entre membros qualificados.
                 </Text>
               </View>
             </View>
