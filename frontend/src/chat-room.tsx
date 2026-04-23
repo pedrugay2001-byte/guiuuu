@@ -113,6 +113,17 @@ export default function ChatRoom({ mode }: { mode: Mode }) {
       <Stack.Screen
         options={{
           title,
+          headerBackTitle: "Voltar",
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => { if (router.canGoBack()) router.back(); else router.push("/(tabs)/home" as any); }}
+              style={{ paddingHorizontal: 10, paddingVertical: 6, marginLeft: Platform.OS === "ios" ? 4 : 0 }}
+              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+              testID="chat-back"
+            >
+              <Ionicons name="chevron-back" size={26} color="#FFF" />
+            </TouchableOpacity>
+          ),
           headerRight: () => (
             <View style={styles.onlineRow}>
               <View style={styles.onlineDot} />

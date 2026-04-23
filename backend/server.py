@@ -2701,7 +2701,12 @@ async def notifications_count(member_id: str):
     since = datetime.now(timezone.utc) - timedelta(days=7)
     dm_count = await db.dms.count_documents({"to_id": member_id, "created_at": {"$gte": since}})
     sales_count = await db.wallet_txs.count_documents({"to_id": member_id, "type": "escrow", "created_at": {"$gte": since}})
-    return {"count": dm_count + sales_count}
+    # Retorna contagem total (compat) + separadas (novo)
+    return {
+        "count": dm_count + sales_count,
+        "messages": dm_count,
+        "notifications": sales_count,
+    }
 
 
 # ---------- MARKETPLACE SEED (fictional members + 60+ realistic ads) ----------

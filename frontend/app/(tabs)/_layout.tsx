@@ -12,6 +12,7 @@ export default function TabsLayout() {
   const router = useRouter();
   const { member } = useGate();
   const [unread, setUnread] = useState(0);
+  const [unreadMsgs, setUnreadMsgs] = useState(0);
 
   useEffect(() => {
     if (member === null) router.replace("/welcome");
@@ -22,8 +23,11 @@ export default function TabsLayout() {
     let alive = true;
     const poll = async () => {
       try {
-        const r = await api.notificationsCount(member.member_id);
-        if (alive) setUnread(r?.count || 0);
+        const r: any = await api.notificationsCount(member.member_id);
+        if (alive) {
+          setUnread(r?.notifications || 0);
+          setUnreadMsgs(r?.messages || 0);
+        }
       } catch {}
     };
     poll();
@@ -67,7 +71,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="negocios" options={{ href: null }} />
         <Tabs.Screen name="member" options={{ href: null }} />
       </Tabs>
-      <BottomBrandBar unread={unread} />
+      <BottomBrandBar unread={unread} unreadMessages={unreadMsgs} />
     </SafeAreaView>
   );
 }

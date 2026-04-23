@@ -114,10 +114,10 @@ export default function AISpecialists() {
                             <View style={[styles.avatarRing, { borderColor: s.color }]} />
                             <View style={[styles.onlineDot, { backgroundColor: s.color }]} />
                           </View>
-                          <View style={{ flex: 1, marginLeft: 14 }}>
-                            <Text style={[styles.cardTitle, { color: s.color }]}>{s.title.toUpperCase()}</Text>
-                            <Text style={styles.cardName}>{s.name}</Text>
-                            <Text style={styles.cardTagline}>{s.tagline}</Text>
+                          <View style={{ flex: 1, marginLeft: 14, minWidth: 0 }}>
+                            <Text style={[styles.cardTitle, { color: s.color }]} numberOfLines={1}>{s.title.toUpperCase()}</Text>
+                            <Text style={styles.cardName} numberOfLines={1} ellipsizeMode="tail">{s.name}</Text>
+                            <Text style={styles.cardTagline} numberOfLines={2} ellipsizeMode="tail">{s.tagline}</Text>
                             <View style={styles.ctaRow}>
                               <Text style={styles.ctaText}>Conversar</Text>
                               <Ionicons name="arrow-forward" size={13} color="#888" />

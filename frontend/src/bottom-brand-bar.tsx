@@ -8,13 +8,13 @@ const GOLD = "#F5C150";
 
 type Props = {
   unread?: number;
+  unreadMessages?: number;
 };
 
 /**
- * Barra inferior premium: logo BLACKSCLUB à esquerda + ícones de perfil/notificações à direita.
- * NÃO aplica SafeAreaView — o (tabs)/_layout.tsx já envolve toda a hierarquia num SafeAreaView.
+ * Barra inferior premium: logo BLACKSCLUB à esquerda + ícones de mensagens/notificações/perfil à direita.
  */
-export default function BottomBrandBar({ unread = 0 }: Props) {
+export default function BottomBrandBar({ unread = 0, unreadMessages = 0 }: Props) {
   const router = useRouter();
 
   return (
@@ -29,6 +29,20 @@ export default function BottomBrandBar({ unread = 0 }: Props) {
       </TouchableOpacity>
 
       <View style={st.right}>
+        <TouchableOpacity
+          style={st.iconBtn}
+          onPress={() => router.push("/community/messages" as any)}
+          activeOpacity={0.75}
+          testID="bottom-messages"
+        >
+          <Ionicons name="chatbubble-ellipses-outline" size={22} color="#D8D8D8" />
+          {unreadMessages > 0 && (
+            <View style={st.badge}>
+              <Text style={st.badgeTxt}>{unreadMessages > 9 ? "9+" : String(unreadMessages)}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={st.iconBtn}
           onPress={() => router.push("/notifications" as any)}

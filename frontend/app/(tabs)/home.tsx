@@ -104,17 +104,7 @@ export default function Home() {
             >
               <View style={s.aiLeft}>
                 <View style={s.aiBrainOval}>
-                  <Svg width={96} height={72} style={StyleSheet.absoluteFillObject}>
-                    <Defs>
-                      <RadialGradient id="brainGlow" cx="50%" cy="50%" r="50%">
-                        <Stop offset="0%" stopColor={SILVER} stopOpacity="0.55" />
-                        <Stop offset="50%" stopColor={SILVER} stopOpacity="0.18" />
-                        <Stop offset="100%" stopColor={SILVER} stopOpacity="0" />
-                      </RadialGradient>
-                    </Defs>
-                    <Circle cx="48" cy="36" rx="44" ry="32" fill="url(#brainGlow)" />
-                  </Svg>
-                  <MaterialCommunityIcons name="brain" size={38} color={SILVER} />
+                  <MaterialCommunityIcons name="brain" size={22} color={SILVER} />
                 </View>
               </View>
 
@@ -312,31 +302,33 @@ const s = StyleSheet.create({
   centralHeadTxt: { color: SILVER, fontSize: 11, fontWeight: "900", letterSpacing: 2, flex: 1 },
   centralUser: { color: "#9E9E9E", fontSize: 12, fontWeight: "600" },
 
-  // AI CARD
+  // AI CARD — compacto, arredondado, discreto
   aiCard: {
     position: "relative",
     flexDirection: "row",
-    backgroundColor: "#000",
-    borderRadius: 12, padding: 12, gap: 6,
+    alignItems: "center",
+    backgroundColor: "#0A0A0A",
+    borderRadius: 100, padding: 10, gap: 10,
   },
-  aiLeft: { width: 72, alignItems: "center", justifyContent: "center" },
+  aiLeft: { width: 44, alignItems: "center", justifyContent: "center" },
   aiBrainOval: {
-    width: 96, height: 72,
+    width: 44, height: 44, borderRadius: 22,
     alignItems: "center", justifyContent: "center",
     position: "relative",
+    backgroundColor: "rgba(200,200,200,0.06)",
   },
   aiRight: { flex: 1, paddingRight: 22 },
-  aiLabelRow: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 5 },
-  aiLabel: { color: SILVER, fontSize: 10.5, fontWeight: "900", letterSpacing: 1.3 },
+  aiLabelRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
+  aiLabel: { color: SILVER, fontSize: 9.5, fontWeight: "900", letterSpacing: 1.2 },
   aiBadge: {
-    width: 20, height: 20, borderRadius: 10,
+    width: 16, height: 16, borderRadius: 8,
     alignItems: "center", justifyContent: "center",
     backgroundColor: SILVER,
   },
-  aiBadgeTxt: { color: "#000", fontSize: 8.5, fontWeight: "900", letterSpacing: 0.3 },
-  aiMsg: { color: "#FFF", fontSize: 13, fontWeight: "700", lineHeight: 17 },
-  aiTip: { color: "#BBB", fontSize: 11.5, marginTop: 5, fontWeight: "500" },
-  aiChev: { position: "absolute", top: "50%", right: 8, marginTop: -9 },
+  aiBadgeTxt: { color: "#000", fontSize: 7.5, fontWeight: "900", letterSpacing: 0.3 },
+  aiMsg: { color: "#EEE", fontSize: 11.5, fontWeight: "600", lineHeight: 15 },
+  aiTip: { color: "#777", fontSize: 10, marginTop: 2, fontWeight: "500" },
+  aiChev: { position: "absolute", top: "50%", right: 14, marginTop: -9 },
 
   aiBtnRow: { flexDirection: "row", gap: 8, marginTop: 10 },
   btnGhost: {
