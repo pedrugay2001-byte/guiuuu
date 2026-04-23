@@ -2277,15 +2277,55 @@ async def ads_by_member(member_id: str):
     return await cur.to_list(length=100)
 
 
-# ---------- WALLET (BLACK COINS) ----------
-# 1 BLACK = R$ 1,00. Topup via mock Pix. Purchases go into ESCROW until buyer confirms.
+# ---------- WALLET (BLEX TOKEN — BLX) ----------
+# Moeda interna do clube. 1 BLX = 100 centavos (precisão total em int).
+# Para retrocompatibilidade, manter campo legado "balance" (float, em BLX inteiros)
+# e adicionar "balance_centavos" (int) como fonte de verdade a partir de agora.
+# Cada membro recebe um "wallet_number" público no formato BLX-XXXXXXXX para
+# transferências P2P.
+
+
+def _gen_wallet_number() -> str:
+    """Gera número público de carteira no formato BLX-XXXXXXXX (alfanumérico)."""
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sem 0/O/1/I p/ evitar confusão
+    return "BLX-" + "".join(random.choice(alphabet) for _ in range(8))
+
+
+async def _assign_wallet_number(member_id: str) -> str:
+    """Cria um wallet_number único e atribui à carteira."""
+    for _ in range(20):
+        wn = _gen_wallet_number()
+        exists = await db.wallets.find_one({"wallet_number": wn}, {"_id": 1})
+        if not exists:
+            await db.wallets.update_one({"member_id": member_id}, {"$set": {"wallet_number": wn}})
+            return wn
+    # fallback (extremamente improvável)
+    wn = _gen_wallet_number() + str(int(datetime.now(timezone.utc).timestamp()))[-3:]
+    await db.wallets.update_one({"member_id": member_id}, {"$set": {"wallet_number": wn}})
+    return wn
+
 
 async def _wallet_get_or_create(member_id: str) -> dict:
     w = await db.wallets.find_one({"member_id": member_id}, {"_id": 0})
     if not w:
-        w = {"member_id": member_id, "balance": 0.0, "escrow_in": 0.0, "escrow_out": 0.0, "created_at": datetime.now(timezone.utc)}
+        w = {
+            "member_id": member_id,
+            "balance": 0.0,          # legado (BLX inteiros)
+            "balance_centavos": 0,   # NOVO: fonte de verdade (centavos em int)
+            "escrow_in": 0.0,
+            "escrow_out": 0.0,
+            "created_at": datetime.now(timezone.utc),
+        }
         await db.wallets.insert_one(w.copy())
         w.pop("_id", None)
+    # Backfill lazy: garante que toda carteira tem balance_centavos coerente
+    if "balance_centavos" not in w or w.get("balance_centavos") is None:
+        cents = int(round(float(w.get("balance", 0.0)) * 100))
+        await db.wallets.update_one({"member_id": member_id}, {"$set": {"balance_centavos": cents}})
+        w["balance_centavos"] = cents
+    # Backfill lazy: garante que toda carteira tem um wallet_number
+    if not w.get("wallet_number"):
+        w["wallet_number"] = await _assign_wallet_number(member_id)
     return w
 
 
@@ -2303,25 +2343,39 @@ async def wallet_txs(member_id: str):
 
 class TopupRequest(BaseModel):
     member_id: str
-    amount: float
+    amount: Optional[float] = None             # legado (BLX inteiros)
+    amount_centavos: Optional[int] = None      # preferido (precisão total)
 
 
 @api_router.post("/wallet/topup")
 async def wallet_topup(data: TopupRequest, staff: dict = Depends(require_staff)):
-    """Admin/Suporte/Financeiro creditam saldo manualmente (após pagamento externo validado)."""
-    amt = float(data.amount)
-    if amt <= 0 or amt > 100000:
+    """Admin/Suporte/Financeiro creditam BLX manualmente (após pagamento externo validado).
+    Aceita `amount_centavos` (int) ou `amount` (float em BLX). Mantém compatibilidade."""
+    if data.amount_centavos is not None:
+        cents = int(data.amount_centavos)
+    elif data.amount is not None:
+        cents = int(round(float(data.amount) * 100))
+    else:
+        raise HTTPException(status_code=400, detail="Informe amount ou amount_centavos")
+    if cents <= 0 or cents > 100_000_000:  # limite 1M BLX por operação
         raise HTTPException(status_code=400, detail="Valor inválido")
-    await _wallet_get_or_create(data.member_id)
-    await db.wallets.update_one({"member_id": data.member_id}, {"$inc": {"balance": amt}})
+    w = await _wallet_get_or_create(data.member_id)
+    amt_float = cents / 100.0
+    await db.wallets.update_one(
+        {"member_id": data.member_id},
+        {"$inc": {"balance": amt_float, "balance_centavos": cents}},
+    )
     tx = {
         "tx_id": f"tx_{uuid.uuid4().hex[:12]}",
         "type": "topup",
         "from_id": None,
         "to_id": data.member_id,
-        "amount": amt,
+        "to_wallet": w.get("wallet_number"),
+        "amount": amt_float,
+        "amount_centavos": cents,
+        "currency": "BLX",
         "status": "settled",
-        "note": f"Crédito BLACK COINS (admin: {staff.get('email','')})",
+        "note": f"Crédito BLX (admin: {staff.get('email','')})",
         "created_at": datetime.now(timezone.utc),
     }
     await db.wallet_txs.insert_one(tx.copy())
@@ -2434,6 +2488,190 @@ async def wallet_refund(tx_id: str, body: dict):
     await db.wallets.update_one({"member_id": tx["to_id"]}, {"$inc": {"escrow_in": -amt}})
     await db.wallet_txs.update_one({"tx_id": tx_id}, {"$set": {"status": "refunded", "settled_at": datetime.now(timezone.utc)}})
     return {"ok": True}
+
+
+# ---------- BLEX TOKEN (BLX) — P2P Transfer, Lookup, Extrato ----------
+# Transferência instantânea entre membros usando saldo em centavos.
+
+
+class BlxTransferRequest(BaseModel):
+    from_member_id: str
+    to_wallet: Optional[str] = None      # aceita BLX-XXXXXXXX
+    to_member_id: Optional[str] = None   # ou direto por id interno
+    amount_centavos: int                 # valor em centavos
+    note: Optional[str] = None
+
+
+@api_router.get("/blx/wallet/{member_id}")
+async def blx_get_wallet(member_id: str):
+    """Retorna a carteira do membro garantindo wallet_number e balance_centavos."""
+    w = await _wallet_get_or_create(member_id)
+    # Normalizar resposta
+    return {
+        "member_id": w["member_id"],
+        "wallet_number": w.get("wallet_number"),
+        "balance_centavos": int(w.get("balance_centavos") or 0),
+        "balance_blx": round(int(w.get("balance_centavos") or 0) / 100.0, 2),
+        "escrow_in_centavos": int(round(float(w.get("escrow_in", 0.0)) * 100)),
+        "escrow_out_centavos": int(round(float(w.get("escrow_out", 0.0)) * 100)),
+        "currency": "BLX",
+    }
+
+
+@api_router.get("/blx/lookup")
+async def blx_lookup(q: str):
+    """Busca destinatário por número de carteira (BLX-XXXX), email, telefone ou nome.
+    Retorna uma pequena lista com no máximo 8 membros para UX de transferência."""
+    q = (q or "").strip()
+    if len(q) < 3:
+        return []
+    q_up = q.upper()
+    # 1) Match exato por wallet_number
+    if q_up.startswith("BLX-"):
+        w = await db.wallets.find_one({"wallet_number": q_up}, {"_id": 0})
+        if w:
+            m = await db.members.find_one({"member_id": w["member_id"]}, {"_id": 0, "password_hash": 0})
+            if m:
+                return [{
+                    "member_id": m["member_id"],
+                    "name": m.get("name"),
+                    "nickname": m.get("nickname"),
+                    "tier": m.get("tier", "black"),
+                    "avatar_base64": m.get("avatar_base64"),
+                    "wallet_number": w.get("wallet_number"),
+                }]
+        return []
+    # 2) Match por email/phone/nome (aproximado)
+    import re as _re
+    rx = _re.compile(_re.escape(q), _re.IGNORECASE)
+    cur = db.members.find(
+        {"$or": [
+            {"email": {"$regex": rx}},
+            {"phone": {"$regex": rx}},
+            {"name": {"$regex": rx}},
+            {"nickname": {"$regex": rx}},
+        ]},
+        {"_id": 0, "password_hash": 0},
+    ).limit(8)
+    results = []
+    async for m in cur:
+        w = await _wallet_get_or_create(m["member_id"])
+        results.append({
+            "member_id": m["member_id"],
+            "name": m.get("name"),
+            "nickname": m.get("nickname"),
+            "tier": m.get("tier", "black"),
+            "avatar_base64": m.get("avatar_base64"),
+            "wallet_number": w.get("wallet_number"),
+        })
+    return results
+
+
+@api_router.post("/blx/transfer")
+async def blx_transfer(data: BlxTransferRequest):
+    """Transferência P2P instantânea em BLX entre dois membros.
+    Valor em centavos. Não exige escrow — liquidação imediata."""
+    amt = int(data.amount_centavos or 0)
+    if amt <= 0:
+        raise HTTPException(status_code=400, detail="Valor inválido")
+    if amt > 1_000_000_000:  # teto sanitário: 10M BLX por operação
+        raise HTTPException(status_code=400, detail="Valor acima do permitido")
+
+    # Resolve destinatário
+    to_member_id: Optional[str] = data.to_member_id
+    to_wallet: Optional[str] = (data.to_wallet or "").strip().upper() or None
+    if not to_member_id and to_wallet:
+        w = await db.wallets.find_one({"wallet_number": to_wallet}, {"_id": 0})
+        if not w:
+            raise HTTPException(status_code=404, detail="Carteira destinatária não encontrada")
+        to_member_id = w["member_id"]
+    if not to_member_id:
+        raise HTTPException(status_code=400, detail="Informe o destinatário (to_wallet ou to_member_id)")
+    if to_member_id == data.from_member_id:
+        raise HTTPException(status_code=400, detail="Não é possível transferir para você mesmo")
+
+    # Remetente e destinatário
+    sender = await db.members.find_one({"member_id": data.from_member_id}, {"_id": 0, "password_hash": 0})
+    recipient = await db.members.find_one({"member_id": to_member_id}, {"_id": 0, "password_hash": 0})
+    if not sender:
+        raise HTTPException(status_code=404, detail="Remetente não encontrado")
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Destinatário não encontrado")
+
+    wf = await _wallet_get_or_create(data.from_member_id)
+    wt = await _wallet_get_or_create(to_member_id)
+
+    if int(wf.get("balance_centavos") or 0) < amt:
+        raise HTTPException(status_code=400, detail="Saldo insuficiente")
+
+    amt_float = amt / 100.0
+    # Débito
+    await db.wallets.update_one(
+        {"member_id": data.from_member_id},
+        {"$inc": {"balance": -amt_float, "balance_centavos": -amt}},
+    )
+    # Crédito
+    await db.wallets.update_one(
+        {"member_id": to_member_id},
+        {"$inc": {"balance": amt_float, "balance_centavos": amt}},
+    )
+    now = datetime.now(timezone.utc)
+    tx = {
+        "tx_id": f"tx_{uuid.uuid4().hex[:12]}",
+        "type": "transfer",
+        "from_id": data.from_member_id,
+        "from_name": sender.get("nickname") or sender.get("name"),
+        "from_wallet": wf.get("wallet_number"),
+        "to_id": to_member_id,
+        "to_name": recipient.get("nickname") or recipient.get("name"),
+        "to_wallet": wt.get("wallet_number"),
+        "amount": amt_float,
+        "amount_centavos": amt,
+        "currency": "BLX",
+        "status": "settled",
+        "note": (data.note or "").strip()[:140] or None,
+        "created_at": now,
+        "settled_at": now,
+    }
+    await db.wallet_txs.insert_one(tx.copy())
+    tx.pop("_id", None)
+    return tx
+
+
+@api_router.get("/blx/transactions/{member_id}")
+async def blx_transactions(member_id: str, limit: int = 50, skip: int = 0):
+    """Extrato completo paginado do membro. Enriquece com info do contra-parte."""
+    limit = max(1, min(int(limit or 50), 200))
+    skip = max(0, int(skip or 0))
+    cur = db.wallet_txs.find(
+        {"$or": [{"from_id": member_id}, {"to_id": member_id}]},
+        {"_id": 0},
+    ).sort("created_at", -1).skip(skip).limit(limit)
+    txs = await cur.to_list(length=limit)
+    # Enriquecer nomes (caso transações antigas não tenham)
+    other_ids = set()
+    for t in txs:
+        if t.get("from_id") and t.get("from_id") != member_id:
+            other_ids.add(t["from_id"])
+        if t.get("to_id") and t.get("to_id") != member_id:
+            other_ids.add(t["to_id"])
+    names_map: Dict[str, Dict[str, Any]] = {}
+    if other_ids:
+        async for m in db.members.find(
+            {"member_id": {"$in": list(other_ids)}},
+            {"_id": 0, "member_id": 1, "nickname": 1, "name": 1, "tier": 1},
+        ):
+            names_map[m["member_id"]] = {
+                "name": m.get("nickname") or m.get("name"),
+                "tier": m.get("tier", "black"),
+            }
+    for t in txs:
+        t["amount_centavos"] = int(t.get("amount_centavos") or round(float(t.get("amount", 0)) * 100))
+        if t.get("from_id") in names_map and not t.get("from_name"):
+            t["from_name"] = names_map[t["from_id"]]["name"]
+        if t.get("to_id") in names_map and not t.get("to_name"):
+            t["to_name"] = names_map[t["to_id"]]["name"]
+    return txs
 
 
 # ---------- STORIES (24h) ----------

@@ -245,6 +245,8 @@ export const api = {
   walletTxs: (member_id: string) => request<WalletTx[]>(`/wallet/${member_id}/transactions`),
   walletTopup: (member_id: string, amount: number) =>
     request<WalletTx>("/wallet/topup", { method: "POST", body: JSON.stringify({ member_id, amount }) }),
+  walletTopupCents: (member_id: string, amount_centavos: number) =>
+    request<WalletTx>("/wallet/topup", { method: "POST", body: JSON.stringify({ member_id, amount_centavos }) }),
   walletWithdraw: (member_id: string, amount: number, pix_key?: string) =>
     request<WalletTx>("/wallet/withdraw", { method: "POST", body: JSON.stringify({ member_id, amount, pix_key }) }),
   walletPurchase: (ad_id: string, buyer_id: string, qty = 1) =>
@@ -253,6 +255,21 @@ export const api = {
     request<{ ok: boolean }>(`/wallet/confirm/${tx_id}`, { method: "POST", body: JSON.stringify({ buyer_id }) }),
   walletRefund: (tx_id: string) =>
     request<{ ok: boolean }>(`/wallet/refund/${tx_id}`, { method: "POST", body: JSON.stringify({ admin: true }) }),
+
+  // ----- BLEX TOKEN (BLX) — Banco Profissional -----
+  blxWallet: (member_id: string) =>
+    request<BlxWallet>(`/blx/wallet/${member_id}`),
+  blxTransactions: (member_id: string, limit = 50, skip = 0) =>
+    request<BlxTx[]>(`/blx/transactions/${member_id}?limit=${limit}&skip=${skip}`),
+  blxLookup: (q: string) =>
+    request<BlxContact[]>(`/blx/lookup?q=${encodeURIComponent(q)}`),
+  blxTransfer: (body: {
+    from_member_id: string;
+    to_wallet?: string;
+    to_member_id?: string;
+    amount_centavos: number;
+    note?: string;
+  }) => request<BlxTx>("/blx/transfer", { method: "POST", body: JSON.stringify(body) }),
 
   // ----- Stories -----
   listStories: () => request<StoryGroup[]>("/stories"),
@@ -331,6 +348,42 @@ export type Wallet = {
   balance: number;
   escrow_in: number;
   escrow_out: number;
+};
+export type BlxWallet = {
+  member_id: string;
+  wallet_number: string;
+  balance_centavos: number;
+  balance_blx: number;
+  escrow_in_centavos: number;
+  escrow_out_centavos: number;
+  currency: "BLX";
+};
+export type BlxContact = {
+  member_id: string;
+  name: string;
+  nickname?: string | null;
+  tier: TierId;
+  avatar_base64?: string | null;
+  wallet_number: string;
+};
+export type BlxTx = {
+  tx_id: string;
+  type: "transfer" | "topup" | "withdraw" | "escrow";
+  from_id: string | null;
+  from_name?: string | null;
+  from_wallet?: string | null;
+  to_id: string | null;
+  to_name?: string | null;
+  to_wallet?: string | null;
+  amount: number;
+  amount_centavos: number;
+  currency?: "BLX";
+  status: "settled" | "escrow" | "refunded";
+  note?: string | null;
+  ad_id?: string;
+  ad_title?: string;
+  created_at: string;
+  settled_at?: string;
 };
 export type WalletTx = {
   tx_id: string;

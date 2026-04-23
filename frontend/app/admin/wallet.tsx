@@ -9,6 +9,7 @@ import { api } from "../../src/api";
 import { TIERS, TierId } from "../../src/theme";
 import ScreenHeader from "../../src/screen-header";
 import { notify } from "../../src/alerts";
+import { formatBLX, maskBLXInput, maskedToCents } from "../../src/blx";
 
 type Member = {
   member_id: string;
@@ -24,12 +25,12 @@ const GREEN = "#2ECC71";
 const BG = "#050505";
 
 /**
- * ADMIN · CRÉDITO DE BLACK COINS
+ * ADMIN · CRÉDITO BLEX TOKEN (BLX)
  *
  * Lista todos os membros do clube e permite ao staff/admin/financeiro
- * creditar BLACK COINS na carteira de cada membro (após confirmação de
- * pagamento externo, PIX, etc.).
+ * creditar BLX (moeda interna) na carteira de cada membro.
  *
+ * Valores em centavos para precisão total (1 BLX = 100 centavos).
  * Endpoint backend: POST /api/wallet/topup  (require_staff).
  */
 export default function AdminWallet() {
@@ -38,21 +39,24 @@ export default function AdminWallet() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Member | null>(null);
-  const [amount, setAmount] = useState("");
+  const [selectedWallet, setSelectedWallet] = useState<string>("");
+  const [masked, setMasked] = useState("0,00");
   const [saving, setSaving] = useState(false);
-  const [balances, setBalances] = useState<Record<string, number>>({});
+  const [balances, setBalances] = useState<Record<string, number>>({}); // em centavos
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const list = await api.adminMembers();
       setMembers(list as Member[]);
-      // Busca saldo de cada membro em paralelo (limitado a 30 primeiros para performance)
+      // Busca saldo BLX em centavos dos 30 primeiros membros em paralelo
       const slice = (list as Member[]).slice(0, 30);
       const results = await Promise.all(
         slice.map(async (m) => {
-          try { const w = await api.getWallet(m.member_id); return [m.member_id, w.balance] as const; }
-          catch { return [m.member_id, 0] as const; }
+          try {
+            const w = await api.blxWallet(m.member_id);
+            return [m.member_id, w.balance_centavos] as const;
+          } catch { return [m.member_id, 0] as const; }
         })
       );
       const b: Record<string, number> = {};
@@ -85,25 +89,29 @@ export default function AdminWallet() {
 
   const openTopup = async (m: Member) => {
     setSelected(m);
-    setAmount("");
-    // Garante que temos saldo atualizado antes de abrir
-    try { const w = await api.wallet(m.member_id); setBalances(b => ({ ...b, [m.member_id]: w.balance })); } catch {}
+    setMasked("0,00");
+    setSelectedWallet("");
+    // Busca saldo + número de carteira atualizados
+    try {
+      const w = await api.blxWallet(m.member_id);
+      setBalances(b => ({ ...b, [m.member_id]: w.balance_centavos }));
+      setSelectedWallet(w.wallet_number || "");
+    } catch {}
   };
 
   const confirmTopup = async () => {
     if (!selected) return;
-    const amt = parseFloat(amount.replace(",", "."));
-    if (!amt || amt <= 0 || amt > 100000) {
-      return notify("Valor inválido", "Informe um valor entre 1 e 100.000 Black Coins.");
+    const cents = maskedToCents(masked);
+    if (cents <= 0 || cents > 100_000_000) {
+      return notify("Valor inválido", "Informe um valor maior que zero.");
     }
     setSaving(true);
     try {
-      await api.walletTopup(selected.member_id, amt);
-      // Atualiza saldo local
-      setBalances(b => ({ ...b, [selected.member_id]: (b[selected.member_id] || 0) + amt }));
-      notify("Crédito realizado!", `+${amt.toLocaleString("pt-BR")} BLACK COINS para ${selected.name}.`);
+      await api.walletTopupCents(selected.member_id, cents);
+      setBalances(b => ({ ...b, [selected.member_id]: (b[selected.member_id] || 0) + cents }));
+      notify("Crédito realizado!", `+${formatBLX(cents)} BLX para ${selected.name}.`);
       setSelected(null);
-      setAmount("");
+      setMasked("0,00");
     } catch (e: any) {
       notify("Erro", e?.message || "Falha ao creditar");
     } finally { setSaving(false); }
@@ -115,7 +123,7 @@ export default function AdminWallet() {
       style={{ flex: 1, backgroundColor: BG }}
     >
       <Stack.Screen options={{ headerShown: false }} />
-      <ScreenHeader title="Crédito BLACK COINS" subtitle="Adicionar saldo a membros" />
+      <ScreenHeader title="Crédito BLEX Token" subtitle="Adicionar BLX à carteira dos membros" />
 
       <View style={st.searchBox}>
         <Ionicons name="search" size={16} color="#888" />
@@ -166,7 +174,7 @@ export default function AdminWallet() {
                       <Text style={[st.tierPillTxt, { color: tier.color }]}>{tier.label.toUpperCase()}</Text>
                     </View>
                     <Text style={st.balance}>
-                      {typeof bal === "number" ? `◆ ${bal.toLocaleString("pt-BR")}` : "◆ —"}
+                      {typeof bal === "number" ? `${formatBLX(bal)} BLX` : "— BLX"}
                     </Text>
                   </View>
                 </View>
@@ -193,33 +201,40 @@ export default function AdminWallet() {
             <View style={st.modalCard}>
               <View style={st.modalHead}>
                 <View style={{ flex: 1 }}>
-                  <Text style={st.modalKicker}>CREDITAR BLACK COINS</Text>
+                  <Text style={st.modalKicker}>CREDITAR BLEX TOKEN</Text>
                   <Text style={st.modalTitle} numberOfLines={1}>{selected?.name}</Text>
                   <Text style={st.modalSub}>
-                    Saldo atual: ◆ {selected ? (balances[selected.member_id] || 0).toLocaleString("pt-BR") : "0"}
+                    Saldo atual: {selected ? formatBLX(balances[selected.member_id] || 0) : "0,00"} BLX
                   </Text>
+                  {selectedWallet ? (
+                    <Text style={st.modalWallet}>{selectedWallet}</Text>
+                  ) : null}
                 </View>
                 <TouchableOpacity onPress={() => !saving && setSelected(null)} style={st.closeBtn} hitSlop={10}>
                   <Ionicons name="close" size={22} color="#FFF" />
                 </TouchableOpacity>
               </View>
 
-              <Text style={st.inpLbl}>VALOR EM BLACK COINS</Text>
-              <TextInput
-                style={st.inp}
-                value={amount}
-                onChangeText={setAmount}
-                placeholder="Ex: 5000"
-                placeholderTextColor="#555"
-                keyboardType="decimal-pad"
-                autoFocus
-              />
+              <Text style={st.inpLbl}>VALOR EM BLX (CENTAVOS AUTOM.)</Text>
+              <View style={st.inpBox}>
+                <TextInput
+                  style={st.inp}
+                  value={masked}
+                  onChangeText={(t) => setMasked(maskBLXInput(t))}
+                  placeholder="0,00"
+                  placeholderTextColor="#3A3A3A"
+                  keyboardType="number-pad"
+                  autoFocus
+                  selectTextOnFocus
+                />
+                <Text style={st.inpUnit}>BLX</Text>
+              </View>
 
-              {/* Atalhos de valor */}
+              {/* Atalhos */}
               <View style={st.quickRow}>
-                {[100, 500, 1000, 5000, 10000].map(v => (
-                  <TouchableOpacity key={v} onPress={() => setAmount(String(v))} style={st.quickChip}>
-                    <Text style={st.quickChipTxt}>{v.toLocaleString("pt-BR")}</Text>
+                {[10000, 50000, 100000, 500000, 1000000].map(c => (
+                  <TouchableOpacity key={c} onPress={() => setMasked(maskBLXInput(String(c)))} style={st.quickChip}>
+                    <Text style={st.quickChipTxt}>+{formatBLX(c)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -238,7 +253,7 @@ export default function AdminWallet() {
                 )}
               </TouchableOpacity>
               <Text style={st.hint}>
-                Registrado com seu usuário de staff. O membro verá em "Extrato" da carteira.
+                Registrado com seu usuário de staff. O membro verá o crédito no Extrato BLX imediatamente.
               </Text>
             </View>
           </View>
@@ -299,10 +314,17 @@ const st = StyleSheet.create({
   },
 
   inpLbl: { color: "#888", fontSize: 10, fontWeight: "900", letterSpacing: 2, marginBottom: 6 },
-  inp: {
+  inpBox: {
+    flexDirection: "row", alignItems: "center", gap: 8,
     backgroundColor: "#141414", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-    borderRadius: 10, padding: 14, color: "#FFF", fontSize: 18, fontWeight: "700",
+    borderRadius: 10, paddingHorizontal: 14,
   },
+  inp: {
+    flex: 1, color: "#FFF", fontSize: 22, fontWeight: "800",
+    paddingVertical: 14, textAlign: "right",
+  },
+  inpUnit: { color: GOLD, fontSize: 13, fontWeight: "900", letterSpacing: 1.5 },
+  modalWallet: { color: GOLD, fontSize: 11, fontWeight: "800", letterSpacing: 1.5, marginTop: 4 },
   quickRow: { flexDirection: "row", gap: 6, marginTop: 10, flexWrap: "wrap" },
   quickChip: {
     paddingHorizontal: 10, paddingVertical: 6,

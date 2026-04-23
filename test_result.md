@@ -60,6 +60,185 @@
 ##     -agent: "main"  # or "testing" or "user"
 ##     -message: "Communication message between agents"
 
+user_problem_statement: |
+  Transformar a aba Banco em um banco profissional com moeda BLEX Token (BLX).
+  Requisitos:
+  - Cara de banco profissional
+  - Dinheiro em centavos (precisão total)
+  - Funções de banco: histórico/extrato de transferências
+  - Transferência P2P para outros membros do clube
+  - Nome da moeda: BLEX Token, abreviação: BLX
+  - Cada usuário tem número de carteira único para envio
+  - Transferência cai na hora (instantânea)
+  - Todos podem usar como cripto para o comércio interno
+
+backend:
+  - task: "BLX Token — Wallet (GET /api/blx/wallet/{member_id})"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Endpoint que retorna wallet_number (BLX-XXXXXXXX), balance_centavos (int), balance_blx (float com 2 casas), escrow_in/out_centavos. Faz backfill lazy do wallet_number e balance_centavos."
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. GET /api/blx/wallet/mem_7a9d652945e7 → wallet_number=BLX-JCM5T48X, balance_centavos=15000 (150,00 BLX), currency=BLX, todos os campos obrigatórios presentes e com tipos corretos (balance_centavos int). Demo BLX-QPYUEZWY também OK. Lazy creation validada com member_id novo (mem_test_xxx): cria wallet com balance_centavos=0 e wallet_number BLX-XXXXXXXX único e persistente entre chamadas.
+  - task: "BLX Token — Lookup (GET /api/blx/lookup?q=...)"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Busca destinatário por número de carteira BLX-XXXX (match exato) OU nome/nickname/email/telefone (regex). Retorna até 8 contatos com avatar/tier/wallet_number."
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. (a) q=BLX-JCM5T48X → exatamente 1 resultado (Luiz Guilherme) com todos os campos esperados (member_id, name, nickname, tier, avatar_base64, wallet_number). (b) q=BLX-ZZZZZZZZ → [] (não explode). (c) q="ab" (<3 chars) → [] sem erro. (d) q="Guilherme" → 2 hits (Guilherme Demo + Luiz Guilherme), limite <=8 respeitado, cada item tem wallet_number.
+  - task: "BLX Token — Transfer P2P (POST /api/blx/transfer)"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Transferência instantânea em centavos entre dois membros. Aceita to_wallet (BLX-XXXX) ou to_member_id. Valida saldo, bloqueia self-transfer, atualiza ambos balance e balance_centavos, grava tx com status=settled."
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. Transfer válido de 1234 centavos (12,34 BLX) Luiz→Demo via to_wallet=BLX-QPYUEZWY: tx criada com type=transfer, status=settled, currency=BLX, amount_centavos=1234, from_id/to_id corretos, tx_id=tx_4955494a60e5. Débito e crédito em centavos confirmados (bf1=bf0-1234, bt1=bt0+1234). Cenários negativos: (a) self-transfer → 400 ✅ (b) to_wallet inexistente BLX-NOEXIST1 → 404 ✅ (c) amount > saldo (999.999.999 centavos) → 400 "Saldo insuficiente" ✅.
+  - task: "BLX Token — Transactions com paginação (GET /api/blx/transactions/{member_id})"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Extrato paginado (limit + skip). Enriquece com from_name e to_name para transações antigas que não têm. Inclui amount_centavos computado se ausente."
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. GET /api/blx/transactions/mem_7a9d652945e7?limit=20&skip=0 retornou 4 txs ordenadas desc por created_at. Todas têm amount_centavos como int. Transfer enriquecida com from_name e to_name. Paginação validada: limit=1 skip=0 vs skip=1 retornam txs diferentes.
+  - task: "Wallet Topup agora aceita amount_centavos"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "POST /api/wallet/topup passou a aceitar amount_centavos (int) ou amount (float, legado). Atualiza tanto balance quanto balance_centavos, grava tx com type=topup e currency=BLX. Mantém require_staff."
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. (a) Sem Authorization → 401 ✅ (b) Token inválido → 401 ✅ (c) Login admin@farmaclube.com/admin123 OK (token JWT 203 chars). (d) Topup com amount_centavos=10000 (100,00 BLX): tx.amount_centavos=10000, type=topup, status=settled, currency=BLX. Saldo de Demo aumentou exatamente 10000 centavos (balance_centavos e balance_blx consistentes). (e) Topup legado com amount=5 (5,00 BLX): saldo aumentou 500 centavos ✅. (f) Validações: sem amount → 400, amount_centavos=0 → 400, amount_centavos=-100 → 400.
+
+frontend:
+  - task: "Aba Banco redesenhada (wallet.tsx)"
+    implemented: true
+    working: true
+    file: "app/(tabs)/wallet.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Testado via screenshot tool: header BANCO BLACKSCLUB · BLEX TOKEN · BLX, card com saldo 200,00 BLX, número de carteira BLX-JCM5T48X copiável, titular, tier Black Diamond, 4 ações (Enviar/Receber/Extrato/Suporte), últimas 2 movimentações de crédito. Funciona."
+  - task: "Tela Enviar BLX (blx/send.tsx)"
+    implemented: true
+    working: true
+    file: "app/blx/send.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Fluxo completo em 4 etapas validado via screenshot: 1) Busca por Demo retorna Guilherme Demo BLX-QPYUEZWY. 2) Input mascarado 50,00 BLX. 3) Revisão com PARA/DE/mensagem. 4) Confirmação envia 50,00 BLX com sucesso (tx_55c9a3df2012). Balance debita do remetente, credita destinatário."
+  - task: "Tela Receber BLX (blx/receive.tsx)"
+    implemented: true
+    working: true
+    file: "app/blx/receive.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Testado: exibe card CARTEIRA BLEX TOKEN, nome LUIZ GUILHERME, número BLX-JCM5T48X em fonte grande, botões COPIAR NÚMERO e COMPARTILHAR."
+  - task: "Tela Extrato BLX (blx/history.tsx)"
+    implemented: true
+    working: true
+    file: "app/blx/history.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Testado: lista 3 movimentações com filtros TUDO/RECEBIDO/ENVIADO. Transferência enviada aparece em vermelho -50,00 BLX, créditos em verde +100,00 BLX. Paginação e pull-to-refresh implementados."
+  - task: "Admin Wallet atualizado para BLX em centavos"
+    implemented: true
+    working: "NA"
+    file: "app/admin/wallet.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Modal de crédito agora usa input mascarado (0,00), envia amount_centavos para /api/wallet/topup. Saldos listados em formatBLX. Exibe número de carteira do membro selecionado. Precisa verificação end-to-end após login staff."
+
+metadata:
+  created_by: "main_agent"
+  version: "2.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "BLX Token — Wallet (GET /api/blx/wallet/{member_id})"
+    - "BLX Token — Lookup (GET /api/blx/lookup?q=...)"
+    - "BLX Token — Transfer P2P (POST /api/blx/transfer)"
+    - "BLX Token — Transactions com paginação (GET /api/blx/transactions/{member_id})"
+    - "Wallet Topup agora aceita amount_centavos"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    -agent: "main"
+    -message: "Implementei sistema BLEX Token (BLX) completo. Backend: 4 novos endpoints em /api/blx/* + topup adaptado para centavos. Frontend: aba Banco redesenhada + 3 telas novas (send/receive/history). Testei tudo via screenshot tool e funcionou: criação de wallet_number, busca, transferência 50 BLX de Luiz->Demo completou com sucesso (tx gerado, saldo debitado/creditado, extrato atualizou). Por favor validar backend com credenciais guilherme925145000@gmail.com / blacks2026 (member_id: mem_7a9d652945e7, carteira BLX-JCM5T48X) e mem_e5bb9b5878dd (carteira BLX-QPYUEZWY)."
+    -agent: "testing"
+    -message: |
+        BLEX Token backend 100% validado — 19/19 testes passando em /app/backend_test.py.
+
+        COBERTURA:
+        • GET /api/blx/wallet/{id}: wallet existente (Luiz BLX-JCM5T48X 15000c = 150,00 BLX; Demo BLX-QPYUEZWY), lazy creation para member_id novo, backfill de wallet_number e balance_centavos=0, persistência do wallet_number entre chamadas, tipos corretos (balance_centavos int), currency=BLX.
+        • GET /api/blx/lookup: match exato BLX-JCM5T48X → 1 resultado; BLX-ZZZZZZZZ → []; q<3 chars → []; busca por "Guilherme" → 2 resultados (limite <=8 respeitado) com todos campos (member_id, name, nickname, tier, avatar_base64, wallet_number).
+        • POST /api/blx/transfer: transfer válido 1234 centavos Luiz→Demo debita+credita em centavos exatamente, tx com type=transfer/status=settled/currency=BLX/tx_id; self-transfer → 400; wallet inexistente → 404; saldo insuficiente → 400.
+        • GET /api/blx/transactions/{id}: retorna txs ordenadas desc, amount_centavos int, from_name/to_name enriquecidos em transfers, paginação (limit/skip) funcional.
+        • POST /api/wallet/topup: sem auth → 401, token inválido → 401, staff admin@farmaclube.com/admin123 login OK, amount_centavos=10000 credita exatamente 10000 centavos e balance_blx fica consistente, legado amount=5 credita 500 centavos, validações (sem valor, 0, negativo) → 400.
+
+        Nenhum bug encontrado. Nada para main agent corrigir. Rotas /api/blx/* todas acessíveis via ingress.
+
 # Protocol Guidelines for Main agent
 #
 # 1. Update Test Result File Before Testing:
