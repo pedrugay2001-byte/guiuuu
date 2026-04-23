@@ -381,34 +381,79 @@ export type GroupMsg = { gm_id?: string; group_id: string; member_id: string; te
 export type CommunityEvent = { event_id: string; title: string; description: string; city: string; place: string; when_label: string; icon: string; color: string };
 
 // --- Goals (Central de Performance) ---
-export type GoalType = "fitness" | "financial" | "habit" | "productivity";
+export type GoalType = "weight" | "financial" | "habit" | "behavior" | "productivity" | "fitness";
+
+export type GoalHistoryPoint = { date: string; value: number; progress: number };
+export type GoalIdealPoint = { date: string; ideal: number };
+
 export type Goal = {
   goal_id: string; member_id: string; type: GoalType; title: string;
   initial_value: number; target_value: number; current_value: number;
   unit: string; start_date: string; end_date: string; note?: string;
+  description?: string; motive?: string; color?: string; photo_initial?: string | null;
   created_at: string; status: string; rhythm_status: string;
   progress_pct: number; time_pct: number; rhythm: number;
   days_elapsed: number; days_total: number; days_remaining: number;
   forecast_days: number | null; direction: "increase" | "decrease";
   entries_count: number;
+  ideal_today?: number; will_hit_target?: boolean | null;
+  history?: GoalHistoryPoint[]; ideal_series?: GoalIdealPoint[];
+  // Extras por tipo
+  streak?: number; best_streak?: number; done_count?: number; expected_count?: number;
+  avg_score?: number; target_score?: number;
 };
+
+export type GoalSummary = {
+  goal_id: string; title: string; type: GoalType; color: string;
+  progress_pct: number; rhythm: number; days_remaining: number;
+};
+
 export type GoalDashboard = {
   has_goals: boolean; active_count: number; overall_progress: number;
   avg_rhythm: number; days_left: number | null; score: number | null;
   weekly_delta?: number; critical_goal: Goal | null; message: string;
+  goals_summary?: GoalSummary[];
 };
-export type GoalEntry = { entry_id: string; goal_id: string; value: number; note?: string; date: string };
+
+export type GoalEntry = {
+  entry_id: string; goal_id: string; value: number; note?: string; date: string;
+  mood?: number | null; photo_base64?: string | null;
+};
+
+export type GoalDetail = {
+  goal: Goal;
+  entries: GoalEntry[];
+  photos: { entry_id?: string; date: string; photo_base64?: string | null; note?: string }[];
+};
+
 export type WhatToDoReply = { headline: string; actions: string[]; warning?: string };
+
+export type DailyMessage = {
+  day_label: string; headline: string; focus: string;
+  verse: string; verse_ref: string; parable: string; closing: string;
+  goal_title: string; goal_type: GoalType; goal_color: string; goal_id: string;
+};
 
 Object.assign(api as any, {
   goalsDashboard: (member_id: string) => request<GoalDashboard>(`/goals/dashboard/${member_id}`),
   goalsList: (member_id: string) => request<Goal[]>(`/goals/${member_id}`),
-  goalCreate: (body: { member_id: string; type: GoalType; title: string; current_value: number; target_value: number; unit?: string; end_date: string; note?: string }) =>
-    request<Goal>("/goals", { method: "POST", body: JSON.stringify(body) }),
+  goalCreate: (body: {
+    member_id: string; type: GoalType; title: string;
+    initial_value?: number; current_value: number; target_value: number;
+    unit?: string; end_date: string; start_date?: string;
+    color?: string; description?: string; motive?: string; photo_initial?: string | null;
+  }) => request<Goal>("/goals", { method: "POST", body: JSON.stringify(body) }),
+  goalUpdate: (goal_id: string, body: any) =>
+    request<Goal>(`/goals/${goal_id}`, { method: "PATCH", body: JSON.stringify(body) }),
   goalArchive: (goal_id: string) => request<{ ok: boolean }>(`/goals/${goal_id}`, { method: "DELETE" }),
-  goalAddEntry: (goal_id: string, body: { value: number; note?: string; date?: string }) =>
-    request<{ ok: boolean; entry_id: string }>(`/goals/${goal_id}/entries`, { method: "POST", body: JSON.stringify(body) }),
+  goalAddEntry: (goal_id: string, body: {
+    value: number; note?: string; date?: string; mood?: number | null; photo_base64?: string | null;
+  }) => request<{ ok: boolean; entry_id: string; goal: Goal }>(
+    `/goals/${goal_id}/entries`, { method: "POST", body: JSON.stringify(body) }),
   goalEntries: (goal_id: string) => request<GoalEntry[]>(`/goals/${goal_id}/entries`),
+  goalDetail: (goal_id: string) => request<GoalDetail>(`/goals/${goal_id}/detail`),
+  goalDailyMessage: (goal_id: string) =>
+    request<DailyMessage>(`/goals/${goal_id}/daily-message`, { method: "POST", body: "{}" }),
   goalWhatToDo: (goal_id: string) => request<WhatToDoReply>(`/goals/${goal_id}/what-to-do`, { method: "POST", body: "{}" }),
 });
 

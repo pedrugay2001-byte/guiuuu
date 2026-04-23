@@ -2815,26 +2815,53 @@ logger = logging.getLogger(__name__)
 # PERFORMANCE CENTRAL — Goals / Entries / Insights
 # ============================================================
 
-GOAL_TYPES = ("fitness", "financial", "habit", "productivity")
-GOAL_DIRECTIONS = ("increase", "decrease")  # increase: target > current, decrease: target < current
+GOAL_TYPES = ("weight", "financial", "habit", "behavior", "productivity", "fitness")
+# Legacy "fitness" is kept as alias of "weight" for compatibility.
+GOAL_DIRECTIONS = ("increase", "decrease")
+
+GOAL_TYPE_COLORS = {
+    "weight":       "#2ECC71",   # verde saúde
+    "fitness":      "#2ECC71",   # alias
+    "financial":    "#F5C150",   # dourado
+    "habit":        "#5DADE2",   # azul
+    "behavior":     "#A569BD",   # roxo
+    "productivity": "#E67E22",   # laranja
+}
 
 
 class GoalCreate(BaseModel):
     member_id: str
-    type: str  # fitness | financial | habit | productivity
+    type: str  # weight | financial | habit | behavior | productivity
     title: str
-    current_value: float
-    target_value: float
-    unit: str = ""  # kg, R$, %, h, etc.
-    start_date: Optional[str] = None  # ISO "YYYY-MM-DD"
-    end_date: str  # ISO
-    note: Optional[str] = ""
+    initial_value: Optional[float] = None   # baseline (peso/valor/score inicial)
+    current_value: float                    # valor atual no momento da criação
+    target_value: float                     # objetivo
+    unit: str = ""
+    start_date: Optional[str] = None
+    end_date: str  # ISO (YYYY-MM-DD)
+    color: Optional[str] = None             # hex override
+    description: Optional[str] = ""
+    motive: Optional[str] = ""
+    photo_initial: Optional[str] = None     # base64 (data URI ou puro)
+
+
+class GoalUpdate(BaseModel):
+    title: Optional[str] = None
+    target_value: Optional[float] = None
+    current_value: Optional[float] = None
+    end_date: Optional[str] = None
+    color: Optional[str] = None
+    description: Optional[str] = None
+    motive: Optional[str] = None
+    photo_initial: Optional[str] = None
 
 
 class GoalEntryCreate(BaseModel):
     value: float
     note: Optional[str] = ""
-    date: Optional[str] = None  # ISO
+    date: Optional[str] = None
+    mood: Optional[int] = None              # 1-5 (comportamento)
+    photo_base64: Optional[str] = None      # foto de progresso (opcional)
 
 
 def _parse_date(s: Optional[str]) -> datetime:
@@ -2847,36 +2874,173 @@ def _parse_date(s: Optional[str]) -> datetime:
 
 
 def _compute_goal_snapshot(goal: dict, entries: List[dict]) -> dict:
-    """Compute progress %, days elapsed/remaining, rhythm and forecast."""
+    """Compute progress %, days elapsed/remaining, rhythm, forecast and history — por tipo."""
     try:
+        gtype = goal.get("type", "weight")
         start = goal.get("start_date") or goal.get("created_at")
         start_dt = _parse_date(start) if isinstance(start, str) else (start or datetime.utcnow())
         end_dt = _parse_date(goal["end_date"]) if isinstance(goal["end_date"], str) else goal["end_date"]
-        current = float(entries[-1]["value"]) if entries else float(goal["current_value"])
-        initial = float(goal["current_value"])
-        target = float(goal["target_value"])
 
-        direction = "increase" if target >= initial else "decrease"
+        initial = float(goal.get("initial_value", goal.get("current_value", 0)) or 0)
+        target = float(goal.get("target_value", 0) or 0)
+        latest_entry = entries[-1] if entries else None
+        stored_current = float(goal.get("current_value", initial) or initial)
 
-        # Progress
-        denom = abs(target - initial) or 1e-9
-        delta_done = (current - initial) if direction == "increase" else (initial - current)
-        progress_pct = max(0.0, min(100.0, (delta_done / denom) * 100.0))
-
-        # Time
+        # --- TIME ---
         total_days = max(1, (end_dt - start_dt).days)
-        elapsed = max(0, min(total_days, (datetime.utcnow() - start_dt).days))
-        days_remaining = max(0, (end_dt - datetime.utcnow()).days)
+        now = datetime.utcnow()
+        elapsed = max(0, min(total_days, (now - start_dt).days))
+        days_remaining = max(0, (end_dt - now).days)
         time_pct = (elapsed / total_days) * 100.0 if total_days > 0 else 0.0
 
-        # Rhythm: progress% - time%. Positive = ahead.
+        # Per-type logic
+        history: List[dict] = []      # [{date, value, progress}]
+        ideal_series: List[dict] = [] # [{date, ideal}]
+
+        if gtype == "habit":
+            # Habit: target_value = total check-ins esperados (ex: 90 dias seguidos)
+            # OU frequência semanal; para MVP tratamos target como nº esperado de check-ins
+            checkins = [e for e in entries if float(e.get("value", 0)) >= 1]
+            done = len(checkins)
+            expected_total = max(1, target)
+            progress_pct = max(0.0, min(100.0, (done / expected_total) * 100.0))
+
+            # current para UI = done / target
+            current = float(done)
+            direction = "increase"
+
+            # streak atual (dias consecutivos até hoje)
+            streak = 0
+            try:
+                sorted_days = sorted({_parse_date(e["date"]).date() for e in checkins})
+                d = now.date()
+                while d in sorted_days:
+                    streak += 1
+                    d = d - timedelta(days=1)
+            except Exception:
+                streak = 0
+            best_streak = 0
+            try:
+                best = 0; prev = None
+                for day in sorted(sorted_days):
+                    if prev and (day - prev).days == 1:
+                        best += 1
+                    else:
+                        best = 1
+                    best_streak = max(best_streak, best)
+                    prev = day
+            except Exception:
+                best_streak = streak
+
+            # history: dias com 1 ou 0
+            by_day: Dict[str, int] = {}
+            for e in checkins:
+                d = _parse_date(e["date"]).date().isoformat()
+                by_day[d] = by_day.get(d, 0) + 1
+            cumulative = 0
+            for i in range(total_days + 1):
+                day = (start_dt + timedelta(days=i)).date()
+                if day > now.date():
+                    break
+                cumulative += 1 if by_day.get(day.isoformat(), 0) > 0 else 0
+                history.append({
+                    "date": day.isoformat(),
+                    "value": cumulative,
+                    "progress": min(100.0, (cumulative / expected_total) * 100.0),
+                })
+            # ideal: reta linear 0 → target ao longo de total_days
+            for i in range(total_days + 1):
+                day = (start_dt + timedelta(days=i)).date()
+                ideal_val = (i / total_days) * expected_total
+                ideal_series.append({"date": day.isoformat(), "ideal": round(ideal_val, 2)})
+
+            snapshot_extras = {
+                "streak": streak,
+                "best_streak": best_streak,
+                "done_count": done,
+                "expected_count": int(expected_total),
+            }
+
+        elif gtype == "behavior":
+            # Comportamento: valor registrado é score 0-10; target é média ideal (ex: 8)
+            scores = [float(e.get("value", 0)) for e in entries]
+            avg = sum(scores) / len(scores) if scores else 0.0
+            current = round(avg, 2)
+            direction = "increase"
+            target_avg = max(1.0, target)
+            progress_pct = max(0.0, min(100.0, (avg / target_avg) * 100.0))
+
+            # histórico de scores com média acumulada
+            cum_sum = 0.0; cum_n = 0
+            for e in entries:
+                cum_sum += float(e.get("value", 0)); cum_n += 1
+                history.append({
+                    "date": _parse_date(e["date"]).date().isoformat(),
+                    "value": round(cum_sum / cum_n, 2),
+                    "progress": round(min(100.0, (cum_sum / cum_n / target_avg) * 100.0), 1),
+                })
+            # ideal: linha reta na média alvo
+            for i in range(total_days + 1):
+                day = (start_dt + timedelta(days=i)).date()
+                ideal_series.append({"date": day.isoformat(), "ideal": target_avg})
+
+            snapshot_extras = {
+                "avg_score": round(avg, 2),
+                "entries_count": len(entries),
+                "target_score": target_avg,
+            }
+
+        else:
+            # weight / financial / productivity / fitness (legacy)
+            current = float(latest_entry["value"]) if latest_entry else stored_current
+            direction = "increase" if target >= initial else "decrease"
+            denom = abs(target - initial) or 1e-9
+            delta_done = (current - initial) if direction == "increase" else (initial - current)
+            progress_pct = max(0.0, min(100.0, (delta_done / denom) * 100.0))
+
+            # história real
+            history.append({
+                "date": start_dt.date().isoformat(),
+                "value": initial,
+                "progress": 0.0,
+            })
+            for e in entries:
+                v = float(e.get("value", 0))
+                dd = (v - initial) if direction == "increase" else (initial - v)
+                p = max(0.0, min(100.0, (dd / denom) * 100.0))
+                history.append({
+                    "date": _parse_date(e["date"]).date().isoformat(),
+                    "value": v,
+                    "progress": round(p, 1),
+                })
+            # ideal: reta inicial → alvo
+            steps = min(total_days, 30)
+            for i in range(steps + 1):
+                frac = i / max(1, steps)
+                ideal_val = initial + (target - initial) * frac
+                day = (start_dt + timedelta(days=int(frac * total_days))).date()
+                ideal_series.append({"date": day.isoformat(), "ideal": round(ideal_val, 2)})
+
+            snapshot_extras = {}
+
+        # --- RITMO ---
         rhythm = progress_pct - time_pct
 
-        # Forecast: days to finish at current pace
-        pace = (delta_done / max(1, elapsed)) if elapsed > 0 else 0
-        remaining_work = max(0.0, abs(target - current))
-        forecast_days = int(round(remaining_work / pace)) if pace > 0 else None
+        # Previsão (apenas para tipos contínuos)
+        forecast_days = None
+        if gtype not in ("habit", "behavior") and elapsed > 0:
+            delta_done = (current - initial) if direction == "increase" else (initial - current)
+            pace = delta_done / max(1, elapsed)
+            remaining_work = max(0.0, abs(target - current))
+            if pace > 0:
+                forecast_days = int(round(remaining_work / pace))
 
+        # ETA atingirá meta?
+        will_hit = None
+        if forecast_days is not None:
+            will_hit = forecast_days <= days_remaining
+
+        # Status
         status = "on_track"
         if rhythm >= 5:
             status = "ahead"
@@ -2885,8 +3049,17 @@ def _compute_goal_snapshot(goal: dict, entries: List[dict]) -> dict:
         elif rhythm < -2:
             status = "slightly_behind"
 
+        # Ritmo ideal (valor esperado hoje)
+        if gtype == "habit":
+            ideal_today = round((elapsed / total_days) * max(1, target), 2)
+        elif gtype == "behavior":
+            ideal_today = round(target, 2)
+        else:
+            ideal_today = round(initial + (target - initial) * (elapsed / total_days), 2)
+
         return {
             "current_value": current,
+            "initial_value": initial,
             "progress_pct": round(progress_pct, 1),
             "time_pct": round(time_pct, 1),
             "rhythm": round(rhythm, 1),
@@ -2896,20 +3069,22 @@ def _compute_goal_snapshot(goal: dict, entries: List[dict]) -> dict:
             "forecast_days": forecast_days,
             "rhythm_status": status,
             "direction": direction,
+            "ideal_today": ideal_today,
+            "will_hit_target": will_hit,
+            "history": history,
+            "ideal_series": ideal_series,
+            **snapshot_extras,
         }
     except Exception as e:
         logger.exception("goal snapshot failed: %s", e)
         return {
-            "current_value": goal.get("current_value"),
-            "progress_pct": 0,
-            "time_pct": 0,
-            "rhythm": 0,
-            "days_elapsed": 0,
-            "days_total": 0,
-            "days_remaining": 0,
-            "forecast_days": None,
-            "rhythm_status": "on_track",
-            "direction": "increase",
+            "current_value": goal.get("current_value", 0),
+            "initial_value": goal.get("initial_value", goal.get("current_value", 0)),
+            "progress_pct": 0, "time_pct": 0, "rhythm": 0,
+            "days_elapsed": 0, "days_total": 0, "days_remaining": 0,
+            "forecast_days": None, "rhythm_status": "on_track",
+            "direction": "increase", "ideal_today": 0, "will_hit_target": None,
+            "history": [], "ideal_series": [],
         }
 
 
@@ -2917,17 +3092,23 @@ def _serialize_goal(goal: dict, entries: Optional[List[dict]] = None) -> dict:
     if entries is None:
         entries = []
     snap = _compute_goal_snapshot(goal, entries)
+    gtype = goal.get("type", "weight")
+    color = goal.get("color") or GOAL_TYPE_COLORS.get(gtype, "#F5C150")
     return {
         "goal_id": goal["goal_id"],
         "member_id": goal["member_id"],
-        "type": goal["type"],
+        "type": gtype,
         "title": goal["title"],
-        "initial_value": goal["current_value"],
-        "target_value": goal["target_value"],
+        "initial_value": float(goal.get("initial_value", goal.get("current_value", 0)) or 0),
+        "target_value": float(goal.get("target_value", 0) or 0),
         "unit": goal.get("unit", ""),
         "start_date": goal.get("start_date"),
         "end_date": goal["end_date"],
         "note": goal.get("note", ""),
+        "description": goal.get("description", ""),
+        "motive": goal.get("motive", ""),
+        "color": color,
+        "photo_initial": goal.get("photo_initial"),
         "created_at": goal.get("created_at"),
         "status": goal.get("status", "active"),
         **snap,
@@ -2941,22 +3122,40 @@ async def create_goal(body: GoalCreate):
         raise HTTPException(status_code=400, detail="tipo inválido")
     if not body.title.strip():
         raise HTTPException(status_code=400, detail="título obrigatório")
+    initial = body.initial_value if body.initial_value is not None else body.current_value
     goal = {
         "goal_id": f"g_{uuid.uuid4().hex[:12]}",
         "member_id": body.member_id,
         "type": body.type,
         "title": body.title.strip(),
+        "initial_value": float(initial),
         "current_value": float(body.current_value),
         "target_value": float(body.target_value),
         "unit": (body.unit or "").strip(),
         "start_date": body.start_date or datetime.utcnow().isoformat(),
         "end_date": body.end_date,
-        "note": (body.note or "").strip(),
+        "color": (body.color or GOAL_TYPE_COLORS.get(body.type)),
+        "description": (body.description or "").strip(),
+        "motive": (body.motive or "").strip(),
+        "photo_initial": body.photo_initial,
         "created_at": datetime.utcnow().isoformat(),
         "status": "active",
     }
     await db.goals.insert_one(goal)
     return _serialize_goal(goal, [])
+
+
+@api_router.patch("/goals/{goal_id}")
+async def update_goal(goal_id: str, body: GoalUpdate):
+    goal = await db.goals.find_one({"goal_id": goal_id})
+    if not goal:
+        raise HTTPException(status_code=404, detail="meta não encontrada")
+    patch = {k: v for k, v in body.model_dump().items() if v is not None}
+    if patch:
+        await db.goals.update_one({"goal_id": goal_id}, {"$set": patch})
+    goal = await db.goals.find_one({"goal_id": goal_id})
+    entries = await db.goal_entries.find({"goal_id": goal_id}).sort("date", 1).to_list(length=1000)
+    return _serialize_goal(goal, entries)
 
 
 @api_router.get("/goals/{member_id}")
@@ -2971,23 +3170,23 @@ async def list_goals(member_id: str):
 
 @api_router.get("/goals/dashboard/{member_id}")
 async def goals_dashboard(member_id: str):
-    """Aggregated dashboard data for the Home card."""
+    """Aggregated dashboard data for the Home card + Resumo Geral."""
     goals = await list_goals(member_id)
     if not goals:
         return {"has_goals": False, "active_count": 0, "overall_progress": 0,
                 "avg_rhythm": 0, "days_left": None, "score": None,
-                "critical_goal": None, "message": "Defina sua primeira meta e a IA te guia."}
+                "critical_goal": None, "message": "Defina sua primeira meta e a IA te guia.",
+                "goals_summary": []}
     active = [g for g in goals if g["status"] == "active"]
     if not active:
         return {"has_goals": False, "active_count": 0, "overall_progress": 0,
                 "avg_rhythm": 0, "days_left": None, "score": None,
-                "critical_goal": None, "message": "Crie sua próxima meta."}
+                "critical_goal": None, "message": "Crie sua próxima meta.",
+                "goals_summary": []}
 
     overall = round(sum(g["progress_pct"] for g in active) / len(active), 1)
     avg_rhythm = round(sum(g["rhythm"] for g in active) / len(active), 1)
-    # Critical = smallest rhythm (most behind)
     critical = min(active, key=lambda g: g["rhythm"])
-    # Score: 50 + rhythm * 2 (clamped 0..100)
     score = max(0, min(100, int(round(50 + avg_rhythm * 2))))
 
     if avg_rhythm >= 5:
@@ -2999,6 +3198,20 @@ async def goals_dashboard(member_id: str):
     else:
         msg = f"Você está {abs(avg_rhythm):.0f}% abaixo do ritmo — precisamos acelerar."
 
+    # Resumo por meta (para pizza/lista de percentuais)
+    goals_summary = [
+        {
+            "goal_id": g["goal_id"],
+            "title": g["title"],
+            "type": g["type"],
+            "color": g["color"],
+            "progress_pct": g["progress_pct"],
+            "rhythm": g["rhythm"],
+            "days_remaining": g["days_remaining"],
+        }
+        for g in active
+    ]
+
     return {
         "has_goals": True,
         "active_count": len(active),
@@ -3006,9 +3219,10 @@ async def goals_dashboard(member_id: str):
         "avg_rhythm": avg_rhythm,
         "days_left": critical["days_remaining"],
         "score": score,
-        "weekly_delta": 0,  # TODO: compute from entries week-over-week
+        "weekly_delta": 0,
         "critical_goal": critical,
         "message": msg,
+        "goals_summary": goals_summary,
     }
 
 
@@ -3023,11 +3237,29 @@ async def add_goal_entry(goal_id: str, body: GoalEntryCreate):
         "value": float(body.value),
         "note": (body.note or "").strip(),
         "date": body.date or datetime.utcnow().isoformat(),
+        "mood": body.mood,
+        "photo_base64": body.photo_base64,
     }
     await db.goal_entries.insert_one(entry)
-    # Update goal.current_value
-    await db.goals.update_one({"goal_id": goal_id}, {"$set": {"current_value": float(body.value)}})
-    return {"ok": True, "entry_id": entry["entry_id"]}
+
+    # Update goal.current_value conforme tipo:
+    gtype = goal.get("type", "weight")
+    if gtype == "habit":
+        # recalcula como total de check-ins feitos
+        done = await db.goal_entries.count_documents({"goal_id": goal_id, "value": {"$gte": 1}})
+        await db.goals.update_one({"goal_id": goal_id}, {"$set": {"current_value": float(done)}})
+    elif gtype == "behavior":
+        # média de scores
+        all_entries = await db.goal_entries.find({"goal_id": goal_id}).to_list(length=10000)
+        avg = sum(float(e.get("value", 0)) for e in all_entries) / max(1, len(all_entries))
+        await db.goals.update_one({"goal_id": goal_id}, {"$set": {"current_value": round(float(avg), 2)}})
+    else:
+        await db.goals.update_one({"goal_id": goal_id}, {"$set": {"current_value": float(body.value)}})
+
+    # Retorna o goal atualizado para permitir update em tempo real no cliente
+    goal = await db.goals.find_one({"goal_id": goal_id})
+    entries = await db.goal_entries.find({"goal_id": goal_id}).sort("date", 1).to_list(length=1000)
+    return {"ok": True, "entry_id": entry["entry_id"], "goal": _serialize_goal(goal, entries)}
 
 
 @api_router.get("/goals/{goal_id}/entries")
@@ -3121,10 +3353,130 @@ async def goal_what_to_do(goal_id: str):
 
 
 
+@api_router.get("/goals/{goal_id}/detail")
+async def goal_detail(goal_id: str):
+    """Retorna meta + entries + fotos — tudo que a tela individual da meta precisa."""
+    goal = await db.goals.find_one({"goal_id": goal_id})
+    if not goal:
+        raise HTTPException(status_code=404, detail="meta não encontrada")
+    entries = await db.goal_entries.find({"goal_id": goal_id}).sort("date", 1).to_list(length=2000)
+    for e in entries:
+        e.pop("_id", None)
+    photos = [
+        {"entry_id": e.get("entry_id"), "date": e.get("date"), "photo_base64": e.get("photo_base64"), "note": e.get("note", "")}
+        for e in entries if e.get("photo_base64")
+    ]
+    return {
+        "goal": _serialize_goal(goal, entries),
+        "entries": entries,
+        "photos": photos,
+    }
+
+
+@api_router.post("/goals/{goal_id}/daily-message")
+async def goal_daily_message(goal_id: str):
+    """Mensagem do Dia — personalizada, espiritual, motivacional, por meta."""
+    goal = await db.goals.find_one({"goal_id": goal_id})
+    if not goal:
+        raise HTTPException(status_code=404, detail="meta não encontrada")
+    entries = await db.goal_entries.find({"goal_id": goal_id}).sort("date", 1).to_list(length=500)
+    snap = _compute_goal_snapshot(goal, entries)
+
+    member = await db.members.find_one({"member_id": goal["member_id"]})
+    member_name = (member or {}).get("nickname") or (member or {}).get("name") or "Membro"
+    gtype = goal.get("type", "weight")
+    color = goal.get("color") or GOAL_TYPE_COLORS.get(gtype, "#F5C150")
+
+    # Data em português
+    today = datetime.utcnow()
+    weekdays_pt = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira",
+                   "sexta-feira", "sábado", "domingo"]
+    months_pt = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
+                 "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+    day_label = f"{weekdays_pt[today.weekday()]}, {today.day} de {months_pt[today.month-1]}"
+
+    status = snap.get("rhythm_status", "on_track")
+    situation = {
+        "ahead": "está ADIANTADA no ritmo ideal — performance excelente.",
+        "on_track": "está NO RITMO ideal — estabilidade é sinal de maturidade.",
+        "slightly_behind": "está LEVEMENTE ATRÁS — pequena correção de rota é necessária.",
+        "behind": "está ATRASADA — exige disciplina e recalibração hoje.",
+    }.get(status, "em andamento.")
+
+    system_prompt = (
+        "Você é o ASSISTENTE BLACK do BLACKSCLUB — mentor pessoal de um clube privado de luxo. "
+        "Escreva a MENSAGEM DO DIA para o membro. Tom: sofisticado, espiritual, inspirador, "
+        "acolhedor e direto — como um sábio mentor premium que conhece o momento exato do membro. "
+        "Sem clichês ('você consegue!', 'foco foco foco'), sem emojis, sem exclamações em excesso. "
+        "Nível alto de vocabulário, linguagem calma e magnética. "
+        "SEMPRE responda em JSON válido no formato exato pedido."
+    )
+
+    prompt = (
+        f"MEMBRO: {member_name}\n"
+        f"DIA: {day_label}\n"
+        f"META: \"{goal['title']}\" (tipo: {gtype})\n"
+        f"Progresso: {snap.get('progress_pct',0)}%  ·  Ritmo: {snap.get('rhythm',0):+.1f}%  ·  "
+        f"Dias restantes: {snap.get('days_remaining',0)}\n"
+        f"Situação: {situation}\n\n"
+        "Gere uma MENSAGEM DO DIA personalizada em JSON EXATO:\n"
+        "{\n"
+        f'  "day_label": "{day_label}",\n'
+        '  "headline": "frase principal curta e poderosa, máx 80 chars",\n'
+        '  "focus": "o que se preocupar/focar hoje (1-2 frases). Concreto, para a META ativa e para a vida.",\n'
+        '  "verse": "passagem bíblica curta relevante ao momento (1 frase)",\n'
+        '  "verse_ref": "referência (ex: Filipenses 4:13)",\n'
+        '  "parable": "pequena parábola, história inspiradora ou referência real (2-4 frases, aplicável à vida)",\n'
+        '  "closing": "fechamento que faça o membro se sentir mais calmo, confiante e capaz (1-2 frases)"\n'
+        "}\n"
+        "Regras: mensagem inteira em português, sem emojis, tom de luxo, espiritualidade discreta, "
+        "sem frases de autoajuda baratas. Evite repetir palavras do status literalmente."
+    )
+
+    try:
+        key = os.environ.get("EMERGENT_LLM_KEY")
+        if not LlmChat or not key:
+            raise RuntimeError("LLM indisponível")
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"dm_{goal_id}_{today.date().isoformat()}",
+            system_message=system_prompt,
+        ).with_model("openai", "gpt-4o")
+        from emergentintegrations.llm.chat import UserMessage  # type: ignore
+        reply = await chat.send_message(UserMessage(text=prompt))
+        import re as _re, json as _json
+        match = _re.search(r"\{.*\}", reply, _re.DOTALL)
+        if match:
+            data = _json.loads(match.group(0))
+        else:
+            raise RuntimeError("JSON ausente")
+    except Exception as e:
+        logger.exception("daily-message failed: %s", e)
+        data = {
+            "day_label": day_label,
+            "headline": "Permaneça firme. O caminho recompensa quem não se desvia.",
+            "focus": "Hoje, cuide da próxima escolha — ela define seu dia. Menos velocidade, mais direção.",
+            "verse": "Tudo posso naquele que me fortalece.",
+            "verse_ref": "Filipenses 4:13",
+            "parable": "Assim como o agricultor que planta sem ver o fruto no mesmo dia, sua evolução também exige fé, rotina e tempo. Grandes transformações começam com pequenas decisões repetidas.",
+            "closing": "Você está mais perto do que imagina. Continue — seu processo está construindo algo maior do que você vê hoje.",
+        }
+
+    data["goal_title"] = goal["title"]
+    data["goal_type"] = gtype
+    data["goal_color"] = color
+    data["goal_id"] = goal_id
+    return data
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    try:
+        client.close()
+    except Exception:
+        pass
 
 
+app.include_router(api_router)
 app.include_router(api_router)
 

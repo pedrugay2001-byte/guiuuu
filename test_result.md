@@ -578,3 +578,56 @@ agent_communication:
         - Performance tab com placeholder premium ✓
         
         NÃO precisa retestar backend — nenhuma rota do backend foi alterada.
+
+        FASE 3 — Central de Performance 2.0 (FASE 1: Lógica & Cálculo):
+        BACKEND (server.py):
+        - GOAL_TYPES expandido: weight, financial, habit, behavior, productivity (+ legacy fitness)
+        - Novo schema Goal com campos: initial_value SEPARADO de current_value (bug crítico corrigido),
+          color, description, motive, photo_initial. Antes `current_value` servia duplo papel.
+        - _compute_goal_snapshot reescrito com lógica POR TIPO:
+          * habit: progresso = % check-ins feitos, streak, best_streak
+          * behavior: progresso = média de scores 0-10, current = average
+          * weight/financial/productivity: progresso normal (delta / denom) usando initial_value
+        - Agora retorna history[] e ideal_series[] para gráfico linha real vs ideal
+        - Novos endpoints:
+          * PATCH /api/goals/{goal_id} — atualiza meta (title, target, color, etc)
+          * GET   /api/goals/{goal_id}/detail — retorna goal + entries + photos
+          * POST  /api/goals/{goal_id}/daily-message — Mensagem do Dia personalizada via BLACK AI:
+              day_label, headline, focus, verse, verse_ref, parable, closing
+              (usa GPT-4o com prompt de luxo, tom espiritual/sofisticado)
+        - POST /api/goals/{goal_id}/entries agora:
+          * aceita mood (1-5) e photo_base64
+          * recalcula current_value por tipo (soma check-ins, média scores, ou último valor)
+          * retorna o goal serializado atualizado (permite update em tempo real no cliente)
+        - GET /api/goals/dashboard/{member_id} retorna `goals_summary[]` para pizza
+
+        FRONTEND:
+        - `/app/frontend/src/performance/CircularProgress.tsx` — progresso circular animado (SVG)
+        - `/app/frontend/src/performance/LineChart.tsx` — gráfico linha real × ideal com area fill
+        - `/app/frontend/src/performance/PieOverview.tsx` — pizza do resumo geral com % médio no centro
+        - `/app/frontend/src/performance/CalendarPicker.tsx` — calendário custom mês-view em grid
+        - `/app/frontend/app/(tabs)/performance.tsx` REESCRITO:
+          * Seletor horizontal de metas (chips) com % por meta
+          * Card principal da meta selecionada: progresso circular + stats + números específicos do tipo
+          * Bloco MENSAGEM DO DIA com data pt-BR, tag colorida, passagem bíblica, parábola, fechamento
+          * Gráfico EVOLUÇÃO (linha real × ideal com dashed)
+          * Bloco RESUMO GERAL com pizza + legenda de todas as metas
+          * Criação de meta: escolha de 5 tipos, 3 campos numéricos (inicial/atual/meta), calendário,
+            color picker (7 cores), motivo, descrição, foto inicial
+          * Registro de progresso por tipo: check-in (habit), score 0-10 + humor (behavior),
+            valor numérico (weight/financial/productivity), foto progresso (weight)
+          * Removido botão "O QUE FAZER HOJE?" da Central (substituído por Mensagem do Dia)
+        - `/app/frontend/src/api.ts` — tipos atualizados: novos campos Goal, DailyMessage,
+          GoalSummary, GoalDetail, goalUpdate, goalDailyMessage, goalDetail
+
+        VALIDADO VISUALMENTE:
+        - Screenshot confirmou: header + seletor "SUAS METAS" + card principal "PERDER 8KG" com
+          progresso circular, stats, números INICIAL/ATUAL/META, botão REGISTRAR PROGRESSO
+        - MENSAGEM DO DIA renderizada com data ("QUINTA-FEIRA, 23 DE ABRIL"), tag verde
+          "META: PERDER 8KG", headline "Estabilidade: a base da transformação", foco começando
+        - Daily message endpoint testado via curl: retorno JSON válido com verse+parable+closing
+          em tom de luxo.
+
+        AGUARDA:
+        - Deep testing dos novos endpoints: daily-message, detail, patch, entries com mood/photo,
+          dashboard com goals_summary, habit progress, behavior progress
