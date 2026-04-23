@@ -13,11 +13,14 @@ import { theme, TIERS } from "../../src/theme";
 
 export default function Member() {
   const router = useRouter();
-  const { member, clear, updateMember } = useGate();
+  const { member, clear, updateMember, refreshMember } = useGate();
   const { user: authUser, refreshUser } = useAuth();
-  // Revalida o role do usuário contra o backend quando a tela abre
-  // (caso o admin tenha promovido a conta, a UI atualiza sem precisar fazer logout).
-  useFocusEffect(useCallback(() => { refreshUser(); }, [refreshUser]));
+  // Revalida dados do usuário E do membro contra o backend ao abrir a tela,
+  // assim mudanças feitas via admin (role, avatar, tier) aparecem sem logout.
+  useFocusEffect(useCallback(() => {
+    refreshUser();
+    refreshMember();
+  }, [refreshUser, refreshMember]));
   const isStaff = ["admin", "support", "financeiro"].includes(authUser?.role || "");
   const [adminProducts, setAdminProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);

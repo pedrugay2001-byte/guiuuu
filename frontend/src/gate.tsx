@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { TierId } from "./theme";
+import { api } from "./api";
 
 const GATE_KEY = "blacksclub_member_v1";
 // Legacy keys to migrate
@@ -26,6 +27,8 @@ type GateState = {
   member: MemberData | null | undefined;
   saveMember: (m: MemberData) => Promise<void>;
   updateMember: (patch: Partial<MemberData>) => Promise<void>;
+  /** Revalida dados do membro contra o backend (atualiza avatar, nickname, tier, etc.) */
+  refreshMember: () => Promise<void>;
   clear: () => Promise<void>;
 };
 
@@ -44,7 +47,25 @@ export function GateProvider({ children }: { children: React.ReactNode }) {
         }
       }
       if (raw) {
-        try { setMember(JSON.parse(raw)); return; } catch {}
+        try {
+          const cached = JSON.parse(raw);
+          setMember(cached);
+          // Após carregar do cache, revalida em background contra o backend
+          // para pegar mudanças feitas via admin (role, avatar, tier...).
+          if (cached?.member_id) {
+            api.communityMember(cached.member_id)
+              .then((fresh: any) => {
+                if (!fresh) return;
+                setMember((prev) => {
+                  const merged = { ...prev, ...fresh } as MemberData;
+                  AsyncStorage.setItem(GATE_KEY, JSON.stringify(merged)).catch(() => {});
+                  return merged;
+                });
+              })
+              .catch(() => {});
+          }
+          return;
+        } catch {}
       }
       setMember(null);
     })();
@@ -64,6 +85,20 @@ export function GateProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const refreshMember = useCallback(async () => {
+    try {
+      const cur = await AsyncStorage.getItem(GATE_KEY);
+      if (!cur) return;
+      const prev = JSON.parse(cur);
+      if (!prev?.member_id) return;
+      const fresh: any = await api.communityMember(prev.member_id);
+      if (!fresh) return;
+      const merged = { ...prev, ...fresh } as MemberData;
+      await AsyncStorage.setItem(GATE_KEY, JSON.stringify(merged));
+      setMember(merged);
+    } catch { /* silencioso */ }
+  }, []);
+
   const clear = useCallback(async () => {
     await AsyncStorage.removeItem(GATE_KEY);
     for (const k of LEGACY_KEYS) await AsyncStorage.removeItem(k);
@@ -71,7 +106,7 @@ export function GateProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <GateContext.Provider value={{ member, saveMember, updateMember, clear }}>
+    <GateContext.Provider value={{ member, saveMember, updateMember, refreshMember, clear }}>
       {children}
     </GateContext.Provider>
   );
