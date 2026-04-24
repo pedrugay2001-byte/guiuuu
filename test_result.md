@@ -2030,3 +2030,50 @@ agent_communication:
         - Admin Master: guilherme925145000@gmail.com / blacks2026
         - Admin Staff: admin@farmaclube.com / admin123
         - Demo Member: demo@blacksclub.com / novasenha123
+
+
+    - agent: "main"
+      message: |
+        [Sessão — Redesign Premium (Fases 1-4 parciais)]
+        
+        ✅ FASE 1 — Paleta azul-prateado (platinum)
+        • Theme: novos tokens platinumLight/base/mid/dark + gradients.platinum/diamond
+        • `tierDiamond` color alterado de ciano para #C5D1DA (prata metálico)
+        • NOVO hook `useTierAccent()` retorna paleta dinâmica (platinum p/ Diamond, gold p/ demais)
+        • Carteira (/app/(tabs)/wallet.tsx): constantes GOLD_* reescritas p/ platinum (efeito prata metálica)
+        • Top tab bar: cor de destaque muda para prateado se user.tier==="diamond"
+        • Bottom bar: botão Home centro muda para prateado se user.tier==="diamond"
+        • Member screen (Perfil): editProfileTitle, inviteKicker, cameraBadge, inviteShare usam accent dinâmico
+        
+        ✅ FASE 2 — Social + Lock de grupos por tier
+        • Novo card "Amigos" (→ /community/descobrir) e "Mensagens" (→ /community/messages) na tela Social
+        • Backend: DEFAULT_GROUPS atualizado com 4 grupos oficiais com tier_lock:
+          Black / Black Silver / Black Golden / Black Diamante (ordem fixa)
+        • `seed_groups` agora usa $set em grupos de tier para refletir config atualizada
+        • NOVO helper `_tier_allowed()` + `_get_member_tier()` no backend
+        • GET /api/community/groups retorna `locked` + `required_tier` por grupo baseado no member_id
+        • POST /groups/{id}/join bloqueia com 403+TIER_LOCKED se tier não bate
+        • POST /groups/{id}/messages idem, + GET messages com member_id parameter opcional
+        • Frontend mostra ícone cadeado nos grupos bloqueados + Alert ao tentar abrir
+        
+        ✅ FASE 3 — Banco/Transferência premium
+        • /blx/send.tsx: tipografia reduzida (amountInput 48→38, reviewAmount 38→32)
+        • Cores douradas trocadas por platinum (#C5D1DA) em amountUnit, quickBtnTxt,
+          contactCardWallet, primaryBtn, reviewUnit, reviewValSmall, hintText
+        • Carteira agora expõe botões "ADICIONAR BLX" (platinum gradient primary)
+          + "SUPORTE" (secondary) diretamente do dashboard BLEX
+        • Adicionado campo `reserved_centavos` visível no wallet footer quando > 0
+        
+        ✅ FASE 4 — Performance + Metas detalhadas
+        • LineChart do gráfico EVOLUÇÃO aumentado (170px→220px altura)
+        • Novo componente `ComparativeStats` com variação 7 DIAS / 30 DIAS / DESDE O INÍCIO
+          aplicando lógica de "melhora" baseada em goal.type (ex: weight com target menor)
+        • Cores dinâmicas verde (melhora) / vermelho (piora)
+        
+        🛠️ Infra:
+        • Frontend rebuildado via `npm run build` e copiado para /app/backend/static_frontend/
+        • Backend verificado: /blx/wallet, /community/groups?member_id, /orders/my-purchases funcionando
+        
+        📋 Testes backend pendentes (por delegar):
+        - Tier-lock em grupos: GET com member_id filtrando locked correctly; POST 403 TIER_LOCKED
+          quando member tier difere do group.tier_lock; POST passando quando tiers combinam.

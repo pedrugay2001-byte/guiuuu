@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(212,175,55,0.08)",
     borderWidth: 1, borderColor: "rgba(212,175,55,0.2)",
   },
-  hintText: { flex: 1, color: "#E6D58F", fontSize: 11.5, lineHeight: 16 },
+  hintText: { flex: 1, color: "#B4C5D2", fontSize: 11.5, lineHeight: 16 },
 
   // Contact card (step amount)
   contactCard: {
@@ -439,26 +439,28 @@ const styles = StyleSheet.create({
   avatarBigImg: { width: "100%", height: "100%" },
   avatarBigTxt: { color: "#FFF", fontSize: 24, fontWeight: "900" },
   contactCardName: { color: "#FFF", fontSize: 16, fontWeight: "800", marginTop: 10 },
-  contactCardWallet: { color: "#D4AF37", fontSize: 12, fontWeight: "800", letterSpacing: 1.5, marginTop: 3 },
+  contactCardWallet: { color: "#C5D1DA", fontSize: 11, fontWeight: "800", letterSpacing: 1.2, marginTop: 3 },
+  amountInput: {
+    textAlign: "center",
+    color: "#FFF", fontSize: 38, fontWeight: "900",
+    letterSpacing: -1, paddingVertical: 6,
+  },
+  amountUnit: { color: "#C5D1DA", fontSize: 13, fontWeight: "900", letterSpacing: 1.5 },
+  balanceHint: { textAlign: "center", color: "#8A8A8A", fontSize: 11, marginTop: 4, fontWeight: "700" },
+  quickRow: { flexDirection: "row", gap: 8, marginTop: 14 },
+  quickBtn: {
+    flex: 1, paddingVertical: 10,
+    borderRadius: 10, borderWidth: 1, borderColor: "#1F1F1F",
+    backgroundColor: "#0B0D10",
+    alignItems: "center",
+  },
+  quickBtnTxt: { color: "#C5D1DA", fontSize: 10.5, fontWeight: "800", letterSpacing: 0.5 },
 
-  // Amount input
+  // Amount input (tipografia equilibrada + prata metálica)
   amountBox: {
     flexDirection: "row", alignItems: "baseline", justifyContent: "center", gap: 8,
     paddingVertical: 10,
   },
-  amountInput: {
-    color: "#FFF", fontSize: 48, fontWeight: "900",
-    minWidth: 120, textAlign: "right", letterSpacing: -1.5,
-  },
-  amountUnit: { color: "#D4AF37", fontSize: 16, fontWeight: "900", letterSpacing: 1.5 },
-  balanceHint: { textAlign: "center", color: "#8A8A8A", fontSize: 12, marginTop: 4, fontWeight: "700" },
-
-  quickRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 16, justifyContent: "center" },
-  quickBtn: {
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: "#121212", borderWidth: 1, borderColor: "#1F1F1F",
-  },
-  quickBtnTxt: { color: "#D4AF37", fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
 
   noteInput: {
     backgroundColor: "#0E0E0E", borderRadius: 10,
@@ -469,8 +471,8 @@ const styles = StyleSheet.create({
 
   primaryBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
-    paddingVertical: 16, borderRadius: 12, marginTop: 20,
-    backgroundColor: "#D4AF37",
+    paddingVertical: 15, borderRadius: 12, marginTop: 20,
+    backgroundColor: "#C5D1DA",
   },
   primaryBtnDisabled: { backgroundColor: "#1A1A1A" },
   primaryBtnText: { color: "#0A0A0A", fontSize: 12.5, fontWeight: "900", letterSpacing: 1.5 },
@@ -487,7 +489,7 @@ const styles = StyleSheet.create({
   reviewKicker: { color: "#8A8A8A", fontSize: 10, fontWeight: "900", letterSpacing: 2.5, textAlign: "center" },
   reviewAmountRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "center", gap: 8, marginTop: 8 },
   reviewAmount: { color: "#FFF", fontSize: 38, fontWeight: "900", letterSpacing: -1 },
-  reviewUnit: { color: "#D4AF37", fontSize: 14, fontWeight: "900", letterSpacing: 1.5 },
+  reviewUnit: { color: "#C5D1DA", fontSize: 14, fontWeight: "900", letterSpacing: 1.5 },
   reviewLine: { height: 1, backgroundColor: "#1A1A1A", marginVertical: 16 },
   reviewRow: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
@@ -495,7 +497,7 @@ const styles = StyleSheet.create({
   },
   reviewLbl: { color: "#8A8A8A", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 },
   reviewVal: { color: "#FFF", fontSize: 13, fontWeight: "700" },
-  reviewValSmall: { color: "#D4AF37", fontSize: 11, fontWeight: "700", marginTop: 3, letterSpacing: 1 },
+  reviewValSmall: { color: "#C5D1DA", fontSize: 11, fontWeight: "700", marginTop: 3, letterSpacing: 1 },
 
   warnBox: {
     flexDirection: "row", alignItems: "flex-start", gap: 10,

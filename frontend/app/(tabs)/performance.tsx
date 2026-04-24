@@ -196,7 +196,7 @@ export default function PerformanceTab() {
               </TouchableOpacity>
             )}
 
-            {/* GRÁFICO DE EVOLUÇÃO */}
+            {/* GRÁFICO DE EVOLUÇÃO — maior e com período visível */}
             {selectedGoal && (selectedGoal.history?.length ?? 0) > 0 && (
               <View style={st.card}>
                 <View style={st.cardHead}>
@@ -205,11 +205,13 @@ export default function PerformanceTab() {
                 </View>
                 <LineChart
                   width={W - 20}
-                  height={170}
+                  height={220}
                   color={selectedGoal.color || TYPE_META[selectedGoal.type].color}
                   real={(selectedGoal.history || []).map(h => ({ date: h.date, value: h.value }))}
                   ideal={(selectedGoal.ideal_series || []).map(i => ({ date: i.date, ideal: i.ideal }))}
                 />
+                {/* Comparativo semanal / mensal */}
+                <ComparativeStats goal={selectedGoal} />
               </View>
             )}
 
@@ -323,6 +325,113 @@ export default function PerformanceTab() {
     </View>
   );
 }
+
+/* ----------------------- COMPARATIVE STATS (semanal/mensal) ----------------------- */
+/**
+ * Exibe variação do valor real da meta nas últimas 7 e 30 dias, comparado com o
+ * último valor atual. Oferece leitura rápida de "como está a evolução".
+ */
+function ComparativeStats({ goal }: { goal: Goal }) {
+  const hist = (goal.history || []).slice();
+  if (hist.length < 2) return null;
+
+  // Ordena por data asc.
+  hist.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const last = hist[hist.length - 1];
+  const lastVal = Number(last.value) || 0;
+  const now = new Date(last.date).getTime();
+  const DAY = 24 * 60 * 60 * 1000;
+
+  const findClosestAtOrBefore = (targetTs: number) => {
+    let best: { date: string; value: number } | null = null;
+    for (const h of hist) {
+      const ts = new Date(h.date).getTime();
+      if (ts <= targetTs) best = h;
+      else break;
+    }
+    return best;
+  };
+
+  const week = findClosestAtOrBefore(now - 7 * DAY);
+  const month = findClosestAtOrBefore(now - 30 * DAY);
+  const initial = hist[0];
+
+  const deltaOf = (prev: { value: number } | null) => {
+    if (!prev) return null;
+    return lastVal - Number(prev.value);
+  };
+  const pctOf = (prev: { value: number } | null) => {
+    if (!prev || !Number(prev.value)) return null;
+    return ((lastVal - Number(prev.value)) / Math.abs(Number(prev.value))) * 100;
+  };
+
+  const isWeightLike = goal.type === "weight" || goal.type === "fitness";
+  // Para weight: diminuir é "melhora" (target < initial normalmente). Para todos os outros, aumentar é melhora.
+  const decreasingIsGood = isWeightLike && (goal.target_value || 0) < (goal.initial_value || 0);
+
+  const colorFor = (delta: number | null) => {
+    if (delta === null || Math.abs(delta) < 0.001) return "#8A8A8A";
+    const improving = decreasingIsGood ? delta < 0 : delta > 0;
+    return improving ? "#2ECC71" : "#FF5B5B";
+  };
+
+  const cells: { label: string; value: string; delta: number | null; pct: number | null }[] = [
+    {
+      label: "7 DIAS",
+      value: week ? fmtVal(deltaOf(week) ?? 0, goal.unit) : "—",
+      delta: deltaOf(week),
+      pct: pctOf(week),
+    },
+    {
+      label: "30 DIAS",
+      value: month ? fmtVal(deltaOf(month) ?? 0, goal.unit) : "—",
+      delta: deltaOf(month),
+      pct: pctOf(month),
+    },
+    {
+      label: "DESDE O INÍCIO",
+      value: initial ? fmtVal(deltaOf(initial) ?? 0, goal.unit) : "—",
+      delta: deltaOf(initial),
+      pct: pctOf(initial),
+    },
+  ];
+
+  return (
+    <View style={compSt.wrap}>
+      <Text style={compSt.title}>COMPARATIVO</Text>
+      <View style={compSt.row}>
+        {cells.map((c, i) => {
+          const col = colorFor(c.delta);
+          const prefix = c.delta !== null && c.delta > 0 ? "+" : "";
+          return (
+            <View key={i} style={[compSt.cell, i < cells.length - 1 && compSt.cellBorder]}>
+              <Text style={compSt.cellLbl}>{c.label}</Text>
+              <Text style={[compSt.cellVal, { color: col }]}>
+                {c.delta === null ? "—" : `${prefix}${c.value}`}
+              </Text>
+              {c.pct !== null && (
+                <Text style={[compSt.cellPct, { color: col }]}>
+                  {prefix}{c.pct.toFixed(1)}%
+                </Text>
+              )}
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const compSt = StyleSheet.create({
+  wrap: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: "#1A1A1A" },
+  title: { color: "#8A8A8A", fontSize: 10, fontWeight: "900", letterSpacing: 2, marginBottom: 10 },
+  row: { flexDirection: "row", backgroundColor: "#0A0A0A", borderRadius: 10, borderWidth: 1, borderColor: "#171717" },
+  cell: { flex: 1, paddingVertical: 10, paddingHorizontal: 6, alignItems: "center" },
+  cellBorder: { borderRightWidth: 1, borderRightColor: "#171717" },
+  cellLbl: { color: "#777", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  cellVal: { color: "#FFF", fontSize: 14, fontWeight: "900", marginTop: 4 },
+  cellPct: { fontSize: 10, fontWeight: "800", marginTop: 2 },
+});
 
 /* ----------------------- MINI STORY (filtro circular) ----------------------- */
 
