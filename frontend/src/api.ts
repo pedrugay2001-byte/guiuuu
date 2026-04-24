@@ -158,6 +158,15 @@ export const api = {
       new_balance_centavos: number;
       message: string;
     }>(`/products/${product_id}/buy-blx`, { method: "POST", body: JSON.stringify(body) }),
+  buyAdBLX: (ad_id: string, body: { member_id: string; pay_option: "full" | "half" | "entry" }) =>
+    request<{
+      ok: boolean;
+      order_id: string;
+      tx_id: string;
+      total_cents: number;
+      new_balance_centavos: number;
+      message: string;
+    }>(`/ads/${ad_id}/buy-blx`, { method: "POST", body: JSON.stringify(body) }),
   createOrder: (body: { member_id: string; items: any[]; total: number }) =>
     request<{ order_id: string; status: string }>("/orders", {
       method: "POST", body: JSON.stringify(body),
@@ -324,10 +333,10 @@ export const api = {
   favIds: (member_id: string) => request<string[]>(`/favorites/${member_id}/ids`),
 
   // ----- Cart -----
-  cartAdd: (member_id: string, ad_id: string, qty = 1) =>
+  cartAdd: (member_id: string, ad_id: string, qty = 1, item_type: "ad" | "product" = "ad") =>
     request<{ qty: number }>("/cart/add", {
       method: "POST",
-      body: JSON.stringify({ member_id, ad_id, qty }),
+      body: JSON.stringify({ member_id, ad_id, qty, item_type }),
     }),
   cartUpdate: (member_id: string, ad_id: string, qty: number) =>
     request<{ qty?: number; removed?: boolean }>("/cart/update", {
@@ -340,6 +349,15 @@ export const api = {
     request<CartResponse>(`/cart/${member_id}`),
   cartClear: (member_id: string) =>
     request<{ ok: boolean }>(`/cart/${member_id}`, { method: "DELETE" }),
+  cartCheckoutBLX: (member_id: string) =>
+    request<{
+      ok: boolean;
+      total_debited_cents: number;
+      orders: string[];
+      txs: string[];
+      new_balance_centavos: number;
+      message: string;
+    }>("/cart/checkout-blx", { method: "POST", body: JSON.stringify({ member_id }) }),
 
   // ----- Stories -----
   listStories: () => request<StoryGroup[]>("/stories"),

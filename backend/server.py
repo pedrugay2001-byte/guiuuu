@@ -2541,6 +2541,88 @@ async def get_ad(ad_id: str):
     return a
 
 
+class AdBLXBuy(BaseModel):
+    member_id: str
+    pay_option: str = "full"  # "full"|"half"|"entry"
+
+
+@api_router.post("/ads/{ad_id}/buy-blx")
+async def buy_ad_with_blx(ad_id: str, data: AdBLXBuy):
+    """
+    Compra direta de um anúncio Diamante via BLX (escrow).
+    Debita o valor do comprador e mantém em escrow até confirmação de entrega.
+    Desconto aplicado conforme forma de pagamento:
+      - full  (100% antecipado) → -30%
+      - half  (50% entrada)     → -15%
+      - entry (10% entrada)     →   0%
+    """
+    ad = await db.ads.find_one({"ad_id": ad_id}, {"_id": 0})
+    if not ad:
+        raise HTTPException(status_code=404, detail="Anúncio não encontrado")
+    if ad.get("seller_id") == data.member_id:
+        raise HTTPException(status_code=400, detail="Você não pode comprar seu próprio anúncio")
+
+    PAY_DISC = {"full": 30, "half": 15, "entry": 0}
+    disc_pct = PAY_DISC.get(data.pay_option, 0)
+    price_full = float(ad.get("price_full", 0))
+    full_cents = int(round(price_full * 100))
+    final_cents = int(round(full_cents * (100 - disc_pct) / 100))
+
+    wallet = await db.wallets.find_one({"member_id": data.member_id}, {"_id": 0})
+    if not wallet:
+        raise HTTPException(status_code=400, detail="Carteira BLX não encontrada")
+    current_cents = int(wallet.get("balance_centavos") or 0)
+    if current_cents < final_cents:
+        faltante = (final_cents - current_cents) / 100.0
+        raise HTTPException(
+            status_code=400,
+            detail=f"Saldo BLX insuficiente. Faltam {faltante:.2f} BLX.",
+        )
+
+    now = datetime.now(timezone.utc)
+    amt_float = final_cents / 100.0
+    # Debita do comprador + marca escrow
+    await db.wallets.update_one(
+        {"member_id": data.member_id},
+        {"$inc": {
+            "balance": -amt_float, "balance_centavos": -final_cents,
+            "escrow_out": amt_float,
+        }},
+    )
+    seller_id = ad.get("seller_id")
+    if seller_id:
+        await db.wallets.update_one(
+            {"member_id": seller_id},
+            {"$inc": {"escrow_in": amt_float}},
+        )
+
+    tx_id = f"tx_{uuid.uuid4().hex[:10]}"
+    await db.wallet_txs.insert_one({
+        "tx_id": tx_id, "from_id": data.member_id, "to_id": seller_id,
+        "amount": amt_float, "amount_centavos": final_cents,
+        "type": "escrow", "status": "pending",
+        "description": f"Compra Diamante: {ad.get('title')}",
+        "ad_id": ad_id, "pay_option": data.pay_option,
+        "created_at": now,
+    })
+    order_id = f"ord_{uuid.uuid4().hex[:10]}"
+    await db.orders.insert_one({
+        "order_id": order_id, "member_id": data.member_id, "ad_id": ad_id,
+        "seller_id": seller_id,
+        "product_name": ad.get("title"), "quantity": 1,
+        "total_cents": final_cents, "status": "in_escrow",
+        "channel": "ad_direct", "pay_option": data.pay_option,
+        "tx_id": tx_id, "created_at": now,
+    })
+    return {
+        "ok": True,
+        "order_id": order_id, "tx_id": tx_id,
+        "total_cents": final_cents,
+        "new_balance_centavos": current_cents - final_cents,
+        "message": f"Reserva Diamante confirmada! {amt_float:.2f} BLX em custódia.",
+    }
+
+
 @api_router.post("/ads")
 async def create_ad(data: AdCreate):
     m = await db.members.find_one({"member_id": data.seller_id})
@@ -2855,22 +2937,39 @@ async def favorites_ids(member_id: str):
 
 class CartItem(BaseModel):
     member_id: str
-    ad_id: str
+    ad_id: str  # item_id (ad_id or product_id)
     qty: int = 1
+    item_type: str = "ad"  # "ad" (marketplace) or "product" (catalog)
 
 
 @api_router.post("/cart/add")
 async def cart_add(data: CartItem):
-    """Adiciona um item ao carrinho (ou incrementa qty)."""
-    existing = await db.carts.find_one({"member_id": data.member_id, "ad_id": data.ad_id})
+    """Adiciona um item ao carrinho (ou incrementa qty). Suporta 'ad' e 'product'."""
+    item_type = data.item_type if data.item_type in ("ad", "product") else "ad"
+    existing = await db.carts.find_one({
+        "member_id": data.member_id,
+        "ad_id": data.ad_id,
+        "item_type": item_type,
+    })
+    # Fallback para compatibilidade com itens antigos sem item_type
+    if not existing and item_type == "ad":
+        existing = await db.carts.find_one({
+            "member_id": data.member_id,
+            "ad_id": data.ad_id,
+            "item_type": {"$exists": False},
+        })
     qty = max(int(data.qty or 1), 1)
     if existing:
         new_qty = int(existing.get("qty", 1)) + qty
-        await db.carts.update_one({"_id": existing["_id"]}, {"$set": {"qty": new_qty}})
+        await db.carts.update_one(
+            {"_id": existing["_id"]},
+            {"$set": {"qty": new_qty, "item_type": item_type}},
+        )
         return {"qty": new_qty}
     await db.carts.insert_one({
         "member_id": data.member_id,
         "ad_id": data.ad_id,
+        "item_type": item_type,
         "qty": qty,
         "created_at": datetime.now(timezone.utc),
     })
@@ -2899,62 +2998,255 @@ async def cart_remove(member_id: str, ad_id: str):
 
 @api_router.get("/cart/{member_id}")
 async def cart_list(member_id: str):
-    """Retorna carrinho agrupado por vendedor para facilitar checkout."""
+    """Retorna carrinho agrupado por vendedor. Suporta ads (P2P) e produtos do catálogo."""
     items = await db.carts.find({"member_id": member_id}, {"_id": 0}).sort("created_at", -1).to_list(length=200)
     if not items:
         return {"items": [], "groups": [], "total_centavos": 0, "count": 0}
-    ad_ids = [i["ad_id"] for i in items]
-    ads = await db.ads.find({"ad_id": {"$in": ad_ids}}, {"_id": 0}).to_list(length=200)
-    ad_map = {a["ad_id"]: a for a in ads}
-    # Busca nomes de vendedores
-    seller_ids = list({a.get("seller_id") for a in ads if a.get("seller_id")})
+
+    # Separar por tipo
+    ad_items = [i for i in items if i.get("item_type", "ad") == "ad"]
+    product_items = [i for i in items if i.get("item_type") == "product"]
+
+    ad_map: Dict[str, Any] = {}
+    if ad_items:
+        ad_ids = [i["ad_id"] for i in ad_items]
+        ads_docs = await db.ads.find({"ad_id": {"$in": ad_ids}}, {"_id": 0}).to_list(length=200)
+        ad_map = {a["ad_id"]: a for a in ads_docs}
+
+    prod_map: Dict[str, Any] = {}
+    if product_items:
+        pids = [i["ad_id"] for i in product_items]
+        prods = await db.products.find({"product_id": {"$in": pids}}, {"_id": 0}).to_list(length=200)
+        prod_map = {p["product_id"]: p for p in prods}
+
+    # Busca nomes de vendedores (para ads)
+    seller_ids = list({a.get("seller_id") for a in ad_map.values() if a.get("seller_id")})
     sellers: Dict[str, Dict[str, Any]] = {}
     if seller_ids:
-        async for m in db.members.find({"member_id": {"$in": seller_ids}}, {"_id": 0, "member_id": 1, "nickname": 1, "name": 1, "tier": 1, "avatar_base64": 1}):
+        async for m in db.members.find(
+            {"member_id": {"$in": seller_ids}},
+            {"_id": 0, "member_id": 1, "nickname": 1, "name": 1, "tier": 1, "avatar_base64": 1},
+        ):
             sellers[m["member_id"]] = m
+
+    # Tier discount do comprador (para catálogo)
+    buyer = await db.members.find_one({"member_id": member_id}, {"_id": 0, "tier": 1})
+    buyer_tier = (buyer.get("tier") if buyer else "black").lower()
+    TIER_DISC = {"silver": 0.05, "gold": 0.10, "diamond": 0.15}
+    disc_pct = TIER_DISC.get(buyer_tier, 0.0)
+
     enriched: List[Dict[str, Any]] = []
     groups_map: Dict[str, Dict[str, Any]] = {}
     total_full_cents = 0
+
     for i in items:
-        a = ad_map.get(i["ad_id"])
-        if not a:
-            continue
+        it_type = i.get("item_type", "ad")
         qty = int(i.get("qty", 1))
-        price = float(a.get("price_full", 0))
-        subtotal_cents = int(round(price * 100)) * qty
-        total_full_cents += subtotal_cents
-        sid = a.get("seller_id")
-        seller = sellers.get(sid or "", {})
-        item = {
-            "ad_id": a["ad_id"],
-            "title": a.get("title"),
-            "image": (a.get("images") or [None])[0],
-            "category": a.get("category"),
-            "price_full": price,
-            "price_full_centavos": int(round(price * 100)),
-            "qty": qty,
-            "subtotal_centavos": subtotal_cents,
-            "seller_id": sid,
-            "seller_name": seller.get("nickname") or seller.get("name"),
-            "seller_tier": seller.get("tier", "black"),
-            "seller_avatar": seller.get("avatar_base64"),
-        }
-        enriched.append(item)
-        g = groups_map.setdefault(sid or "_", {
-            "seller_id": sid,
-            "seller_name": item["seller_name"],
-            "seller_avatar": item["seller_avatar"],
-            "seller_tier": item["seller_tier"],
-            "items": [],
-            "subtotal_centavos": 0,
-        })
-        g["items"].append(item)
-        g["subtotal_centavos"] += subtotal_cents
+
+        if it_type == "product":
+            p = prod_map.get(i["ad_id"])
+            if not p:
+                continue
+            base_brl = float(p.get("member_price") or p.get("price") or 0)
+            # Aplica desconto de tier
+            final_brl = round(base_brl * (1 - disc_pct), 2)
+            price_cents = int(round(final_brl * 100))
+            subtotal_cents = price_cents * qty
+            total_full_cents += subtotal_cents
+            item = {
+                "ad_id": p["product_id"],  # mantém chave padrão p/ frontend
+                "item_type": "product",
+                "title": p.get("name"),
+                "image": p.get("image_url"),
+                "category": p.get("category"),
+                "price_full": final_brl,
+                "price_full_centavos": price_cents,
+                "qty": qty,
+                "subtotal_centavos": subtotal_cents,
+                "seller_id": "catalog",
+                "seller_name": "Catálogo Oficial",
+                "seller_tier": "official",
+                "seller_avatar": None,
+            }
+            enriched.append(item)
+            g = groups_map.setdefault("__catalog__", {
+                "seller_id": "catalog",
+                "seller_name": "Catálogo Oficial",
+                "seller_avatar": None,
+                "seller_tier": "official",
+                "items": [],
+                "subtotal_centavos": 0,
+            })
+            g["items"].append(item)
+            g["subtotal_centavos"] += subtotal_cents
+        else:
+            a = ad_map.get(i["ad_id"])
+            if not a:
+                continue
+            price = float(a.get("price_full", 0))
+            subtotal_cents = int(round(price * 100)) * qty
+            total_full_cents += subtotal_cents
+            sid = a.get("seller_id")
+            seller = sellers.get(sid or "", {})
+            item = {
+                "ad_id": a["ad_id"],
+                "item_type": "ad",
+                "title": a.get("title"),
+                "image": (a.get("images") or [None])[0],
+                "category": a.get("category"),
+                "price_full": price,
+                "price_full_centavos": int(round(price * 100)),
+                "qty": qty,
+                "subtotal_centavos": subtotal_cents,
+                "seller_id": sid,
+                "seller_name": seller.get("nickname") or seller.get("name"),
+                "seller_tier": seller.get("tier", "black"),
+                "seller_avatar": seller.get("avatar_base64"),
+            }
+            enriched.append(item)
+            g = groups_map.setdefault(sid or "_", {
+                "seller_id": sid,
+                "seller_name": item["seller_name"],
+                "seller_avatar": item["seller_avatar"],
+                "seller_tier": item["seller_tier"],
+                "items": [],
+                "subtotal_centavos": 0,
+            })
+            g["items"].append(item)
+            g["subtotal_centavos"] += subtotal_cents
+
     return {
         "items": enriched,
         "groups": list(groups_map.values()),
         "total_centavos": total_full_cents,
         "count": sum(i["qty"] for i in enriched),
+    }
+
+
+@api_router.post("/cart/checkout-blx")
+async def cart_checkout_blx(data: dict):
+    """
+    Checkout unificado do carrinho usando BLX.
+    - Itens do Catálogo (item_type=product): debita BLX direto do wallet e cria order.
+    - Itens de Ads/Diamante (item_type=ad): debita BLX em escrow até entrega.
+
+    Body: { member_id: str }
+    """
+    member_id = data.get("member_id")
+    if not member_id:
+        raise HTTPException(status_code=400, detail="member_id obrigatório")
+
+    # Pega o carrinho atual
+    cart_resp = await cart_list(member_id)
+    cart_items = cart_resp.get("items") or []
+    if not cart_items:
+        raise HTTPException(status_code=400, detail="Carrinho vazio")
+
+    # Valida saldo
+    wallet = await db.wallets.find_one({"member_id": member_id}, {"_id": 0})
+    if not wallet:
+        raise HTTPException(status_code=400, detail="Carteira BLX não encontrada")
+    current_cents = int(wallet.get("balance_centavos") or 0)
+    total_cents = int(cart_resp.get("total_centavos") or 0)
+    if current_cents < total_cents:
+        faltante = (total_cents - current_cents) / 100.0
+        raise HTTPException(
+            status_code=400,
+            detail=f"Saldo BLX insuficiente. Faltam {faltante:.2f} BLX.",
+        )
+
+    now = datetime.now(timezone.utc)
+    orders_created: List[str] = []
+    txs_created: List[str] = []
+    total_debited_cents = 0
+
+    # Processa cada item
+    for item in cart_items:
+        qty = int(item.get("qty") or 1)
+        subtotal = int(item.get("subtotal_centavos") or 0)
+        it_type = item.get("item_type", "ad")
+
+        if it_type == "product":
+            # Catálogo: debita e cria order awaiting_delivery
+            pid = item["ad_id"]
+            amt_float = subtotal / 100.0
+            await db.wallets.update_one(
+                {"member_id": member_id},
+                {"$inc": {"balance": -amt_float, "balance_centavos": -subtotal}},
+            )
+            tx_id = f"tx_{uuid.uuid4().hex[:10]}"
+            await db.wallet_txs.insert_one({
+                "tx_id": tx_id, "from_id": member_id, "to_id": "catalog_admin",
+                "amount": amt_float, "amount_centavos": subtotal,
+                "type": "purchase", "status": "settled",
+                "description": f"Compra catálogo: {item.get('title')} x{qty}",
+                "product_id": pid,
+                "created_at": now, "settled_at": now,
+            })
+            order_id = f"ord_{uuid.uuid4().hex[:10]}"
+            await db.orders.insert_one({
+                "order_id": order_id, "member_id": member_id, "product_id": pid,
+                "product_name": item.get("title"), "quantity": qty,
+                "unit_cents": subtotal // max(qty, 1), "total_cents": subtotal,
+                "status": "awaiting_delivery", "channel": "cart_catalog",
+                "tx_id": tx_id, "created_at": now,
+            })
+            await db.products.update_one({"product_id": pid}, {"$inc": {"stock": -qty}})
+            orders_created.append(order_id)
+            txs_created.append(tx_id)
+            total_debited_cents += subtotal
+        else:
+            # Ad: debita em escrow (dinheiro fica retido até confirmação de entrega)
+            ad_id = item["ad_id"]
+            seller_id = item.get("seller_id")
+            amt_float = subtotal / 100.0
+            # Debita do wallet do comprador
+            await db.wallets.update_one(
+                {"member_id": member_id},
+                {"$inc": {
+                    "balance": -amt_float, "balance_centavos": -subtotal,
+                    "escrow_out": amt_float,
+                }},
+            )
+            # Opcional: incrementar escrow_in do vendedor (para rastreamento)
+            if seller_id:
+                await db.wallets.update_one(
+                    {"member_id": seller_id},
+                    {"$inc": {"escrow_in": amt_float}},
+                )
+            tx_id = f"tx_{uuid.uuid4().hex[:10]}"
+            await db.wallet_txs.insert_one({
+                "tx_id": tx_id, "from_id": member_id, "to_id": seller_id,
+                "amount": amt_float, "amount_centavos": subtotal,
+                "type": "escrow", "status": "pending",
+                "description": f"Reserva Diamante: {item.get('title')} x{qty}",
+                "ad_id": ad_id,
+                "created_at": now,
+            })
+            order_id = f"ord_{uuid.uuid4().hex[:10]}"
+            await db.orders.insert_one({
+                "order_id": order_id, "member_id": member_id, "ad_id": ad_id,
+                "seller_id": seller_id,
+                "product_name": item.get("title"), "quantity": qty,
+                "total_cents": subtotal,
+                "status": "in_escrow", "channel": "cart_diamond",
+                "tx_id": tx_id, "created_at": now,
+            })
+            orders_created.append(order_id)
+            txs_created.append(tx_id)
+            total_debited_cents += subtotal
+
+    # Esvazia o carrinho
+    await db.carts.delete_many({"member_id": member_id})
+
+    new_balance_cents = current_cents - total_debited_cents
+    return {
+        "ok": True,
+        "total_debited_cents": total_debited_cents,
+        "orders": orders_created,
+        "txs": txs_created,
+        "new_balance_centavos": new_balance_cents,
+        "message": f"Compra concluída! {total_debited_cents / 100:.2f} BLX debitados · {len(orders_created)} pedidos.",
     }
 
 

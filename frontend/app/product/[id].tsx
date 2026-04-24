@@ -42,6 +42,7 @@ export default function ProductDetails() {
   const [pay, setPay] = useState<PayId>("full");
   const [showConfirm, setShowConfirm] = useState(false);
   const [buying, setBuying] = useState(false);
+  const [addingCart, setAddingCart] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -82,6 +83,22 @@ export default function ProductDetails() {
       notify("Compra não realizada", e?.message || "Tente novamente.");
     } finally {
       setBuying(false);
+    }
+  };
+
+  const addToCart = async () => {
+    if (!member) return;
+    setAddingCart(true);
+    try {
+      await api.cartAdd(member.member_id, product.product_id, 1, "product");
+      Alert.alert("No carrinho!", `${product.name} foi adicionado ao seu carrinho.`, [
+        { text: "Ver carrinho", onPress: () => router.push("/cart" as any) },
+        { text: "Continuar" },
+      ]);
+    } catch (e: any) {
+      notify("Erro", e?.message || "Não foi possível adicionar");
+    } finally {
+      setAddingCart(false);
     }
   };
 
@@ -231,21 +248,34 @@ export default function ProductDetails() {
             <Text style={s.blockedTxt}>Disponível para Silver, Gold ou Diamante</Text>
           </View>
         ) : (
-          <TouchableOpacity
-            style={s.buyBtn}
-            onPress={() => setShowConfirm(true)}
-            testID="product-buy-blx"
-            activeOpacity={0.88}
-          >
-            <LinearGradient
-              colors={[GOLD_LIGHT, GOLD, GOLD_DARK]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={s.buyBtnInner}
+          <>
+            <TouchableOpacity
+              style={s.cartBtn}
+              onPress={addToCart}
+              disabled={addingCart}
+              testID="product-add-to-cart"
+              activeOpacity={0.85}
             >
-              <MaterialCommunityIcons name="diamond-stone" size={16} color="#0A0A0A" />
-              <Text style={s.buyBtnTxt}>COMPRAR · {formatBLX(finalCents)} BLX</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              {addingCart
+                ? <ActivityIndicator color={GOLD} size="small" />
+                : <Ionicons name="cart-outline" size={18} color={GOLD} />}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.buyBtn}
+              onPress={() => setShowConfirm(true)}
+              testID="product-buy-blx"
+              activeOpacity={0.88}
+            >
+              <LinearGradient
+                colors={[GOLD_LIGHT, GOLD, GOLD_DARK]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={s.buyBtnInner}
+              >
+                <MaterialCommunityIcons name="diamond-stone" size={16} color="#0A0A0A" />
+                <Text style={s.buyBtnTxt}>COMPRAR · {formatBLX(finalCents)} BLX</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </>
         )}
       </SafeAreaView>
 
@@ -413,11 +443,18 @@ const s = StyleSheet.create({
   // FOOTER
   footer: {
     position: "absolute", left: 0, right: 0, bottom: 0,
+    flexDirection: "row", gap: 8,
     paddingHorizontal: 12, paddingVertical: 8,
     backgroundColor: "#050505",
     borderTopWidth: 1, borderTopColor: "rgba(212,175,55,0.15)",
   },
-  buyBtn: { borderRadius: 12, overflow: "hidden" },
+  cartBtn: {
+    width: 46, height: 46, borderRadius: 10,
+    backgroundColor: "#121212",
+    borderWidth: 1, borderColor: "rgba(212,175,55,0.35)",
+    alignItems: "center", justifyContent: "center",
+  },
+  buyBtn: { flex: 1, borderRadius: 12, overflow: "hidden" },
   buyBtnInner: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     paddingVertical: 14,

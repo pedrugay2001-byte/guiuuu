@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   View, Text, StyleSheet, Image, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -29,12 +29,14 @@ type PayId = typeof PAY_OPTIONS[number]["id"];
 export default function AdView() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { member } = useGate();
+  const { member, refreshMember } = useGate();
   const [ad, setAd] = useState<Ad | null>(null);
   const [pay, setPay] = useState<PayId>("full");
   const [favorited, setFavorited] = useState(false);
   const [adding, setAdding] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [buying, setBuying] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -72,7 +74,7 @@ export default function AdView() {
     if (isOwner) { Alert.alert("Aviso", "Você não pode comprar seu próprio anúncio."); return; }
     setAdding(true);
     try {
-      await api.cartAdd(member.member_id, ad.ad_id, 1);
+      await api.cartAdd(member.member_id, ad.ad_id, 1, "ad");
       Alert.alert("No carrinho!", `${ad.title} foi adicionado ao seu carrinho.`, [
         { text: "Ver carrinho", onPress: () => router.push("/cart" as any) },
         { text: "Continuar" },
@@ -80,6 +82,21 @@ export default function AdView() {
     } catch (e: any) {
       Alert.alert("Erro", e.message || "Falha ao adicionar");
     } finally { setAdding(false); }
+  };
+
+  const handleBuyNow = async () => {
+    if (!member || !ad) return;
+    setBuying(true);
+    try {
+      const r = await api.buyAdBLX(ad.ad_id, { member_id: member.member_id, pay_option: pay });
+      setShowConfirm(false);
+      notify("Reserva confirmada", r.message || "BLX retidos em escrow.");
+      refreshMember();
+      setTimeout(() => router.back(), 1200);
+    } catch (e: any) {
+      setShowConfirm(false);
+      notify("Compra não realizada", e?.message || "Tente novamente.");
+    } finally { setBuying(false); }
   };
 
   const chatSeller = () => router.push(`/community/dm/${ad.seller_id}` as any);
@@ -251,17 +268,27 @@ export default function AdView() {
         </View>
       </ScrollView>
 
-      {/* FOOTER — chat + reservar */}
+      {/* FOOTER — carrinho + comprar BLX */}
       {!isOwner && (
         <SafeAreaView style={s.footer} edges={["bottom"]}>
           <TouchableOpacity style={s.iconBtn} onPress={chatSeller} testID="ad-chat">
             <Ionicons name="chatbubble" size={17} color="#FFF" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={s.buyBtn}
+            style={s.cartBtn}
             onPress={addToCart}
             disabled={adding}
-            testID="ad-buy-now"
+            testID="ad-add-to-cart"
+            activeOpacity={0.85}
+          >
+            {adding
+              ? <ActivityIndicator color={DIAMOND} size="small" />
+              : <Ionicons name="cart-outline" size={18} color={DIAMOND} />}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.buyBtn}
+            onPress={() => setShowConfirm(true)}
+            testID="ad-buy-blx"
             activeOpacity={0.88}
           >
             <LinearGradient
@@ -269,18 +296,65 @@ export default function AdView() {
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={s.buyBtnInner}
             >
-              {adding ? (
-                <ActivityIndicator color="#0A0A0A" size="small" />
-              ) : (
-                <>
-                  <MaterialCommunityIcons name="diamond-stone" size={16} color="#0A0A0A" />
-                  <Text style={s.buyBtnTxt}>RESERVAR · {formatBLX(finalCents)} BLX</Text>
-                </>
-              )}
+              <MaterialCommunityIcons name="diamond-stone" size={16} color="#0A0A0A" />
+              <Text style={s.buyBtnTxt}>COMPRAR · {formatBLX(finalCents)} BLX</Text>
             </LinearGradient>
           </TouchableOpacity>
         </SafeAreaView>
       )}
+
+      {/* Modal de confirmação (igual Catálogo) */}
+      <Modal visible={showConfirm} transparent animationType="fade" onRequestClose={() => setShowConfirm(false)}>
+        <View style={s.modalBg}>
+          <View style={s.modalCard}>
+            <LinearGradient
+              colors={[DIAMOND_LIGHT, DIAMOND, DIAMOND_DARK]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={{ height: 2, marginHorizontal: -22, marginBottom: 18 }}
+            />
+            <Text style={s.modalKicker}>CONFIRMAR COMPRA</Text>
+            <Text style={s.modalTitle} numberOfLines={2}>{ad.title}</Text>
+
+            <View style={s.modalRow}>
+              <Text style={s.modalLbl}>Pagamento</Text>
+              <Text style={s.modalVal}>{opt.label}</Text>
+            </View>
+            {opt.discount > 0 && (
+              <View style={s.modalRow}>
+                <Text style={s.modalLbl}>Desconto pagamento</Text>
+                <Text style={[s.modalVal, { color: "#4EE07F" }]}>−{opt.discount}%</Text>
+              </View>
+            )}
+            <View style={s.modalRow}>
+              <Text style={s.modalLbl}>Vendedor</Text>
+              <Text style={s.modalVal} numberOfLines={1}>{ad.seller_nickname}</Text>
+            </View>
+            <View style={[s.modalRow, { borderTopWidth: 1, borderTopColor: "#1F1F1F", paddingTop: 12, marginTop: 6 }]}>
+              <Text style={[s.modalLbl, { color: DIAMOND }]}>TOTAL A DEBITAR</Text>
+              <Text style={[s.modalVal, { color: DIAMOND_LIGHT, fontSize: 18 }]}>{formatBLX(finalCents)} BLX</Text>
+            </View>
+
+            <Text style={s.modalNote}>
+              Valor fica em custódia (escrow) até confirmação de entrega.
+            </Text>
+
+            <View style={s.modalActions}>
+              <TouchableOpacity style={s.modalCancel} onPress={() => setShowConfirm(false)} disabled={buying}>
+                <Text style={s.modalCancelTxt}>CANCELAR</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.modalConfirm} onPress={handleBuyNow} disabled={buying} testID="ad-confirm-buy">
+                <LinearGradient
+                  colors={buying ? ["#555", "#333"] : [DIAMOND_LIGHT, DIAMOND, DIAMOND_DARK]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={s.modalConfirmInner}
+                >
+                  {buying ? <ActivityIndicator color="#000" size="small" /> : <Text style={s.modalConfirmTxt}>CONFIRMAR</Text>}
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -428,10 +502,40 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(127,215,229,0.25)",
     alignItems: "center", justifyContent: "center",
   },
+  cartBtn: {
+    width: 46, height: 46, borderRadius: 10,
+    backgroundColor: "#121212",
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.4)",
+    alignItems: "center", justifyContent: "center",
+  },
   buyBtn: { flex: 1, borderRadius: 12, overflow: "hidden" },
   buyBtnInner: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     paddingVertical: 14,
   },
   buyBtnTxt: { color: "#0A0A0A", fontWeight: "900", fontSize: 12.5, letterSpacing: 1.2 },
+
+  // Modal de confirmação (mesmo layout do Catálogo)
+  modalBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", alignItems: "center", justifyContent: "center", padding: 24 },
+  modalCard: {
+    width: "100%", maxWidth: 380,
+    backgroundColor: "#0B0B0B", borderRadius: 18, padding: 22,
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.3)", overflow: "hidden",
+  },
+  modalKicker: { color: DIAMOND, fontSize: 10, fontWeight: "900", letterSpacing: 2.5 },
+  modalTitle: { color: "#FFF", fontSize: 16, fontWeight: "800", marginTop: 6, marginBottom: 16, lineHeight: 21 },
+  modalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 5 },
+  modalLbl: { color: "#888", fontSize: 12, fontWeight: "700", letterSpacing: 0.5 },
+  modalVal: { color: "#FFF", fontSize: 13, fontWeight: "800" },
+  modalNote: { color: "#666", fontSize: 11, marginTop: 14, textAlign: "center", fontStyle: "italic" },
+  modalActions: { flexDirection: "row", gap: 10, marginTop: 18 },
+  modalCancel: {
+    flex: 1, paddingVertical: 13, borderRadius: 10,
+    borderWidth: 1, borderColor: "#2A2A2A",
+    alignItems: "center", justifyContent: "center",
+  },
+  modalCancelTxt: { color: "#BBB", fontWeight: "800", fontSize: 11, letterSpacing: 1.5 },
+  modalConfirm: { flex: 1, borderRadius: 10, overflow: "hidden" },
+  modalConfirmInner: { paddingVertical: 13, alignItems: "center", justifyContent: "center" },
+  modalConfirmTxt: { color: "#0A0A0A", fontWeight: "900", fontSize: 11, letterSpacing: 1.5 },
 });
