@@ -10,11 +10,13 @@ import { useGate } from "../../src/gate";
 import { useAuth } from "../../src/auth";
 import { api, Product, formatBRL, setToken } from "../../src/api";
 import { theme, TIERS } from "../../src/theme";
+import { useTierAccent } from "../../src/use-tier-accent";
 
 export default function Member() {
   const router = useRouter();
   const { member, clear, updateMember, refreshMember } = useGate();
   const { user: authUser, refreshUser } = useAuth();
+  const accent = useTierAccent();
   // Revalida dados do usuário E do membro contra o backend ao abrir a tela,
   // assim mudanças feitas via admin (role, avatar, tier) aparecem sem logout.
   useFocusEffect(useCallback(() => {
@@ -104,7 +106,7 @@ export default function Member() {
             ) : (
               <Text style={styles.avatarText}>{member?.name?.substring(0, 1).toUpperCase() || "M"}</Text>
             )}
-            <View style={styles.cameraBadge}>
+            <View style={[styles.cameraBadge, { backgroundColor: accent.accent }]}>
               <Ionicons name="camera" size={12} color="#000" />
             </View>
           </TouchableOpacity>
@@ -133,27 +135,27 @@ export default function Member() {
           activeOpacity={0.85}
         >
           <View style={styles.editProfileIcon}>
-            <Ionicons name="person-circle" size={22} color="#D4AF37" />
+            <Ionicons name="person-circle" size={22} color={accent.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.editProfileTitle}>EDITAR PERFIL PÚBLICO</Text>
+            <Text style={[styles.editProfileTitle, { color: accent.accent }]}>EDITAR PERFIL PÚBLICO</Text>
             <Text style={styles.editProfileSub}>Foto, apelido, bio, cidade, galeria (10 fotos)</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#D4AF37" />
+          <Ionicons name="chevron-forward" size={18} color={accent.accent} />
         </TouchableOpacity>
 
         {/* INVITE CODE — visible, shareable */}
         {member?.invite_code ? (
           <View style={styles.inviteCard}>
             <View style={styles.inviteHead}>
-              <Ionicons name="key" size={14} color="#F5C150" />
-              <Text style={styles.inviteKicker}>SEU CÓDIGO DE ACESSO</Text>
+              <Ionicons name="key" size={14} color={accent.accentLight} />
+              <Text style={[styles.inviteKicker, { color: accent.accentLight }]}>SEU CÓDIGO DE ACESSO</Text>
             </View>
-            <Text style={styles.inviteCode}>{member.invite_code}</Text>
+            <Text style={[styles.inviteCode, { backgroundColor: accent.accent + "14", borderColor: accent.accent + "40" }]}>{member.invite_code}</Text>
             <Text style={styles.inviteHint}>
               Use este código para indicar outra pessoa ao clube. Cada indicação passa pela aprovação da administração.
             </Text>
-            <TouchableOpacity style={styles.inviteShare} onPress={shareInvite} testID="member-share-invite">
+            <TouchableOpacity style={[styles.inviteShare, { backgroundColor: accent.accent }]} onPress={shareInvite} testID="member-share-invite">
               <Ionicons name="share-social" size={14} color={theme.colors.bg} />
               <Text style={styles.inviteShareTxt}>COMPARTILHAR CONVITE</Text>
             </TouchableOpacity>

@@ -4,7 +4,12 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useGate } from "./gate";
 
-const GOLD = "#F5C150";
+// Paleta ativa por tier:
+// - diamond → azul-prateado (platinum) #C5D1DA / highlight #EAF1F6
+// - demais → dourado luxo #F5C150
+const ACCENT_GOLD = "#F5C150";
+const ACCENT_PLATINUM = "#C5D1DA";
+const ACCENT_PLATINUM_LIGHT = "#EAF1F6";
 const INACTIVE = "#6E6E6E";
 const BG = "#050505";
 
@@ -25,10 +30,13 @@ const ICONS: Record<string, { label: string; active: IconCfg; inactive: IconCfg;
  *
  * Layout: [Perfil] [Loja] [Social] [Metas] [Banco]
  * O botão "Perfil" exibe o avatar real do usuário (foto) quando disponível.
+ * Cor de destaque muda para azul-prateado (platinum) para membros DIAMOND.
  */
 export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
   const { member } = useGate();
   const avatar = member?.avatar_base64;
+  const isDiamond = member?.tier === "diamond";
+  const GOLD = isDiamond ? ACCENT_PLATINUM : ACCENT_GOLD;
 
   // Ordena: sempre member na primeira posição, depois o restante na ordem dada em ICONS
   const ORDER = ["member", "catalog", "community", "performance", "wallet"];
@@ -58,8 +66,8 @@ export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
             accessibilityRole="button"
             accessibilityState={focused ? { selected: true } : {}}
           >
-            {focused && <View style={st.activeBar} />}
-            {/* Se é "member" e temos avatar → mostra foto do usuário com anel dourado se focused */}
+            {focused && <View style={[st.activeBar, { backgroundColor: GOLD }]} />}
+            {/* Se é "member" e temos avatar → mostra foto do usuário com anel colorido se focused */}
             {cfg.isAvatar && avatar ? (
               <View style={[st.avatarRing, focused && { borderColor: GOLD, borderWidth: 2 }]}>
                 <Image source={{ uri: avatar }} style={st.avatarImg} />
@@ -113,7 +121,6 @@ const st = StyleSheet.create({
     width: 30,
     height: 2,
     borderRadius: 1,
-    backgroundColor: GOLD,
   },
   lbl: {
     fontSize: 10,
@@ -121,7 +128,7 @@ const st = StyleSheet.create({
     marginTop: 1,
     includeFontPadding: false as any,
   },
-  // Avatar do perfil na tab bar — anel dourado quando selecionado.
+  // Avatar do perfil na tab bar — anel dourado/platinum quando selecionado.
   avatarRing: {
     width: 24, height: 24, borderRadius: 12,
     alignItems: "center", justifyContent: "center",

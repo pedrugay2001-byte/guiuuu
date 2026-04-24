@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  FlatList, RefreshControl, ActivityIndicator,
+  FlatList, RefreshControl, ActivityIndicator, Alert,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -152,6 +152,41 @@ export default function Community() {
         </View>
 
         {/* Filter tabs */}
+        {/* Shortcuts row — Amigos + Mensagens (cards premium) */}
+        <View style={styles.shortcutsRow}>
+          <TouchableOpacity
+            style={styles.shortcut}
+            onPress={() => router.push("/community/descobrir")}
+            testID="shortcut-friends"
+            activeOpacity={0.85}
+          >
+            <View style={[styles.shortcutIcon, { backgroundColor: "rgba(197,209,218,0.12)", borderColor: "rgba(197,209,218,0.35)" }]}>
+              <Ionicons name="people" size={18} color="#EAF1F6" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.shortcutTitle}>Amigos</Text>
+              <Text style={styles.shortcutSub}>Descobrir membros</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#555" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.shortcut}
+            onPress={() => router.push("/community/messages")}
+            testID="shortcut-dms"
+            activeOpacity={0.85}
+          >
+            <View style={[styles.shortcutIcon, { backgroundColor: "rgba(212,175,55,0.12)", borderColor: "rgba(212,175,55,0.35)" }]}>
+              <Ionicons name="chatbubbles" size={18} color="#F5C150" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.shortcutTitle}>Mensagens</Text>
+              <Text style={styles.shortcutSub}>DMs diretas</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#555" />
+          </TouchableOpacity>
+        </View>
+
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
           <FilterChip label="Para você" active={tab === "foryou"} onPress={() => setTab("foryou")} />
           <FilterChip label="Seguindo" active={tab === "following"} onPress={() => setTab("following")} />
@@ -194,17 +229,42 @@ export default function Community() {
         {/* Groups teaser */}
         <Text style={styles.sectionTitle}>GRUPOS EM DESTAQUE</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, gap: 10, paddingVertical: 6 }}>
-          {groups.slice(0, 5).map((g) => (
-            <TouchableOpacity key={g.group_id} style={[styles.groupChip, { borderColor: g.color + "66" }]} onPress={() => router.push(`/community/group/${g.group_id}`)}>
-              <View style={[styles.groupIc, { backgroundColor: g.color + "22" }]}>
-                <Ionicons name={g.icon as any} size={16} color={g.color} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.groupName} numberOfLines={1}>{g.name}</Text>
-                <Text style={styles.groupMembers}>{g.members_count} membros</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+          {groups.slice(0, 8).map((g) => {
+            const locked = !!(g as any).locked;
+            const requiredTier = (g as any).required_tier as string | undefined;
+            return (
+              <TouchableOpacity
+                key={g.group_id}
+                style={[styles.groupChip, { borderColor: g.color + "66" }, locked && styles.groupChipLocked]}
+                onPress={() => {
+                  if (locked && requiredTier) {
+                    Alert.alert(
+                      "Grupo exclusivo",
+                      `Este grupo é reservado para membros do tier ${requiredTier.toUpperCase()}. Evolua seu nível para participar.`,
+                    );
+                    return;
+                  }
+                  router.push(`/community/group/${g.group_id}`);
+                }}
+                testID={`group-${g.group_id}`}
+              >
+                <View style={[styles.groupIc, { backgroundColor: g.color + "22" }]}>
+                  <Ionicons name={g.icon as any} size={16} color={g.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Text style={styles.groupName} numberOfLines={1}>{g.name}</Text>
+                    {locked && <Ionicons name="lock-closed" size={10} color="#999" />}
+                  </View>
+                  <Text style={styles.groupMembers}>
+                    {locked && requiredTier
+                      ? `Só ${requiredTier.toUpperCase()} · ${g.members_count}`
+                      : `${g.members_count} membros`}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
           <TouchableOpacity style={styles.createGroupChip} onPress={() => router.push("/community/create-group")} testID="create-group">
             <Ionicons name="add" size={22} color="#D4AF37" />
             <Text style={styles.createGroupTxt}>Novo grupo</Text>
@@ -339,6 +399,22 @@ const styles = StyleSheet.create({
   },
 
   filters: { paddingHorizontal: 14, paddingVertical: 8, gap: 8 },
+
+  // Shortcuts premium (Amigos + DMs)
+  shortcutsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 4 },
+  shortcut: {
+    flex: 1, flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 10, paddingVertical: 10,
+    borderRadius: 12, backgroundColor: "#0E0E0E",
+    borderWidth: 1, borderColor: "#1B1B1B",
+  },
+  shortcutIcon: {
+    width: 34, height: 34, borderRadius: 17,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1,
+  },
+  shortcutTitle: { color: "#FFF", fontSize: 12, fontWeight: "900", letterSpacing: 0.4 },
+  shortcutSub: { color: "#777", fontSize: 10, fontWeight: "700", marginTop: 1 },
   chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: "#222", backgroundColor: "#0F0F0F" },
   chipActive: { backgroundColor: "#D4AF37", borderColor: "#D4AF37" },
   chipTxt: { color: "#CCC", fontSize: 12, fontWeight: "800" },
@@ -369,6 +445,7 @@ const styles = StyleSheet.create({
 
   sectionTitle: { color: "#888", fontSize: 10, fontWeight: "900", letterSpacing: 2.5, paddingHorizontal: 16, marginTop: 20, marginBottom: 10 },
   groupChip: { flexDirection: "row", alignItems: "center", gap: 10, width: 220, padding: 12, borderRadius: 12, borderWidth: 1, backgroundColor: "#0F0F0F" },
+  groupChipLocked: { opacity: 0.55 },
   groupIc: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   groupName: { color: "#EEE", fontSize: 13, fontWeight: "800" },
   groupMembers: { color: "#888", fontSize: 10, marginTop: 2 },

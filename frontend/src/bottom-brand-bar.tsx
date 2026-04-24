@@ -3,8 +3,11 @@ import { View, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { BrandLogo } from "./brand";
+import { useGate } from "./gate";
 
-const GOLD = "#F5C150";
+// Paleta por tier
+const ACCENT_GOLD = "#F5C150";
+const ACCENT_PLATINUM = "#C5D1DA";
 const BG = "#050505";
 
 type Props = {
@@ -15,16 +18,18 @@ type Props = {
 /**
  * Barra de marca inferior premium.
  *
- * LAYOUT (reformulado):
- *   [Logo] ............. [Home ◉ (centro, destacado dourado)] ............. [Chat] [Sino]
+ * LAYOUT:
+ *   [Logo] ............. [Home ◉ (centro, destacado)] ............. [Chat] [Sino]
  *
- * - O botão "Home" é o elemento principal e fica no CENTRO, com círculo dourado
- *   maior que os demais para criar um centro de gravidade visual.
- * - O avatar/perfil foi movido para a TopTabBar (primeira posição).
- * - Chat e Sino permanecem à direita com dots vermelhos discretos para notificação.
+ * - O botão "Home" é o elemento principal e fica no CENTRO.
+ * - Cor de destaque: dourada para tiers regulares; PRATEADA (azul-prateado)
+ *   para membros DIAMOND, criando hierarquia visual de prestígio.
  */
 export default function BottomBrandBar({ unread = 0, unreadMessages = 0 }: Props) {
   const router = useRouter();
+  const { member } = useGate();
+  const isDiamond = member?.tier === "diamond";
+  const GOLD = isDiamond ? ACCENT_PLATINUM : ACCENT_GOLD;
 
   return (
     <View style={st.bar}>
@@ -40,10 +45,10 @@ export default function BottomBrandBar({ unread = 0, unreadMessages = 0 }: Props
         </TouchableOpacity>
       </View>
 
-      {/* Centro — botão principal HOME (destaque dourado) */}
+      {/* Centro — botão principal HOME */}
       <View style={st.center}>
         <TouchableOpacity
-          style={st.homeBtn}
+          style={[st.homeBtn, { backgroundColor: GOLD, shadowColor: GOLD }]}
           onPress={() => router.push("/(tabs)/home" as any)}
           activeOpacity={0.88}
           testID="bottom-home"
@@ -103,12 +108,10 @@ const st = StyleSheet.create({
     backgroundColor: "#FF3B30",
     borderWidth: 1.5, borderColor: BG,
   },
-  // Botão Home central — grande, dourado, com glow sutil
+  // Botão Home central — grande, com glow sutil; cor vem do theme
   homeBtn: {
     width: 44, height: 44, borderRadius: 22,
     alignItems: "center", justifyContent: "center",
-    backgroundColor: GOLD,
-    shadowColor: GOLD,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.35,
     shadowRadius: 8,

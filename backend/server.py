@@ -2298,19 +2298,42 @@ class GroupMessage(BaseModel):
 
 
 DEFAULT_GROUPS = [
-    {"group_id": "g_glp1", "name": "GLP-1 e Emagrecimento", "description": "Ozempic, Mounjaro, Retatrutida, experiências e dúvidas.", "icon": "flash", "color": "#F5C150"},
-    {"group_id": "g_hipert", "name": "Hipertrofia & Força", "description": "Treino, volume, periodização, PRs.", "icon": "barbell", "color": "#FF7A4D"},
-    {"group_id": "g_cut", "name": "Cutting & Dieta", "description": "Estratégias, macros, rotinas alimentares.", "icon": "nutrition", "color": "#4EE07F"},
-    {"group_id": "g_pept", "name": "Peptídeos", "description": "BPC-157, TB-500, CJC-1295, Ipamorelina.", "icon": "flask", "color": "#7FD7E5"},
-    {"group_id": "g_hormon", "name": "Hormônios & TRT", "description": "Testosterona, HGH, HCG, reposição.", "icon": "sparkles", "color": "#E57FD7"},
-    {"group_id": "g_mulheres", "name": "Mulheres do Clube", "description": "Grupo privado feminino do BLACKSCLUB.", "icon": "female", "color": "#E57FD7"},
-    {"group_id": "g_negocios", "name": "Negócios & Parcerias", "description": "Networking entre membros.", "icon": "trending-up", "color": "#4E8FE0"},
+    # Grupos oficiais bloqueados por TIER — somente membros do tier correspondente podem ver/postar
+    {"group_id": "g_tier_black",   "name": "Black",          "description": "Salão oficial do tier Black — membros em formação.",   "icon": "ellipse",          "color": "#888888", "tier_lock": "black",   "order": 0, "is_official_tier": True},
+    {"group_id": "g_tier_silver",  "name": "Black Silver",   "description": "Salão oficial do tier Silver — prata metálico.",       "icon": "medal-outline",    "color": "#B8B8B8", "tier_lock": "silver",  "order": 1, "is_official_tier": True},
+    {"group_id": "g_tier_gold",    "name": "Black Golden",   "description": "Salão oficial do tier Gold — ouro luxo.",              "icon": "star",             "color": "#D4AF37", "tier_lock": "gold",    "order": 2, "is_official_tier": True},
+    {"group_id": "g_tier_diamond", "name": "Black Diamante", "description": "Salão oficial do tier Diamond — azul-prateado premium.","icon": "diamond",         "color": "#C5D1DA", "tier_lock": "diamond", "order": 3, "is_official_tier": True},
+    # Grupos temáticos (livres)
+    {"group_id": "g_glp1", "name": "GLP-1 e Emagrecimento", "description": "Ozempic, Mounjaro, Retatrutida, experiências e dúvidas.", "icon": "flash", "color": "#F5C150", "order": 10},
+    {"group_id": "g_hipert", "name": "Hipertrofia & Força", "description": "Treino, volume, periodização, PRs.", "icon": "barbell", "color": "#FF7A4D", "order": 11},
+    {"group_id": "g_cut", "name": "Cutting & Dieta", "description": "Estratégias, macros, rotinas alimentares.", "icon": "nutrition", "color": "#4EE07F", "order": 12},
+    {"group_id": "g_pept", "name": "Peptídeos", "description": "BPC-157, TB-500, CJC-1295, Ipamorelina.", "icon": "flask", "color": "#7FD7E5", "order": 13},
+    {"group_id": "g_hormon", "name": "Hormônios & TRT", "description": "Testosterona, HGH, HCG, reposição.", "icon": "sparkles", "color": "#E57FD7", "order": 14},
+    {"group_id": "g_mulheres", "name": "Mulheres do Clube", "description": "Grupo privado feminino do BLACKSCLUB.", "icon": "female", "color": "#E57FD7", "order": 15},
+    {"group_id": "g_negocios", "name": "Negócios & Parcerias", "description": "Networking entre membros.", "icon": "trending-up", "color": "#4E8FE0", "order": 16},
 ]
 
 
 async def seed_groups():
     for g in DEFAULT_GROUPS:
-        await db.groups.update_one({"group_id": g["group_id"]}, {"$setOnInsert": g}, upsert=True)
+        # Atualiza metadata dos grupos oficiais de tier para sempre refletirem último config
+        if g.get("is_official_tier") or g.get("tier_lock"):
+            await db.groups.update_one({"group_id": g["group_id"]}, {"$set": g}, upsert=True)
+        else:
+            await db.groups.update_one({"group_id": g["group_id"]}, {"$setOnInsert": g}, upsert=True)
+
+
+async def _get_member_tier(member_id: str) -> str:
+    m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "tier": 1})
+    return (m or {}).get("tier", "black").lower()
+
+
+def _tier_allowed(member_tier: str, group: dict) -> bool:
+    """Retorna True se o membro pode visualizar/interagir no grupo dado seu tier."""
+    lock = (group or {}).get("tier_lock")
+    if not lock:
+        return True
+    return (member_tier or "").lower() == lock.lower()
 
 
 @api_router.get("/community/groups")
@@ -2327,15 +2350,41 @@ async def list_groups(member_id: Optional[str] = None):
     else:
         # Without member_id, show only official groups
         query = {"is_custom": {"$ne": True}}
-    cur = db.groups.find(query, {"_id": 0}).sort("name", 1)
+    cur = db.groups.find(query, {"_id": 0}).sort("order", 1)
     groups = await cur.to_list(length=200)
+    # Se tiver member_id, anota se o membro pode acessar (tier_lock match)
+    member_tier = None
+    if member_id:
+        member_tier = await _get_member_tier(member_id)
     for g in groups:
         g["members_count"] = await db.group_members.count_documents({"group_id": g["group_id"]})
+        if g.get("tier_lock"):
+            g["locked"] = (member_tier or "").lower() != g["tier_lock"].lower()
+            g["required_tier"] = g["tier_lock"]
+        else:
+            g["locked"] = False
     return groups
 
 
 @api_router.post("/community/groups/{group_id}/join/{member_id}")
 async def group_join(group_id: str, member_id: str):
+    group = await db.groups.find_one({"group_id": group_id}, {"_id": 0})
+    if not group:
+        raise HTTPException(status_code=404, detail="Grupo não encontrado")
+    member_tier = await _get_member_tier(member_id)
+    if not _tier_allowed(member_tier, group):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error_code": "TIER_LOCKED",
+                "message": (
+                    f"Acesso restrito ao tier {group['tier_lock'].upper()}. "
+                    "Apenas membros desse nível podem entrar neste grupo."
+                ),
+                "required_tier": group.get("tier_lock"),
+                "member_tier": member_tier,
+            },
+        )
     await db.group_members.update_one(
         {"group_id": group_id, "member_id": member_id},
         {"$setOnInsert": {"joined_at": datetime.now(timezone.utc)}},
@@ -2357,7 +2406,24 @@ async def group_is_member(group_id: str, member_id: str):
 
 
 @api_router.get("/community/groups/{group_id}/messages")
-async def group_messages(group_id: str):
+async def group_messages(group_id: str, member_id: Optional[str] = None):
+    # Se for grupo com tier_lock, só permite ler se o member_id tiver o tier correto
+    if member_id:
+        group = await db.groups.find_one({"group_id": group_id}, {"_id": 0, "tier_lock": 1})
+        if group and group.get("tier_lock"):
+            member_tier = await _get_member_tier(member_id)
+            if not _tier_allowed(member_tier, group):
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error_code": "TIER_LOCKED",
+                        "message": (
+                            f"Grupo exclusivo para membros do tier {group['tier_lock'].upper()}."
+                        ),
+                        "required_tier": group.get("tier_lock"),
+                        "member_tier": member_tier,
+                    },
+                )
     cur = db.group_messages.find({"group_id": group_id}, {"_id": 0}).sort("created_at", 1).limit(300)
     msgs = await cur.to_list(length=300)
     # Attach nickname/avatar
@@ -2383,6 +2449,22 @@ async def group_message_send(group_id: str, data: GroupMessage):
     text = data.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Mensagem vazia")
+    # Checa tier_lock
+    group = await db.groups.find_one({"group_id": group_id}, {"_id": 0, "tier_lock": 1})
+    if group and group.get("tier_lock"):
+        member_tier = await _get_member_tier(data.member_id)
+        if not _tier_allowed(member_tier, group):
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error_code": "TIER_LOCKED",
+                    "message": (
+                        f"Somente membros {group['tier_lock'].upper()} podem postar neste grupo."
+                    ),
+                    "required_tier": group.get("tier_lock"),
+                    "member_tier": member_tier,
+                },
+            )
     doc = {
         "gm_id": f"gm_{uuid.uuid4().hex[:12]}",
         "group_id": group_id,

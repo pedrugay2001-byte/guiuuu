@@ -12,11 +12,11 @@ import { useGate } from "../../src/gate";
 import { formatBLX, formatBLXShort } from "../../src/blx";
 import { TIERS } from "../../src/theme";
 
-// Paleta dourada luxo — do brilhante ao âmbar queimado
-const GOLD_LIGHT = "#F4D47A";
-const GOLD = "#D4AF37";
-const GOLD_DARK = "#8C6F1E";
-const GOLD_DEEP = "#4A3810";
+// Paleta platinum/prata metálica — efeito azul-prateado premium (Diamond)
+const GOLD_LIGHT = "#EAF1F6";   // reflexo prata
+const GOLD = "#C5D1DA";         // prata-azulado base
+const GOLD_DARK = "#8FA3B4";    // metálico médio
+const GOLD_DEEP = "#2A3744";    // azul-aço profundo
 
 export default function WalletScreen() {
   const router = useRouter();
@@ -119,7 +119,7 @@ export default function WalletScreen() {
             style={styles.cardBorderGradient}
           >
             <LinearGradient
-              colors={["#1A1308", "#0B0906", "#050301"]}
+              colors={["#0F1418", "#0A0D10", "#050607"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.card}
@@ -127,7 +127,7 @@ export default function WalletScreen() {
               {/* Textura sutil — diagonal gold shine */}
               <View style={styles.cardShineWrap} pointerEvents="none">
                 <LinearGradient
-                  colors={["transparent", "rgba(212,175,55,0.18)", "transparent"]}
+                  colors={["transparent", "rgba(197,209,218,0.22)", "transparent"]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.cardShine}
@@ -193,12 +193,12 @@ export default function WalletScreen() {
           </LinearGradient>
         </View>
 
-        {/* Ações rápidas — premium cards gold */}
+        {/* Ações rápidas — premium cards platinum */}
         <View style={styles.actionsRow}>
           <ActionButton
             icon="arrow-up"
             label="Enviar"
-            sub="Transferir BLX"
+            sub="Transferir"
             onPress={() => router.push("/blx/send" as any)}
             testID="blx-action-send"
           />
@@ -219,10 +219,46 @@ export default function WalletScreen() {
           <ActionButton
             icon="bag-handle-outline"
             label="Compras"
-            sub="Pagar com BLX"
+            sub="Pedidos"
             onPress={() => router.push("/blx/orders" as any)}
             testID="blx-action-orders"
           />
+        </View>
+
+        {/* Ações premium — Adicionar BLX + Suporte */}
+        <View style={styles.ctaRow}>
+          <TouchableOpacity
+            style={styles.ctaPrimary}
+            onPress={() => router.push("/wallet/topup" as any)}
+            activeOpacity={0.88}
+            testID="blx-action-topup"
+          >
+            <LinearGradient
+              colors={[GOLD_LIGHT, GOLD, GOLD_DARK]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.ctaInner}
+            >
+              <Ionicons name="add-circle" size={18} color="#0A0A0A" />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.ctaPrimaryLbl}>ADICIONAR BLX</Text>
+                <Text style={styles.ctaPrimarySub}>Recarregue sua carteira</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#0A0A0A" />
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.ctaSecondary}
+            onPress={() => router.push("/chat" as any)}
+            activeOpacity={0.88}
+            testID="blx-action-support"
+          >
+            <View style={styles.ctaSecondaryInner}>
+              <Ionicons name="headset" size={18} color={GOLD_LIGHT} />
+              <Text style={styles.ctaSecondaryLbl}>SUPORTE</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Marketplace escrow */}
@@ -404,7 +440,7 @@ const styles = StyleSheet.create({
   cardBrand: { color: GOLD_LIGHT, fontSize: 11, fontWeight: "900", letterSpacing: 2 },
   cardTierPill: {
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1,
-    backgroundColor: "rgba(212,175,55,0.08)",
+    backgroundColor: "rgba(143,163,180,0.12)",
   },
   cardTierText: { fontSize: 8.5, fontWeight: "900", letterSpacing: 1.5 },
 
@@ -425,13 +461,13 @@ const styles = StyleSheet.create({
   walletNumberValue: { color: "#FFF", fontSize: 16, fontWeight: "800", letterSpacing: 2, marginTop: 3 },
   copyBtn: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: "rgba(212,175,55,0.08)",
+    backgroundColor: "rgba(143,163,180,0.12)",
     borderWidth: 1, borderColor: GOLD_DARK + "55",
     alignItems: "center", justifyContent: "center",
   },
   cardHolderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 14 },
   cardHolderLbl: { color: GOLD_DARK, fontSize: 9, fontWeight: "800", letterSpacing: 2 },
-  cardHolderValue: { color: "#F0E3B8", fontSize: 11.5, fontWeight: "800", letterSpacing: 1.2 },
+  cardHolderValue: { color: "#E0E8EF", fontSize: 11.5, fontWeight: "800", letterSpacing: 1.2 },
 
   actionsRow: { flexDirection: "row", paddingHorizontal: 16, marginTop: 18, gap: 8 },
   actionBtn: { flex: 1 },
@@ -440,22 +476,42 @@ const styles = StyleSheet.create({
   },
   actionBtnInner: {
     alignItems: "center", paddingVertical: 12, paddingHorizontal: 4,
-    backgroundColor: "#0B0906",
+    backgroundColor: "#0B0D10",
     borderRadius: 13,
   },
   actionIcon: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "rgba(212,175,55,0.1)",
+    backgroundColor: "rgba(143,163,180,0.14)",
     borderWidth: 1, borderColor: GOLD_DARK + "55",
     alignItems: "center", justifyContent: "center",
     marginBottom: 8,
   },
-  actionLabel: { color: "#F0E3B8", fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
+  actionLabel: { color: "#E0E8EF", fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
   actionSub: { color: GOLD_DARK, fontSize: 8.5, fontWeight: "700", marginTop: 2, letterSpacing: 0.3 },
+
+  // CTA row — Adicionar BLX + Suporte
+  ctaRow: { flexDirection: "row", paddingHorizontal: 16, marginTop: 14, gap: 10 },
+  ctaPrimary: { flex: 2, borderRadius: 14, overflow: "hidden" },
+  ctaInner: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 14, paddingVertical: 13,
+  },
+  ctaPrimaryLbl: { color: "#0A0A0A", fontSize: 11, fontWeight: "900", letterSpacing: 1.3 },
+  ctaPrimarySub: { color: "rgba(10,10,10,0.7)", fontSize: 9.5, fontWeight: "700", marginTop: 1 },
+  ctaSecondary: {
+    flex: 1, borderRadius: 14,
+    borderWidth: 1, borderColor: GOLD_DARK + "55",
+    backgroundColor: "#0B0D10",
+  },
+  ctaSecondaryInner: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, paddingVertical: 13, paddingHorizontal: 8,
+  },
+  ctaSecondaryLbl: { color: GOLD_LIGHT, fontSize: 11, fontWeight: "900", letterSpacing: 1.3 },
 
   escrowBox: {
     marginHorizontal: 16, marginTop: 18, padding: 14,
-    backgroundColor: "#0B0906", borderRadius: 12,
+    backgroundColor: "#0B0D10", borderRadius: 12,
     borderWidth: 1, borderColor: GOLD_DARK + "40",
   },
   escrowRow: { flexDirection: "row", marginTop: 10, alignItems: "center" },

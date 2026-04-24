@@ -21,9 +21,22 @@ export const theme = {
     tierBlack: "#222222",
     tierSilver: "#B8B8B8",
     tierGold: "#D4AF37",
-    tierDiamond: "#7FD7E5",
+    tierDiamond: "#C5D1DA",  // azul-prateado metálico premium
+    // Platinum / prateado metálico (premium para membros Diamond)
+    platinumLight: "#EAF1F6",   // reflexo prata claro
+    platinum: "#C5D1DA",         // prata-azulado base
+    platinumMid: "#8FA3B4",      // prata metálico médio
+    platinumDark: "#4A5F74",     // azul-aço escuro
+    platinumShadow: "#2A3744",   // base profunda para gradientes
+    diamondGlow: "#9FE6F2",      // highlight diamond
     whatsapp: "#1EBE5D",
     error: "#FF3B30",
+  },
+  // Gradientes reutilizáveis (3D metálico premium)
+  gradients: {
+    gold: ["#F4D47A", "#D4AF37", "#8C6F1E"] as const,
+    platinum: ["#EAF1F6", "#C5D1DA", "#8FA3B4", "#4A5F74"] as const,
+    diamond: ["#C5D1DA", "#7FD7E5", "#4A5F74"] as const,
   },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 },
   radius: { sm: 4, md: 8, lg: 12, xl: 16 },
