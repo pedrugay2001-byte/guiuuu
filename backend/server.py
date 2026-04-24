@@ -4460,102 +4460,8 @@ app.include_router(api_router)
 
 from fastapi.responses import FileResponse, Response, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-import shutil
 
 FRONTEND_DIST = "/app/frontend/dist"
-FRONTEND_ROOT = "/app/frontend"
-
-# State flag: set to True when a background build is in progress
-_build_in_progress = {"running": False, "done": False, "error": None}
-
-
-def _pick_node_runner():
-    """
-    Detect which package manager is available in the container.
-    Priority: yarn (fast, used in dev) → npm (always with Node) → npx (last resort).
-    Returns a tuple: (install_cmd, build_cmd) or (None, None) if nothing available.
-    """
-    if shutil.which("yarn"):
-        return (["yarn", "install", "--frozen-lockfile", "--ignore-scripts"],
-                ["yarn", "build"])
-    if shutil.which("npm"):
-        return (["npm", "ci", "--ignore-scripts"],
-                ["npm", "run", "build"])
-    if shutil.which("npx"):
-        # Last resort: direct expo export without package manager
-        return (None, ["npx", "--yes", "expo", "export", "--platform", "web", "--output-dir", "dist"])
-    return (None, None)
-
-
-async def _run_cmd(cmd, cwd):
-    """Run a subprocess command asynchronously and capture output."""
-    logger.info(f"Running: {' '.join(cmd)} (cwd={cwd})")
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        cwd=cwd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-    )
-    stdout, _ = await proc.communicate()
-    output = stdout.decode("utf-8", errors="ignore")
-    return proc.returncode, output
-
-
-async def _run_frontend_build_bg():
-    """
-    Run frontend build as background task if dist is missing.
-    Auto-detects yarn/npm/npx and handles missing node_modules gracefully.
-    """
-    if _build_in_progress["running"] or os.path.isdir(FRONTEND_DIST):
-        return
-    _build_in_progress["running"] = True
-    try:
-        install_cmd, build_cmd = _pick_node_runner()
-        if not build_cmd:
-            err = "No package manager found (yarn/npm/npx missing) — cannot build frontend"
-            _build_in_progress["error"] = err
-            logger.error(err)
-            return
-
-        # Step 1: Install deps if node_modules is missing (safe no-op if present)
-        node_modules = os.path.join(FRONTEND_ROOT, "node_modules")
-        if not os.path.isdir(node_modules) and install_cmd:
-            logger.info(f"node_modules missing — running install: {' '.join(install_cmd)}")
-            code, out = await _run_cmd(install_cmd, FRONTEND_ROOT)
-            if code != 0:
-                _build_in_progress["error"] = f"install failed: exit {code}"
-                logger.error(f"Install FAILED (exit {code}):\n{out[-1500:]}")
-                return
-            logger.info("Install SUCCESS")
-
-        # Step 2: Run build
-        logger.info(f"Starting frontend build: {' '.join(build_cmd)}")
-        code, out = await _run_cmd(build_cmd, FRONTEND_ROOT)
-        if code == 0 and os.path.isdir(FRONTEND_DIST):
-            _build_in_progress["done"] = True
-            logger.info(f"Frontend build SUCCESS — dist created at {FRONTEND_DIST}")
-        else:
-            _build_in_progress["error"] = f"build failed: exit {code}"
-            logger.error(f"Frontend build FAILED (exit {code}):\n{out[-1500:]}")
-    except Exception as e:  # noqa: BLE001
-        _build_in_progress["error"] = str(e)
-        logger.error(f"Frontend build exception: {e}")
-    finally:
-        _build_in_progress["running"] = False
-
-
-# Kick off background build on startup if dist is missing
-@app.on_event("startup")
-async def ensure_frontend_build_on_startup():
-    if not os.path.isdir(FRONTEND_DIST):
-        install_cmd, build_cmd = _pick_node_runner()
-        runner_name = build_cmd[0] if build_cmd else "NONE"
-        logger.warning(
-            f"{FRONTEND_DIST} missing — scheduling background build (runner: {runner_name})"
-        )
-        asyncio.create_task(_run_frontend_build_bg())
-    else:
-        logger.info(f"Frontend dist already present at {FRONTEND_DIST}")
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -4568,7 +4474,7 @@ async def favicon():
     return Response(content=b"", media_type="image/x-icon", status_code=200)
 
 
-# Always mount static subdirs if present (safe if dir doesn't exist — wrapped)
+# Mount static subdirs if present (safe if dir doesn't exist — wrapped)
 def _safe_mount_static():
     if os.path.isdir(FRONTEND_DIST):
         _expo_static = os.path.join(FRONTEND_DIST, "_expo")
@@ -4588,29 +4494,7 @@ def _safe_mount_static():
 _safe_mount_static()
 
 
-# Minimal loading page shown while build is in progress (production cold start)
-_LOADING_HTML = """<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BLACKSCLUB · Carregando</title>
-<style>
-  body{margin:0;background:#050505;color:#EEE;font-family:-apple-system,sans-serif;
-       display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column}
-  .logo{color:#D4AF37;font-weight:900;letter-spacing:3px;font-size:22px;margin-bottom:14px}
-  .sub{color:#888;font-size:13px;margin-bottom:24px}
-  .spinner{width:32px;height:32px;border:3px solid #222;border-top-color:#D4AF37;
-           border-radius:50%;animation:spin 1s linear infinite}
-  @keyframes spin{to{transform:rotate(360deg)}}
-</style></head>
-<body>
-  <div class="logo">BLACKSCLUB</div>
-  <div class="sub">Preparando seu clube privado...</div>
-  <div class="spinner"></div>
-  <script>setTimeout(()=>location.reload(),8000)</script>
-</body></html>"""
-
-
-# ALWAYS register SPA catch-all — so probe and frontend routes never 404
+# SPA catch-all — serves frontend build only (NO runtime build attempts)
 @app.get("/{full_path:path}", include_in_schema=False)
 async def spa_fallback(full_path: str):
     """
@@ -4618,35 +4502,45 @@ async def spa_fallback(full_path: str):
     - API routes → never caught here (double safety)
     - Existing file in dist → serve it
     - Unknown path → index.html (for client-side routing)
-    - No dist yet → friendly loading page (keeps probes happy)
+    - No dist yet → friendly static message (deployment misconfigured)
     """
     # Never catch API routes
     if full_path.startswith("api/"):
         return Response(status_code=404)
 
     if os.path.isdir(FRONTEND_DIST):
-        # Serve exact file if exists
         candidate = os.path.join(FRONTEND_DIST, full_path)
         if os.path.isfile(candidate):
             return FileResponse(candidate)
-        # Some Expo routes build as `path.html`
         html_candidate = os.path.join(FRONTEND_DIST, full_path + ".html")
         if os.path.isfile(html_candidate):
             return FileResponse(html_candidate)
-        # Fallback to SPA entry point
         index = os.path.join(FRONTEND_DIST, "index.html")
         if os.path.isfile(index):
             return FileResponse(index)
 
-    # No dist yet — serve loading page so probe sees 200 and user sees friendly UI
-    return HTMLResponse(content=_LOADING_HTML, status_code=200)
+    # No dist — deploy was misconfigured; return clear 200 status so probes pass
+    # but content tells the operator what to do.
+    return HTMLResponse(
+        content=(
+            "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+            "<title>BLACKSCLUB</title></head>"
+            "<body style='margin:0;background:#050505;color:#EEE;"
+            "font-family:sans-serif;display:flex;align-items:center;"
+            "justify-content:center;height:100vh;text-align:center;padding:20px'>"
+            "<div><h1 style='color:#D4AF37'>BLACKSCLUB</h1>"
+            "<p>Frontend build missing. Deploy must include /app/frontend/dist.</p>"
+            "</div></body></html>"
+        ),
+        status_code=200,
+    )
 
 
 if os.path.isdir(FRONTEND_DIST):
     logger.info(f"Frontend dist mounted from {FRONTEND_DIST}")
 else:
-    logger.warning(
-        f"Frontend dist directory NOT found at {FRONTEND_DIST} — "
-        f"serving loading page until background build completes"
+    logger.error(
+        f"CRITICAL: Frontend dist NOT found at {FRONTEND_DIST}. "
+        f"Build must be performed BEFORE deploy. The runtime will NOT auto-build."
     )
 
