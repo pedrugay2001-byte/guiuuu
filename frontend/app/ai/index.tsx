@@ -53,8 +53,15 @@ export default function AISpecialists() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScreenHeader title="BLACK AI" />
-      <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
+      <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+        {/* Botão voltar minimalista (substitui a faixa preta antiga) */}
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backFab}
+          hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+        >
+          <Ionicons name="chevron-back" size={22} color="#EEE" />
+        </TouchableOpacity>
         {loading ? (
           <View style={styles.centerFill}>
             <ActivityIndicator color={theme.colors.white} />
@@ -141,6 +148,13 @@ export default function AISpecialists() {
 
 const styles = StyleSheet.create({
   centerFill: { flex: 1, alignItems: "center", justifyContent: "center" },
+  backFab: {
+    position: "absolute", top: 8, left: 12, zIndex: 10,
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(20,20,20,0.9)",
+    borderWidth: 1, borderColor: "#222",
+  },
   hero: {
     marginHorizontal: theme.spacing.lg, marginTop: theme.spacing.sm,
     padding: 22, borderRadius: 16, overflow: "hidden",
