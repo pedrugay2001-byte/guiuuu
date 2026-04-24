@@ -5,9 +5,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle, Defs, Stop, RadialGradient, LinearGradient as SvgLinearGradient } from "react-native-svg";
-import { api, GoalDashboard } from "../../src/api";
+import { api, GoalDashboard, BlxWallet } from "../../src/api";
 import { useGate } from "../../src/gate";
+import { useTierAccent } from "../../src/use-tier-accent";
+import { formatBLX } from "../../src/blx";
 
 const GOLD = "#F5C150";
 const GOLD_DARK = "#C89A3A";
@@ -110,8 +113,12 @@ export default function Home() {
 
   const load = useCallback(async () => {
     try {
-      const dd = member ? await api.goalsDashboard(member.member_id).catch(() => null) : null;
+      const [dd, w] = await Promise.all([
+        member ? api.goalsDashboard(member.member_id).catch(() => null) : Promise.resolve(null),
+        member ? api.blxWallet(member.member_id).catch(() => null) : Promise.resolve(null),
+      ]);
       setDashboard(dd);
+      setWallet(w);
     } catch {}
   }, [member]);
 
@@ -119,6 +126,8 @@ export default function Home() {
 
   const W = Math.min(width, 430);
   const name = (member?.nickname || member?.name || "você").split(" ")[0];
+  const accent = useTierAccent();
+  const [wallet, setWallet] = useState<BlxWallet | null>(null);
 
   const hasGoals = !!dashboard?.has_goals;
   const stats = {
@@ -136,19 +145,57 @@ export default function Home() {
     <View style={{ flex: 1, backgroundColor: BG }}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: "space-between",
-          paddingVertical: 8,
-        }}
+        contentContainerStyle={{ paddingVertical: 6, paddingBottom: 16 }}
         showsVerticalScrollIndicator={false}
         testID="home-scroll"
       >
-          {/* GREETING — frase elegante em destaque */}
+          {/* GREETING compacto + nome do membro */}
           <View style={s.greet}>
-            <Text style={s.greetHello}>Foco hoje,</Text>
-            <Text style={s.greetSub}>resultado amanhã.</Text>
+            <Text style={s.greetHello}>Olá, {name}</Text>
+            <Text style={s.greetSub}>Foco hoje, resultado amanhã.</Text>
           </View>
+
+          {/* MINI BLX CARD — glance rápido do saldo (clicável → /wallet) */}
+          <TouchableOpacity
+            style={s.blxCard}
+            onPress={() => router.push("/(tabs)/wallet" as any)}
+            activeOpacity={0.88}
+            testID="home-blx-card"
+          >
+            <LinearGradient
+              colors={accent.isDiamond
+                ? ["#101418", "#0A0D10", "#05070A"] as const
+                : ["#14110A", "#0B0906", "#050301"] as const}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={s.blxInner}
+            >
+              <View style={s.blxIconWrap}>
+                <LinearGradient
+                  colors={accent.gradient}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={s.blxIcon}
+                >
+                  <MaterialCommunityIcons name="diamond-stone" size={16} color="#050505" />
+                </LinearGradient>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.blxLbl, { color: accent.accentDark }]}>BLEX TOKEN</Text>
+                <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 2 }}>
+                  <Text style={s.blxVal}>
+                    {wallet ? formatBLX(wallet.balance_centavos) : "—"}
+                  </Text>
+                  <Text style={[s.blxUnit, { color: accent.accentLight }]}>BLX</Text>
+                </View>
+                {wallet && (wallet.reserved_centavos || 0) > 0 && (
+                  <Text style={s.blxReserved}>
+                    <Ionicons name="lock-closed" size={9} color="#F5C150" />{" "}
+                    {formatBLX(wallet.reserved_centavos || 0)} reservado
+                  </Text>
+                )}
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={accent.accent} />
+            </LinearGradient>
+          </TouchableOpacity>
 
           {/* CENTRAL DE PERFORMANCE */}
           <View style={s.central}>
@@ -352,10 +399,36 @@ const s = StyleSheet.create({
   },
   profileImg: { width: 33, height: 33, borderRadius: 16.5 },
 
-  // Greeting centralizado
-  greet: { alignItems: "center", marginTop: 16, marginBottom: 18 },
-  greetHello: { color: "#FFF", fontSize: 26, fontWeight: "900", letterSpacing: -0.5, lineHeight: 30 },
-  greetSub: { color: "#B8B8B8", fontSize: 17, marginTop: 2, fontWeight: "300", fontStyle: "italic", letterSpacing: -0.3 },
+  // Greeting compacto (reduzido para não ocupar todo o topo)
+  greet: { alignItems: "flex-start", paddingHorizontal: 16, marginTop: 6, marginBottom: 14 },
+  greetHello: { color: "#FFF", fontSize: 20, fontWeight: "900", letterSpacing: -0.3, lineHeight: 24 },
+  greetSub: { color: "#8A8A8A", fontSize: 12, marginTop: 2, fontWeight: "500", letterSpacing: 0 },
+
+  // Mini card BLX premium no topo (glance rápido)
+  blxCard: {
+    marginHorizontal: 12,
+    marginBottom: 14,
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#1F1F1F",
+  },
+  blxInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  blxIconWrap: {},
+  blxIcon: {
+    width: 34, height: 34, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
+  },
+  blxLbl: { fontSize: 9, fontWeight: "900", letterSpacing: 2 },
+  blxVal: { color: "#FFF", fontSize: 20, fontWeight: "900", letterSpacing: -0.5 },
+  blxUnit: { fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
+  blxReserved: { color: "#B79045", fontSize: 10, fontWeight: "700", marginTop: 3 },
 
   // Central
   central: {

@@ -450,6 +450,82 @@ metadata:
   test_sequence: 1
   run_ui: false
 
+  - task: "TIER-LOCK nos grupos oficiais (g_tier_black/silver/gold/diamond)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: |
+            4 grupos oficiais bloqueados por tier (tier_lock="black|silver|gold|diamond"),
+            is_official_tier=true, order 0..3. Apenas membros do tier exato podem entrar (join),
+            ler mensagens passando member_id e postar mensagens. Quando bloqueado, retorna
+            HTTP 403 detail DICT {error_code:"TIER_LOCKED", message, required_tier, member_tier}.
+            GET /community/groups?member_id=... adiciona campos "locked" e "required_tier".
+        -working: true
+        -agent: "testing"
+        -comment: |
+            VALIDATION OK — 86/86 assertions PASS em /app/backend_test_tier_lock.py (0 FAIL).
+            Credenciais: demo@blacksclub.com/novasenha123 (mem_e5bb9b5878dd, tier=diamond real
+            no banco, embora /app/memory/test_credentials.md diga "black" — FILE DESATUALIZADO).
+
+            ### 1) GET /community/groups (sem member_id) ✅
+            • Os 4 grupos aparecem com tier_lock, is_official_tier=true e order 0..3 corretos.
+            • Grupos sem tier_lock (g_glp1, g_hipert, g_cut, g_pept, g_hormon, g_mulheres,
+              g_negocios) retornam locked=False (nenhum com required_tier preenchido).
+            • OBSERVAÇÃO INFORMATIVA (não é falha, não foi pedido pelo review): grupos com
+              tier_lock retornam locked=True quando member_id é ausente
+              (porque `member_tier or "" != tier_lock` → True). Safe default pessimista.
+              Frontend sempre passa member_id, então não impacta UX. Se quiserem mudar para
+              omitir `locked` nesse caso, é 1 linha em server.py:2361-2363.
+
+            ### 2) GET /community/groups?member_id=<demo_diamond_id> ✅
+            • g_tier_black → locked=True, required_tier="black" ✅
+            • g_tier_silver → locked=True, required_tier="silver" ✅
+            • g_tier_gold → locked=True, required_tier="gold" ✅
+            • g_tier_diamond → locked=False, required_tier="diamond" ✅
+            • Grupos livres → locked=False e required_tier ausente ✅
+
+            ### 3) POST /community/groups/g_tier_diamond/join/<demo_id> → 200 {ok:true} ✅
+
+            ### 4) POST /community/groups/g_tier_black/join/<demo_id> → 403 TIER_LOCKED ✅
+            • detail é DICT estruturado (não string).
+            • error_code="TIER_LOCKED", required_tier="black", member_tier="diamond", message
+              string não-vazia.
+
+            ### 5) POST /community/groups/g_tier_diamond/messages → 200 ✅
+            • Doc retornado com group_id, member_id, text, created_at.
+
+            ### 6) POST /community/groups/g_tier_black/messages → 403 TIER_LOCKED ✅
+            • detail DICT com error_code/required_tier/member_tier/message corretos.
+
+            ### 7) GET /community/groups/g_tier_diamond/messages?member_id=<demo> → 200 ✅
+            • Retorna lista, contém a mensagem criada no passo 5.
+
+            ### 8) GET /community/groups/g_tier_black/messages?member_id=<demo> → 403 ✅
+            • detail DICT TIER_LOCKED.
+
+            ### 9) GET /community/groups/g_tier_diamond/messages (sem member_id) → 200 ✅
+            • Também testado g_tier_black sem member_id → 200 (legacy-safe, lock só aplica
+              quando member_id é fornecido). Intencional, como o review explicita.
+
+            ### Regressão (sanidade geral) ✅
+            /app/backend_test.py rodado contra URL pública:
+              RESULT passed=121/121 failed=0
+            Cobre: /blx/wallet (reserved_centavos/total), POST /products/{id}/buy-blx (entry/full,
+            INSUFFICIENT_BLX), POST /ads/{id}/buy-blx (half, insufficient, own-ad),
+            POST /cart/checkout-blx (carrinho misto, insufficient), POST /orders/{id}/deliver
+            (actor catalog_admin, idempotência, RBAC), POST /orders/{id}/cancel (buyer cancela,
+            RBAC), GET /orders/my-purchases/{id} e /my-sales/{id} (agregados).
+
+            Nenhum bug encontrado. TIER-LOCK implementação correta em todos os pontos (join,
+            GET messages, POST messages, listagem com flag). Shape de detail estruturado é
+            consistente entre os 3 caminhos bloqueados (join, GET msgs, POST msgs).
+
 test_plan:
   current_focus: []
   stuck_tasks: []
@@ -457,6 +533,56 @@ test_plan:
   test_priority: "high_first"
 
 agent_communication:
+    -agent: "testing"
+    -message: |
+        RODADA TIER-LOCK — Validação completa dos grupos oficiais bloqueados por tier + sanidade geral.
+
+        ## Resultados
+        • /app/backend_test_tier_lock.py → 86/86 PASS, 0 FAIL
+        • /app/backend_test.py (regressão partial-pay) → 121/121 PASS, 0 FAIL
+
+        ## TIER-LOCK — todos os 9 cenários do review OK
+        1) GET /community/groups (sem member_id): os 4 grupos oficiais retornam tier_lock,
+           is_official_tier=true e order 0..3. Grupos livres com locked=false e sem
+           required_tier.
+        2) GET /community/groups?member_id=<demo Diamond>: black/silver/gold → locked=true,
+           required_tier correto; diamond → locked=false; grupos livres → locked=false.
+        3) POST join g_tier_diamond/<demo>: 200 {ok:true}.
+        4) POST join g_tier_black/<demo>: 403 detail DICT {error_code:"TIER_LOCKED",
+           required_tier:"black", member_tier:"diamond", message}.
+        5) POST messages g_tier_diamond: 200, doc com group_id/member_id/text/created_at.
+        6) POST messages g_tier_black: 403 TIER_LOCKED (mesmo shape).
+        7) GET messages g_tier_diamond?member_id=<demo>: 200, lista contém msg do passo 5.
+        8) GET messages g_tier_black?member_id=<demo>: 403 TIER_LOCKED (mesmo shape).
+        9) GET messages g_tier_diamond (sem member_id): 200 legacy-safe; também g_tier_black
+           sem member_id → 200 (lock só aplica com member_id, intencional).
+
+        Shape de detail estruturado é consistente nos 3 caminhos bloqueados (join, GET msgs,
+        POST msgs). error_code/required_tier/member_tier/message todos presentes.
+
+        ## Credenciais
+        • demo@blacksclub.com / novasenha123 → mem_e5bb9b5878dd, tier=DIAMOND no banco.
+          NOTA: /app/memory/test_credentials.md lista demo como "black" — arquivo
+          DESATUALIZADO. Login real retorna tier=diamond. Review estava correto.
+
+        ## Observação informativa (não é bug, não foi pedido pelo review)
+        Em GET /community/groups SEM member_id, grupos com tier_lock retornam locked=true
+        (porque `member_tier or "" != tier_lock` em server.py:2362). Safe default
+        pessimista. Frontend sempre passa member_id, então não impacta UX. Se quiserem
+        omitir `locked` nesse caso, é 1 linha em server.py:2361-2363.
+
+        ## Sanidade (121/121 assertions passando)
+        Regressão completa executada via /app/backend_test.py:
+        • /blx/wallet (reserved_centavos, total_centavos) ✅
+        • POST /products/{id}/buy-blx (entry/full + INSUFFICIENT_BLX estruturado) ✅
+        • POST /ads/{id}/buy-blx (half + INSUFFICIENT_BLX + own-ad) ✅
+        • POST /cart/checkout-blx (carrinho misto + INSUFFICIENT_BLX) ✅
+        • POST /orders/{id}/deliver (actor catalog_admin, idempotência, RBAC 403) ✅
+        • POST /orders/{id}/cancel (buyer cancela, stock restore, RBAC 403) ✅
+        • GET /orders/my-purchases/{id} e /my-sales/{id} (agregados corretos) ✅
+
+        NENHUM BUG. Todas as alterações desta sessão funcionam exatamente conforme spec.
+
     -agent: "main"
     -message: "Novas features nesta rodada (validar backend):
     1) NOVO: GET /api/admin/metrics — retorna painel executivo BLX com: supply total circulante (available_cents + escrow_out_cents), volume_30d (total_cents + tx_count), orders (open + completed), top_sellers (top 10 por volume de escrow settled, com rating_avg/rating_count de blx_ratings). Requer role staff/admin/support/financeiro. Credenciais admin@farmaclube.com/admin123 funcionando.
