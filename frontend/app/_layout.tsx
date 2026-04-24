@@ -62,6 +62,11 @@ export default function RootLayout() {
             <Stack.Screen name="staff/inbox" options={{ title: "Caixa de Mensagens" }} />
             <Stack.Screen name="staff/metrics" options={{ title: "Métricas BLX", headerShown: false }} />
             <Stack.Screen name="staff/chat/[member_id]" options={{ title: "Conversa" }} />
+            {/* Rotas sem header (possuem header customizado dentro) */}
+            <Stack.Screen name="blx" options={{ headerShown: false }} />
+            <Stack.Screen name="cart" options={{ headerShown: false }} />
+            <Stack.Screen name="wallet" options={{ headerShown: false }} />
+            <Stack.Screen name="black-ai" options={{ headerShown: false }} />
           </Stack>
               </CartProvider>
             </AuthProvider>

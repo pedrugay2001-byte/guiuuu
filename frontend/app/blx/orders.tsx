@@ -84,7 +84,7 @@ export default function Orders() {
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: "#050505", justifyContent: "center" }}>
-        <ActivityIndicator color="#D4AF37" />
+        <ActivityIndicator color="#C5D1DA" />
       </View>
     );
   }
@@ -124,7 +124,7 @@ export default function Orders() {
 
         <ScrollView
           refreshControl={
-            <RefreshControl tintColor="#D4AF37" refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />
+            <RefreshControl tintColor="#C5D1DA" refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />
           }
           contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
         >
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
 
   tabs: { flexDirection: "row", paddingHorizontal: 14, paddingVertical: 10, gap: 8 },
   tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: "#0E0E0E", borderWidth: 1, borderColor: "#1A1A1A" },
-  tabActive: { backgroundColor: "#D4AF37", borderColor: "#D4AF37" },
+  tabActive: { backgroundColor: "#C5D1DA", borderColor: "#C5D1DA" },
   tabText: { color: "#AAA", fontSize: 10.5, fontWeight: "900", letterSpacing: 1.5 },
   tabTextActive: { color: "#0A0A0A" },
 
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
   statusPill: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 12, borderWidth: 1, marginTop: 6 },
   statusPillTxt: { fontSize: 8.5, fontWeight: "900", letterSpacing: 1.2 },
   amountVal: { fontSize: 15, fontWeight: "900" },
-  amountUnit: { color: "#D4AF37", fontSize: 10, fontWeight: "900", letterSpacing: 1.2, marginTop: 2 },
+  amountUnit: { color: "#C5D1DA", fontSize: 10, fontWeight: "900", letterSpacing: 1.2, marginTop: 2 },
 
   cpRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#1A1A1A" },
   cpAvatar: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, backgroundColor: "#1A1A1A", alignItems: "center", justifyContent: "center", overflow: "hidden" },
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
   modalDesc: { color: "#AAA", fontSize: 13, lineHeight: 18, textAlign: "center", marginTop: 10 },
   starsRow: { flexDirection: "row", gap: 10, justifyContent: "center", marginBottom: 16 },
   commentInput: { backgroundColor: "#1A1A1A", borderRadius: 10, padding: 14, color: "#FFF", fontSize: 13.5, minHeight: 80, textAlignVertical: "top" },
-  primaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 14, borderRadius: 12, backgroundColor: "#D4AF37", marginTop: 16 },
+  primaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 14, borderRadius: 12, backgroundColor: "#C5D1DA", marginTop: 16 },
   primaryBtnTxt: { color: "#0A0A0A", fontSize: 12.5, fontWeight: "900", letterSpacing: 1.5 },
   ghostBtn: { paddingVertical: 12, alignItems: "center", marginTop: 4 },
   ghostBtnTxt: { color: "#888", fontSize: 11.5, fontWeight: "700" },

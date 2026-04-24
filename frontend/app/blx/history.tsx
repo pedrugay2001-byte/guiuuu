@@ -60,7 +60,7 @@ export default function History() {
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: "#050505", justifyContent: "center" }}>
-        <ActivityIndicator color="#D4AF37" />
+        <ActivityIndicator color="#C5D1DA" />
       </View>
     );
   }
@@ -97,7 +97,7 @@ export default function History() {
           data={filtered}
           keyExtractor={(i) => i.tx_id}
           refreshControl={
-            <RefreshControl tintColor="#D4AF37" refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true); }} />
+            <RefreshControl tintColor="#C5D1DA" refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true); }} />
           }
           renderItem={({ item }) => <Row tx={item} me={member?.member_id || ""} />}
           onEndReached={loadMore}
@@ -109,7 +109,7 @@ export default function History() {
             </View>
           )}
           ListFooterComponent={() => (
-            loadingMore ? <ActivityIndicator color="#D4AF37" style={{ marginVertical: 16 }} /> : <View style={{ height: 30 }} />
+            loadingMore ? <ActivityIndicator color="#C5D1DA" style={{ marginVertical: 16 }} /> : <View style={{ height: 30 }} />
           )}
           contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
         />
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0E0E0E", borderWidth: 1, borderColor: "#1A1A1A",
     alignItems: "center",
   },
-  filterBtnActive: { backgroundColor: "#D4AF37", borderColor: "#D4AF37" },
+  filterBtnActive: { backgroundColor: "#C5D1DA", borderColor: "#C5D1DA" },
   filterText: { color: "#AAA", fontSize: 10.5, fontWeight: "900", letterSpacing: 1.5 },
   filterTextActive: { color: "#0A0A0A" },
 

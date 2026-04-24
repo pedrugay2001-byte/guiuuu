@@ -9,10 +9,12 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { api, BlxWallet } from "../../src/api";
 import { useGate } from "../../src/gate";
+import { useTierAccent } from "../../src/use-tier-accent";
 
 export default function Receive() {
   const router = useRouter();
   const { member } = useGate();
+  const accent = useTierAccent();
   const [w, setW] = useState<BlxWallet | null>(null);
 
   useEffect(() => {
@@ -38,7 +40,7 @@ export default function Receive() {
   if (!w) {
     return (
       <View style={{ flex: 1, backgroundColor: "#050505", justifyContent: "center" }}>
-        <ActivityIndicator color="#D4AF37" />
+        <ActivityIndicator color={accent.accent} />
       </View>
     );
   }
@@ -60,14 +62,14 @@ export default function Receive() {
 
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
           {/* Hero card */}
-          <View style={styles.hero}>
-            <View style={styles.heroLogo}>
-              <MaterialCommunityIcons name="diamond-stone" size={30} color="#D4AF37" />
+          <View style={[styles.hero, { borderColor: accent.accent + "40" }]}>
+            <View style={[styles.heroLogo, { backgroundColor: accent.accent + "1F", borderColor: accent.accent + "66" }]}>
+              <MaterialCommunityIcons name="diamond-stone" size={30} color={accent.accent} />
             </View>
-            <Text style={styles.heroKicker}>CARTEIRA BLEX TOKEN</Text>
+            <Text style={[styles.heroKicker, { color: accent.accent }]}>CARTEIRA BLEX TOKEN</Text>
             <Text style={styles.heroName}>{(member?.nickname || member?.name || "").toUpperCase()}</Text>
             <View style={styles.walletBox}>
-              <Text style={styles.walletNumber}>{w.wallet_number}</Text>
+              <Text style={[styles.walletNumber, { color: accent.accentLight }]}>{w.wallet_number}</Text>
             </View>
             <Text style={styles.heroTip}>
               Envie este número para qualquer outro membro e receba BLX na hora.
@@ -75,7 +77,7 @@ export default function Receive() {
           </View>
 
           {/* Ações */}
-          <TouchableOpacity style={styles.primaryBtn} onPress={copy} testID="blx-receive-copy">
+          <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accent.accent }]} onPress={copy} testID="blx-receive-copy">
             <Ionicons name="copy-outline" size={18} color="#0A0A0A" />
             <Text style={styles.primaryBtnText}>COPIAR NÚMERO</Text>
           </TouchableOpacity>
@@ -110,28 +112,27 @@ const styles = StyleSheet.create({
   hero: {
     alignItems: "center", padding: 24, marginBottom: 20,
     backgroundColor: "#0E0E0E", borderRadius: 18,
-    borderWidth: 1, borderColor: "rgba(212,175,55,0.25)",
+    borderWidth: 1,
   },
   heroLogo: {
     width: 64, height: 64, borderRadius: 32,
-    backgroundColor: "rgba(212,175,55,0.12)",
     alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "rgba(212,175,55,0.4)",
+    borderWidth: 1,
     marginBottom: 16,
   },
-  heroKicker: { color: "#D4AF37", fontSize: 10, fontWeight: "900", letterSpacing: 2.5 },
+  heroKicker: { fontSize: 10, fontWeight: "900", letterSpacing: 2.5 },
   heroName: { color: "#FFF", fontSize: 15, fontWeight: "800", letterSpacing: 1, marginTop: 6, textAlign: "center" },
   walletBox: {
     marginTop: 18, paddingHorizontal: 18, paddingVertical: 14,
     backgroundColor: "#050505", borderRadius: 10,
     borderWidth: 1, borderColor: "#1F1F1F",
   },
-  walletNumber: { color: "#D4AF37", fontSize: 22, fontWeight: "900", letterSpacing: 4 },
+  walletNumber: { fontSize: 22, fontWeight: "900", letterSpacing: 4 },
   heroTip: { color: "#8A8A8A", fontSize: 11.5, lineHeight: 16, marginTop: 14, textAlign: "center" },
 
   primaryBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
-    paddingVertical: 15, borderRadius: 10, backgroundColor: "#D4AF37",
+    paddingVertical: 15, borderRadius: 10,
   },
   primaryBtnText: { color: "#0A0A0A", fontSize: 12, fontWeight: "900", letterSpacing: 1.5 },
   ghostBtn: {
