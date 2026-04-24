@@ -73,6 +73,217 @@ user_problem_statement: |
   - Todos podem usar como cripto para o comércio interno
 
 backend:
+  - task: "Partial Payment + Reserved Balance — POST /api/products/{id}/buy-blx"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: |
+            REGRA NOVA (IMPORTANTE): No checkout, APENAS a entrada (10%/50%/100%) é DEBITADA
+            imediatamente de `balance_centavos`. O restante (saldo devedor) fica TRAVADO em
+            `reserved_centavos` do comprador até a entrega.
+
+            • Validação: `balance_centavos >= total_cents` (precisa ter o total livre p/ travar).
+              Se insuficiente → HTTP 400 com payload estruturado:
+                {error_code: "INSUFFICIENT_BLX", required_centavos, current_centavos,
+                 missing_centavos, support_redirect: true, message: "..."}
+            • Débito: `balance_centavos -= total_cents`, `reserved_centavos += remaining_cents`.
+            • wallet_txs registra somente a entrada (entry_cents) como type=purchase status=settled.
+            • orders guarda: total_cents, entry_cents, remaining_cents, reserved_on_buyer_cents,
+              pay_option, status ("awaiting_delivery_payment" se tem saldo devedor; senão "settled").
+
+            Campos novos na wallet: `reserved_centavos` (int). Backfill lazy em _wallet_get_or_create.
+        -working: true
+        -agent: "testing"
+        -comment: |
+            RODADA PARTIAL_PAY — 4 cenários validados para products/buy-blx (todos PASS):
+            • 2a pay_option=entry (10%): entry+remaining==total ✅; reserved_on_buyer==remaining ✅;
+              entry≈10%·total ✅; balance -= TOTAL (não só entry) ✅; reserved += remaining ✅;
+              order.status=awaiting_delivery_payment ✅; entry_cents/remaining_cents/reserved_on_buyer_cents
+              gravados no order ✅; wallet_tx type=purchase status=settled amount_centavos==entry_cents ✅;
+              pay_option/new_balance_centavos ecoados ✅.
+            • 2b pay_option=full (100%): remaining=0 ✅; entry==total ✅; reserved unchanged ✅;
+              order.status=settled ✅.
+            • 2c INSUFFICIENT_BLX (Mateus mem_4f1c23b894d2, 19585 centavos, produto caro full):
+              HTTP 400 ✅; detail é DICT ✅; error_code=INSUFFICIENT_BLX ✅; required_centavos/current_centavos/
+              missing_centavos int ✅; missing>0 ✅; support_redirect=true ✅; message string ✅.
+
+  - task: "Partial Payment + Reserved Balance — POST /api/ads/{id}/buy-blx"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: |
+            Mesma lógica de pagamento parcial do catálogo, mas a ENTRADA é mantida em ESCROW até
+            entrega (type=escrow status=pending). O saldo devedor (remaining_cents) fica TRAVADO
+            em `reserved_centavos` do comprador (não vai pro escrow). Ajustado também o model
+            AdBLXBuy para computar entry_pct/disc_pct via PAY mapping.
+
+            Validação: `balance_centavos >= total_cents`. Se insuficiente → 400 + INSUFFICIENT_BLX.
+        -working: true
+        -agent: "testing"
+        -comment: |
+            Validado (todos PASS):
+            • 3a pay_option=half (50%): entry+remaining==total ✅; reserved_on_buyer==remaining ✅;
+              entry≈50%·total ✅; buyer balance -= total ✅; buyer reserved += remaining ✅;
+              buyer escrow_out += entry ✅; seller escrow_in += entry ✅;
+              wallet_tx type=escrow status=pending amount_centavos==entry ✅.
+            • 3b INSUFFICIENT_BLX: 400 ✅; detail dict com error_code=INSUFFICIENT_BLX ✅.
+            • 3c own-ad (demo comprando seu próprio ad_8894e54267ef): 400 ✅; mensagem menciona
+              "anúncio"/"próprio" ✅.
+
+  - task: "Partial Payment + Reserved Balance — POST /api/cart/checkout-blx"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: |
+            Checkout do carrinho agora aceita `pay_option` global ("full"|"half"|"entry") e
+            aplica para todos os itens. Calcula por item:
+            • Catálogo: tier_disc + pay_option disc. Entrada vai p/ catalog_admin.
+            • Ad Diamante: só pay_option disc. Entrada vai p/ escrow do vendedor.
+            Soma total_cents, total_entry_cents, total_remaining_cents e faz UMA operação de wallet:
+              balance_centavos -= total_cents; reserved_centavos += total_remaining_cents.
+            Retorno novo: { total_cents, entry_cents, remaining_cents, reserved_on_buyer_cents,
+              pay_option, orders, txs, new_balance_centavos, message }.
+        -working: true
+        -agent: "testing"
+        -comment: |
+            Validado com carrinho misto (1 produto + 1 ad) + pay_option=half:
+            • entry_cents + remaining_cents == total_cents ✅
+            • reserved_on_buyer_cents == remaining_cents ✅
+            • ≥2 orders criadas ✅
+            • buyer balance -= total_cents ✅; reserved += total remaining ✅
+            • cart esvaziado após checkout (items=[]) ✅
+            • INSUFFICIENT_BLX (poor buyer, full option): 400 + detail dict com error_code=INSUFFICIENT_BLX ✅.
+
+  - task: "Order Lifecycle — POST /api/orders/{id}/deliver"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: |
+            Marca pedido como entregue (vendedor ou staff/admin). Efeitos:
+            • Libera remaining_cents de `reserved_centavos` do comprador e credita no vendedor
+              (ou catalog_admin). Cria tx type=delivery_settle status=settled.
+            • Para canais ad_direct/cart_diamond: libera entrada do escrow do vendedor.
+            • order.status = "delivered_settled", delivered_at, delivered_by.
+            Idempotência: se já delivered/cancelled/refunded/settled → retorna ok/already_settled.
+        -working: true
+        -agent: "testing"
+        -comment: |
+            Validado em order criado em 2a (catálogo, pay_option=entry, remaining>0):
+            • 5a deliver com actor_id='catalog_admin' → 200 ✅; status delivered_settled ✅;
+              buyer reserved_centavos -= remaining_cents ✅; order.delivered_at presente ✅;
+              wallet_tx type=delivery_settle amount_centavos==remaining ✅.
+            • 5b idempotência: re-chamar deliver → 200 + already_settled=true ✅.
+            • 5c RBAC: actor_id aleatório (não seller/admin) → 403 ✅.
+
+  - task: "Order Lifecycle — POST /api/orders/{id}/cancel"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: |
+            Cancela pedido e devolve valores ao comprador (comprador, vendedor ou admin podem cancelar).
+            • Devolve remaining_cents de reserved → balance do comprador.
+            • Devolve entrada: para ad — refund do escrow; para catálogo — credita direto.
+            • Restaura estoque para produtos de catálogo.
+            • Cria tx type=refund status=settled.
+            • order.status = "cancelled", cancelled_at/by/reason.
+        -working: true
+        -agent: "testing"
+        -comment: |
+            Validado criando novo order (entry, catálogo) e cancelando como buyer:
+            • 6a buyer cancela → 200 ✅; buyer reserved_centavos -= remaining (devolvido) ✅;
+              buyer balance_centavos += total_cents (entry devolvido + reserved liberado) ✅;
+              stock do produto restaurado (++) ✅; order.status=cancelled ✅;
+              cancelled_at/cancelled_by/cancel_reason preenchidos ✅;
+              wallet_tx type=refund criado ✅.
+            • 6b RBAC: actor não-relacionado (random member_id) → 403 ✅.
+
+  - task: "Orders Listings — GET /api/orders/my-purchases/{id} & /my-sales/{id}"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: |
+            Listagens enriquecidas com nome/tier/avatar de contraparte e imagem do item.
+            • my-purchases: retorna { orders, count, total_paid_centavos, total_reserved_centavos }.
+            • my-sales: retorna { orders, count, total_sold_centavos, total_received_centavos,
+              total_pending_delivery_centavos, total_in_escrow_centavos }.
+            Aceita filtro ?status=.
+        -working: true
+        -agent: "testing"
+        -comment: |
+            my-purchases:
+            • Estrutura {orders, count, total_paid_centavos, total_reserved_centavos} completa ✅.
+            • count == len(orders) ✅.
+            • total_paid_centavos == sum(entry_cents where status not in cancelled/refunded) ✅.
+            • total_reserved_centavos == sum(reserved_on_buyer_cents where status=awaiting_delivery_payment) ✅.
+            • Cada order tem campos 'image' (possivelmente null) e 'seller_name' enriquecidos ✅.
+            my-sales:
+            • Estrutura {orders, count, total_sold_centavos, total_received_centavos,
+              total_pending_delivery_centavos, total_in_escrow_centavos} completa ✅.
+            • Todos os 5 agregados são INT ✅.
+
+  - task: "BLX Wallet — reserved_centavos exposure (GET /api/blx/wallet/{id})"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: |
+            Endpoint retorna agora `reserved_centavos`, `reserved_blx`, `total_centavos`
+            (balance + reserved) e `total_blx`. Backfill lazy garante reserved_centavos=0
+            para carteiras existentes.
+        -working: true
+        -agent: "testing"
+        -comment: |
+            Validado:
+            • Campos retornados: balance_centavos (int), balance_blx, reserved_centavos (int>=0),
+              reserved_blx, total_centavos (int), total_blx, wallet_number ('BLX-XXXX'), currency=BLX ✅.
+            • Invariante: total_centavos == balance_centavos + reserved_centavos ✅.
+            • Lazy backfill: wallet para member_id inexistente retorna reserved_centavos=0 e
+              balance_centavos=0 ✅.
+            • Após compras com entry/half: reserved_centavos sobe exatamente por remaining_cents
+              em cada uma das operações testadas (produto, ad, cart) ✅.
+            • Após deliver/cancel: reserved_centavos decresce exatamente por remaining_cents ✅.
+
   - task: "Admin Metrics Dashboard (GET /api/admin/metrics)"
     implemented: true
     working: true
@@ -240,8 +451,7 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Admin Metrics Dashboard (GET /api/admin/metrics)"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -286,6 +496,77 @@ agent_communication:
 
         ## Conclusão
         Todos os requisitos do review cumpridos. Zero bugs. Pode seguir para frontend do painel admin.
+
+    -agent: "testing"
+    -message: |
+        RODADA PARTIAL_PAY — Validação completa dos endpoints de Pagamento Parcial + Saldo Travado
+        (reserved_centavos) em /app/backend_test.py. **121/121 assertions PASS, 0 FAIL** contra
+        a URL pública (https://member-shop-2.preview.emergentagent.com/api).
+
+        ## Credenciais usadas
+        • admin@farmaclube.com / admin123 (token JWT via /api/auth/login) — top-up
+        • demo@blacksclub.com / novasenha123 (Diamond, mem_e5bb9b5878dd) — buyer
+        • Mateus (diamond mem_4f1c23b894d2, 19585 centavos) — low-balance para INSUFFICIENT_BLX
+        (OBS.: guilherme925145000@gmail.com NÃO loga via /api/members/login — credencial só existe
+        em `users` collection; para testar compras usamos demo como buyer com top-up administrativo.)
+
+        ## Resumo por task (todas PASS)
+        1) GET /api/blx/wallet/{id}
+           • Campos reserved_centavos (int>=0), reserved_blx, total_centavos, total_blx expostos;
+             currency=BLX; wallet_number padrão BLX-XXXX; total == balance + reserved.
+           • Lazy backfill: wallet para member_id inexistente → reserved=0, balance=0.
+
+        2) POST /api/products/{id}/buy-blx
+           • entry(10%): entry+remaining==total; reserved_on_buyer==remaining; balance -= TOTAL;
+             reserved += remaining; order.status=awaiting_delivery_payment; 1 tx type=purchase
+             status=settled amount==entry.
+           • full(100%): remaining=0; reserved inalterado; order.status=settled.
+           • INSUFFICIENT_BLX: HTTP 400 com detail DICT estruturado {error_code:'INSUFFICIENT_BLX',
+             required_centavos, current_centavos, missing_centavos, support_redirect:true, message}.
+
+        3) POST /api/ads/{id}/buy-blx
+           • half(50%): entry+remaining==total; buyer balance-=total, reserved+=remaining,
+             escrow_out+=entry; seller escrow_in+=entry; tx type=escrow status=pending amount==entry.
+           • INSUFFICIENT_BLX: 400 + detail DICT completo.
+           • own-ad: 400 com mensagem mencionando 'anúncio'.
+
+        4) POST /api/cart/checkout-blx (1 produto + 1 ad, half)
+           • Agregados corretos; orders criadas para cada item; cart esvaziado ao final
+             (GET /api/cart/{id}.items==[]).
+           • INSUFFICIENT_BLX: 400 + detail DICT.
+
+        5) POST /api/orders/{id}/deliver
+           • actor='catalog_admin' em order catálogo: reserved-=remaining; order.status=delivered_settled;
+             delivered_at preenchido; tx type=delivery_settle amount==remaining.
+           • Idempotência: 200 + already_settled=true.
+           • RBAC: actor aleatório → 403.
+
+        6) POST /api/orders/{id}/cancel
+           • buyer cancela catálogo: reserved devolvido E entry devolvido ao balance (soma==total);
+             estoque restaurado; order.status=cancelled; cancelled_at/by/reason gravados;
+             tx type=refund criada.
+           • RBAC: actor não-relacionado → 403.
+
+        7) GET /api/orders/my-purchases/{id}
+           • Estrutura { orders, count, total_paid_centavos, total_reserved_centavos } correta;
+             count == len(orders); total_paid == Σ(entry onde status not in cancelled/refunded);
+             total_reserved == Σ(reserved_on_buyer onde awaiting_delivery_payment);
+             campos 'image' e 'seller_name' presentes.
+
+        8) GET /api/orders/my-sales/{id}
+           • Estrutura completa com os 5 agregados INT:
+             total_sold_centavos, total_received_centavos, total_pending_delivery_centavos,
+             total_in_escrow_centavos.
+
+        ## Conclusão
+        Zero bugs encontrados. Toda a mecânica de pagamento parcial + saldo travado está correta:
+        - débito em centavos (sem float drift)
+        - reserved_centavos sobe e desce exatamente como esperado
+        - INSUFFICIENT_BLX estruturado e consistente em todos os 3 endpoints de compra
+        - idempotência + RBAC de deliver/cancel funcionando
+        - listagens agregadas coerentes com orders persistidas.
+
+        Pode seguir para integração frontend / próxima feature. Nenhuma ação para main agent.
 
     -agent: "testing"
     -message: |
@@ -799,13 +1080,14 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "2.1"
-  test_sequence: 5
+  version: "2.2"
+  test_sequence: 6
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Marketplace V2 (Ads) + Wallet BLACK Coins + Feed/Stories endpoints"
+    - "Partial Payment — entry-only debit + reserved_centavos lock (products/ads/cart)"
+    - "Order lifecycle — deliver/cancel + sales/purchases listings"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -1664,3 +1946,87 @@ agent_communication:
                     │     └── tela interna (View puro)
                     └── BottomBrandBar (View puro)
 
+
+
+    - agent: "main"
+      message: |
+        [Sessão — Partial Payment + Reserved Balance]
+
+        Implementada regra de pagamento parcial: no checkout (produto catálogo, anúncio Diamante ou carrinho),
+        APENAS a entrada (10% / 50% / 100%) é debitada imediatamente do balance_centavos do comprador.
+        O SALDO DEVEDOR (remaining_cents) fica TRAVADO em um campo novo `reserved_centavos` da wallet,
+        e é liberado automaticamente para o vendedor quando o pedido for marcado como "delivered".
+
+        === Backend (modificado em /app/backend/server.py) ===
+        1. _wallet_get_or_create: adiciona `reserved_centavos` (int) default 0 + backfill lazy.
+        2. GET /api/blx/wallet/{member_id}: retorna reserved_centavos, reserved_blx, total_centavos,
+           total_blx (balance livre + reservado).
+        3. POST /api/products/{id}/buy-blx:
+           • Valida `balance_centavos >= total_cents` (precisa ter o TOTAL disponível para travar).
+           • Insuficiente → HTTP 400 com detail estruturado:
+             { error_code: "INSUFFICIENT_BLX", required_centavos, current_centavos,
+               missing_centavos, support_redirect: true, message: "..." }.
+           • Débito: balance_centavos -= total_cents; reserved_centavos += remaining_cents.
+           • wallet_txs registra APENAS a entrada (entry_cents) como type=purchase/settled.
+           • orders guarda total_cents, entry_cents, remaining_cents, reserved_on_buyer_cents,
+             pay_option, seller_id="catalog_admin", status "awaiting_delivery_payment" ou "settled".
+        4. POST /api/ads/{id}/buy-blx: mesma lógica, mas entrada vai para ESCROW (escrow_out/in),
+           saldo devedor TRAVA em reserved_centavos. Agora suporta pay_option corretamente.
+        5. POST /api/cart/checkout-blx: aceita `pay_option` global; recalcula cada item com
+           tier_disc (catálogo) + pay_disc. Soma totais e faz 1 update: balance_centavos -=
+           total_cents; reserved_centavos += total_remaining_cents. Processa cada item criando
+           txs e orders com os mesmos campos.
+        6. POST /api/orders/{id}/deliver: libera remaining_cents de reserved→balance do
+           comprador e credita ao vendedor; libera escrow da entrada para ads. Cria tx
+           "delivery_settle". Requer actor_id = vendedor ou admin/staff. Idempotente.
+        7. POST /api/orders/{id}/cancel: devolve reserved_centavos + entrada ao comprador,
+           restaura estoque (catálogo), cria tx "refund". Comprador/vendedor/admin podem
+           cancelar. Idempotente.
+        8. GET /api/orders/my-purchases/{id}: lista compras com enriquecimento de contraparte/imagem
+           e agregados { total_paid_centavos, total_reserved_centavos }.
+        9. GET /api/orders/my-sales/{id}: lista vendas com agregados
+           { total_sold_centavos, total_received_centavos, total_pending_delivery_centavos,
+             total_in_escrow_centavos } para o vendedor visualizar quanto já recebeu vs a receber.
+
+        === Frontend (3 telas + 1 componente novo) ===
+        - /app/frontend/src/api.ts: adicionado `ApiError` (propaga detail estruturado p/ INSUFFICIENT_BLX),
+          atualizados buyProductBLX/buyAdBLX/cartCheckoutBLX com novos campos de resposta e
+          aceitando pay_option; adicionados orderDeliver/orderCancel/myPurchases/mySales;
+          tipo MyOrder + OrdersBucket.
+        - /app/frontend/src/components/InsufficientBalanceModal.tsx (NOVO): modal premium
+          dourado mostrando saldo necessário, saldo atual e faltante, com CTA "FALAR COM SUPORTE"
+          que direciona para /chat (thread do membro com o suporte/financeiro).
+        - /app/frontend/app/cart.tsx: seletor de pay_option no modal de confirmação (radio),
+          split visual "A DEBITAR AGORA" vs "TRAVADO · ENTREGA", footer exibe saldo livre +
+          saldo reservado, handleCheckout captura ApiError INSUFFICIENT_BLX e abre o modal
+          de saldo insuficiente (ao invés do Alert genérico).
+        - /app/frontend/app/product/[id].tsx: modal de confirmação com split visual entrada/travado,
+          botão footer mostra "COMPRAR · X BLX AGORA" (só entrada), trata INSUFFICIENT_BLX.
+        - /app/frontend/app/ads/[id].tsx: idem, paleta cyan/diamante.
+
+        === Pronto para testar ===
+        Fluxos que precisam de validação backend (deep_testing_backend_v2):
+        1. Wallet: GET /blx/wallet/{id} traz reserved_centavos e total_centavos corretos.
+        2. Catálogo: POST /products/{id}/buy-blx com pay_option="entry" com saldo suficiente
+           debita só 10% e trava 90% em reserved; com pay_option="full" debita tudo e reserved=0.
+        3. Catálogo: POST /products/{id}/buy-blx com saldo insuficiente → 400 com payload
+           estruturado { error_code: "INSUFFICIENT_BLX", missing_centavos, support_redirect }.
+        4. Ads: mesmos cenários acima, mas entrada vai para escrow_out. Valida tx type=escrow.
+        5. Carrinho: POST /cart/checkout-blx com pay_option variado; total_debited vs
+           reserved somam total_cents; novo saldo confere.
+        6. Order lifecycle:
+           a) deliver libera reserved→balance do comprador (balance_centavos += remaining)
+              e credita vendedor (balance_centavos += remaining), libera escrow da entrada,
+              order.status="delivered_settled";
+           b) cancel devolve tudo ao comprador (reserved_centavos -= remaining, balance_centavos
+              += remaining + entry), restaura estoque, status="cancelled";
+           c) RBAC: deliver só por seller ou admin/staff; cancel por buyer/seller/admin.
+        7. Listagens:
+           a) my-purchases agrega total_paid + total_reserved com tipos int;
+           b) my-sales agrega total_sold/received/pending_delivery/in_escrow com tipos int.
+        8. Idempotência: chamar deliver em pedido já delivered retorna ok + already_settled.
+
+        Test credentials (confirmadas em /app/memory/test_credentials.md):
+        - Admin Master: guilherme925145000@gmail.com / blacks2026
+        - Admin Staff: admin@farmaclube.com / admin123
+        - Demo Member: demo@blacksclub.com / novasenha123

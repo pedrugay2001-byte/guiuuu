@@ -1703,18 +1703,33 @@ async def buy_product_with_blx(product_id: str, data: ProductBLXPurchase):
         raise HTTPException(status_code=400, detail="Carteira BLX não encontrada")
 
     current_cents = int(wallet.get("balance_centavos") or 0)
-    if current_cents < entry_cents:
-        faltante = (entry_cents - current_cents) / 100.0
+    # Valida: precisa ter o TOTAL disponível (entrada + saldo devedor travado)
+    if current_cents < total_cents:
+        faltante = (total_cents - current_cents) / 100.0
         raise HTTPException(
             status_code=400,
-            detail=f"Saldo BLX insuficiente para a entrada. Faltam {faltante:.2f} BLX.",
+            detail={
+                "error_code": "INSUFFICIENT_BLX",
+                "message": (
+                    f"Saldo BLX insuficiente. Você precisa de {total_cents/100:.2f} BLX "
+                    f"(faltam {faltante:.2f} BLX) para reservar o total da compra."
+                ),
+                "missing_centavos": total_cents - current_cents,
+                "required_centavos": total_cents,
+                "current_centavos": current_cents,
+                "support_redirect": True,
+            },
         )
 
-    # Debita APENAS a entrada
+    # Debita a ENTRADA e TRAVA o saldo devedor em reserved_centavos
     amt_float = entry_cents / 100.0
     await db.wallets.update_one(
         {"member_id": data.member_id},
-        {"$inc": {"balance": -amt_float, "balance_centavos": -entry_cents}},
+        {"$inc": {
+            "balance": -amt_float,
+            "balance_centavos": -total_cents,  # sai todo do disponível
+            "reserved_centavos": remaining_cents,  # parte volta para reservado
+        }},
     )
 
     tx_id = f"tx_{uuid.uuid4().hex[:10]}"
@@ -1738,8 +1753,10 @@ async def buy_product_with_blx(product_id: str, data: ProductBLXPurchase):
         "product_name": prod.get("name"), "quantity": data.quantity,
         "unit_cents": unit_cents, "total_cents": total_cents,
         "entry_cents": entry_cents, "remaining_cents": remaining_cents,
+        "reserved_on_buyer_cents": remaining_cents,  # quanto está travado no comprador
         "tier_discount": tier_disc, "pay_option": data.pay_option,
         "status": status, "channel": "catalog_blx",
+        "seller_id": "catalog_admin",
         "tx_id": tx_id, "created_at": now,
     })
 
@@ -1748,7 +1765,7 @@ async def buy_product_with_blx(product_id: str, data: ProductBLXPurchase):
         {"$inc": {"stock": -data.quantity}},
     )
 
-    new_balance_cents = current_cents - entry_cents
+    new_balance_cents = current_cents - total_cents
     return {
         "ok": True,
         "order_id": order_id,
@@ -1756,13 +1773,14 @@ async def buy_product_with_blx(product_id: str, data: ProductBLXPurchase):
         "total_cents": total_cents,
         "entry_cents": entry_cents,
         "remaining_cents": remaining_cents,
+        "reserved_on_buyer_cents": remaining_cents,
         "pay_option": data.pay_option,
         "quantity": data.quantity,
         "new_balance_centavos": new_balance_cents,
         "message": (
             f"Compra realizada! {amt_float:.2f} BLX debitados "
             f"({cfg['entry_pct']}% de entrada)."
-            + (f" Saldo de {remaining_cents/100:.2f} BLX a pagar na entrega."
+            + (f" Saldo de {remaining_cents/100:.2f} BLX travado para pagar na entrega."
                if remaining_cents > 0 else "")
         ),
     }
@@ -2557,8 +2575,10 @@ class AdBLXBuy(BaseModel):
 @api_router.post("/ads/{ad_id}/buy-blx")
 async def buy_ad_with_blx(ad_id: str, data: AdBLXBuy):
     """
-    Compra direta de um anúncio Diamante via BLX (escrow).
-    Debita o valor do comprador e mantém em escrow até confirmação de entrega.
+    Compra direta de um anúncio Diamante via BLX.
+    - Debita APENAS a entrada (entry_pct) do saldo disponível do comprador.
+    - Trava o saldo devedor em `reserved_centavos` do comprador (liberado na entrega).
+    - A entrada entra em escrow_out até o vendedor confirmar a entrega.
     Desconto aplicado conforme forma de pagamento:
       - full  (100% antecipado) → -30%
       - half  (50% entrada)     → -15%
@@ -2570,31 +2590,52 @@ async def buy_ad_with_blx(ad_id: str, data: AdBLXBuy):
     if ad.get("seller_id") == data.member_id:
         raise HTTPException(status_code=400, detail="Você não pode comprar seu próprio anúncio")
 
-    PAY_DISC = {"full": 30, "half": 15, "entry": 0}
-    disc_pct = PAY_DISC.get(data.pay_option, 0)
+    PAY = {
+        "full":  {"entry_pct": 100, "disc_pct": 30},
+        "half":  {"entry_pct": 50,  "disc_pct": 15},
+        "entry": {"entry_pct": 10,  "disc_pct": 0},
+    }
+    cfg = PAY.get(data.pay_option, PAY["full"])
     price_full = float(ad.get("price_full", 0))
     full_cents = int(round(price_full * 100))
-    final_cents = int(round(full_cents * (100 - disc_pct) / 100))
+    total_cents = int(round(full_cents * (100 - cfg["disc_pct"]) / 100))
+    if total_cents <= 0:
+        raise HTTPException(status_code=400, detail="Valor do anúncio inválido")
+
+    entry_cents = int(round(total_cents * cfg["entry_pct"] / 100))
+    remaining_cents = total_cents - entry_cents
 
     wallet = await db.wallets.find_one({"member_id": data.member_id}, {"_id": 0})
     if not wallet:
         raise HTTPException(status_code=400, detail="Carteira BLX não encontrada")
     current_cents = int(wallet.get("balance_centavos") or 0)
-    if current_cents < final_cents:
-        faltante = (final_cents - current_cents) / 100.0
+    if current_cents < total_cents:
+        faltante = (total_cents - current_cents) / 100.0
         raise HTTPException(
             status_code=400,
-            detail=f"Saldo BLX insuficiente. Faltam {faltante:.2f} BLX.",
+            detail={
+                "error_code": "INSUFFICIENT_BLX",
+                "message": (
+                    f"Saldo BLX insuficiente. Você precisa de {total_cents/100:.2f} BLX "
+                    f"(faltam {faltante:.2f} BLX) para reservar o total da compra."
+                ),
+                "missing_centavos": total_cents - current_cents,
+                "required_centavos": total_cents,
+                "current_centavos": current_cents,
+                "support_redirect": True,
+            },
         )
 
     now = datetime.now(timezone.utc)
-    amt_float = final_cents / 100.0
-    # Debita do comprador + marca escrow
+    amt_float = entry_cents / 100.0
+    # Debita ENTRADA em escrow + TRAVA saldo devedor em reserved
     await db.wallets.update_one(
         {"member_id": data.member_id},
         {"$inc": {
-            "balance": -amt_float, "balance_centavos": -final_cents,
-            "escrow_out": amt_float,
+            "balance": -amt_float,
+            "balance_centavos": -total_cents,              # sai todo do disponível
+            "reserved_centavos": remaining_cents,          # trava restante
+            "escrow_out": amt_float,                        # entrada em custódia
         }},
     )
     seller_id = ad.get("seller_id")
@@ -2607,10 +2648,11 @@ async def buy_ad_with_blx(ad_id: str, data: AdBLXBuy):
     tx_id = f"tx_{uuid.uuid4().hex[:10]}"
     await db.wallet_txs.insert_one({
         "tx_id": tx_id, "from_id": data.member_id, "to_id": seller_id,
-        "amount": amt_float, "amount_centavos": final_cents,
+        "amount": amt_float, "amount_centavos": entry_cents,
         "type": "escrow", "status": "pending",
-        "description": f"Compra Diamante: {ad.get('title')}",
-        "ad_id": ad_id, "pay_option": data.pay_option,
+        "description": f"Compra Diamante: {ad.get('title')} · entrada {cfg['entry_pct']}%",
+        "ad_id": ad_id, "ad_title": ad.get("title"),
+        "pay_option": data.pay_option,
         "created_at": now,
     })
     order_id = f"ord_{uuid.uuid4().hex[:10]}"
@@ -2618,16 +2660,28 @@ async def buy_ad_with_blx(ad_id: str, data: AdBLXBuy):
         "order_id": order_id, "member_id": data.member_id, "ad_id": ad_id,
         "seller_id": seller_id,
         "product_name": ad.get("title"), "quantity": 1,
-        "total_cents": final_cents, "status": "in_escrow",
+        "total_cents": total_cents,
+        "entry_cents": entry_cents, "remaining_cents": remaining_cents,
+        "reserved_on_buyer_cents": remaining_cents,
+        "status": "in_escrow" if remaining_cents == 0 else "awaiting_delivery_payment",
         "channel": "ad_direct", "pay_option": data.pay_option,
         "tx_id": tx_id, "created_at": now,
     })
     return {
         "ok": True,
         "order_id": order_id, "tx_id": tx_id,
-        "total_cents": final_cents,
-        "new_balance_centavos": current_cents - final_cents,
-        "message": f"Reserva Diamante confirmada! {amt_float:.2f} BLX em custódia.",
+        "total_cents": total_cents,
+        "entry_cents": entry_cents,
+        "remaining_cents": remaining_cents,
+        "reserved_on_buyer_cents": remaining_cents,
+        "pay_option": data.pay_option,
+        "new_balance_centavos": current_cents - total_cents,
+        "message": (
+            f"Reserva Diamante confirmada! {amt_float:.2f} BLX em custódia "
+            f"(entrada {cfg['entry_pct']}%)."
+            + (f" Saldo de {remaining_cents/100:.2f} BLX travado para pagar na entrega."
+               if remaining_cents > 0 else "")
+        ),
     }
 
 
@@ -2704,6 +2758,7 @@ async def _wallet_get_or_create(member_id: str) -> dict:
             "member_id": member_id,
             "balance": 0.0,          # legado (BLX inteiros)
             "balance_centavos": 0,   # NOVO: fonte de verdade (centavos em int)
+            "reserved_centavos": 0,  # NOVO: saldo travado (saldo devedor de pedidos pendentes)
             "escrow_in": 0.0,
             "escrow_out": 0.0,
             "created_at": datetime.now(timezone.utc),
@@ -2715,6 +2770,10 @@ async def _wallet_get_or_create(member_id: str) -> dict:
         cents = int(round(float(w.get("balance", 0.0)) * 100))
         await db.wallets.update_one({"member_id": member_id}, {"$set": {"balance_centavos": cents}})
         w["balance_centavos"] = cents
+    # Backfill lazy: garante que toda carteira tem reserved_centavos
+    if "reserved_centavos" not in w or w.get("reserved_centavos") is None:
+        await db.wallets.update_one({"member_id": member_id}, {"$set": {"reserved_centavos": 0}})
+        w["reserved_centavos"] = 0
     # Backfill lazy: garante que toda carteira tem um wallet_number
     if not w.get("wallet_number"):
         w["wallet_number"] = await _assign_wallet_number(member_id)
@@ -3134,15 +3193,25 @@ async def cart_list(member_id: str):
 @api_router.post("/cart/checkout-blx")
 async def cart_checkout_blx(data: dict):
     """
-    Checkout unificado do carrinho usando BLX.
-    - Itens do Catálogo (item_type=product): debita BLX direto do wallet e cria order.
-    - Itens de Ads/Diamante (item_type=ad): debita BLX em escrow até entrega.
+    Checkout unificado do carrinho usando BLX com pagamento parcelado.
+    - pay_option define % de entrada debitada agora + desconto sobre o total.
+    - Saldo devedor é TRAVADO em `reserved_centavos` do comprador (liberado na entrega).
+    - Itens do Catálogo (item_type=product): entrada vai p/ admin, resto fica reservado.
+    - Itens de Ads/Diamante (item_type=ad): entrada em escrow, resto fica reservado.
 
-    Body: { member_id: str }
+    Body: { member_id: str, pay_option: "full"|"half"|"entry" }
     """
     member_id = data.get("member_id")
+    pay_option = data.get("pay_option") or "full"
     if not member_id:
         raise HTTPException(status_code=400, detail="member_id obrigatório")
+
+    PAY = {
+        "full":  {"entry_pct": 100, "disc_pct": 30},
+        "half":  {"entry_pct": 50,  "disc_pct": 15},
+        "entry": {"entry_pct": 10,  "disc_pct": 0},
+    }
+    cfg = PAY.get(pay_option, PAY["full"])
 
     # Pega o carrinho atual
     cart_resp = await cart_list(member_id)
@@ -3150,73 +3219,130 @@ async def cart_checkout_blx(data: dict):
     if not cart_items:
         raise HTTPException(status_code=400, detail="Carrinho vazio")
 
-    # Valida saldo
+    # Carregar tier para calcular desconto do catálogo
+    m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "tier": 1})
+    tier = (m or {}).get("tier", "black").lower()
+    TIER_DISCOUNT = {"silver": 0.05, "gold": 0.10, "diamond": 0.15}
+    tier_disc = TIER_DISCOUNT.get(tier, 0.0)
+
+    # Recalcula cada item aplicando tier (catálogo) + pay_option discount
+    per_item_calc: List[Dict[str, Any]] = []
+    total_cents = 0
+    total_entry_cents = 0
+    total_remaining_cents = 0
+    for item in cart_items:
+        qty = int(item.get("qty") or 1)
+        full_cents_per_unit = int(item.get("price_full_centavos") or 0)
+        it_type = item.get("item_type", "ad")
+        if it_type == "product":
+            # Catálogo: tier desc + pay desc
+            unit = int(round(full_cents_per_unit * (1 - tier_disc) * (1 - cfg["disc_pct"] / 100)))
+        else:
+            # Ad: só pay desc
+            unit = int(round(full_cents_per_unit * (100 - cfg["disc_pct"]) / 100))
+        subtotal = unit * qty
+        entry = int(round(subtotal * cfg["entry_pct"] / 100))
+        remaining = subtotal - entry
+        per_item_calc.append({
+            **item,
+            "unit_cents_final": unit,
+            "subtotal_cents_final": subtotal,
+            "entry_cents": entry,
+            "remaining_cents": remaining,
+        })
+        total_cents += subtotal
+        total_entry_cents += entry
+        total_remaining_cents += remaining
+
+    if total_cents <= 0:
+        raise HTTPException(status_code=400, detail="Carrinho inválido")
+
+    # Valida saldo TOTAL (precisa ter o valor todo para travar)
     wallet = await db.wallets.find_one({"member_id": member_id}, {"_id": 0})
     if not wallet:
         raise HTTPException(status_code=400, detail="Carteira BLX não encontrada")
     current_cents = int(wallet.get("balance_centavos") or 0)
-    total_cents = int(cart_resp.get("total_centavos") or 0)
     if current_cents < total_cents:
         faltante = (total_cents - current_cents) / 100.0
         raise HTTPException(
             status_code=400,
-            detail=f"Saldo BLX insuficiente. Faltam {faltante:.2f} BLX.",
+            detail={
+                "error_code": "INSUFFICIENT_BLX",
+                "message": (
+                    f"Saldo BLX insuficiente. Você precisa de {total_cents/100:.2f} BLX "
+                    f"(faltam {faltante:.2f} BLX) para reservar o total da compra."
+                ),
+                "missing_centavos": total_cents - current_cents,
+                "required_centavos": total_cents,
+                "current_centavos": current_cents,
+                "support_redirect": True,
+            },
         )
 
     now = datetime.now(timezone.utc)
     orders_created: List[str] = []
     txs_created: List[str] = []
-    total_debited_cents = 0
 
-    # Processa cada item
-    for item in cart_items:
+    # Debita de uma vez o total do disponível e trava o remaining total
+    await db.wallets.update_one(
+        {"member_id": member_id},
+        {"$inc": {
+            "balance": -(total_entry_cents / 100.0),
+            "balance_centavos": -total_cents,
+            "reserved_centavos": total_remaining_cents,
+        }},
+    )
+
+    # Processa cada item criando tx e order
+    for item in per_item_calc:
         qty = int(item.get("qty") or 1)
-        subtotal = int(item.get("subtotal_centavos") or 0)
+        subtotal = int(item["subtotal_cents_final"])
+        entry_cents = int(item["entry_cents"])
+        remaining_cents = int(item["remaining_cents"])
         it_type = item.get("item_type", "ad")
 
         if it_type == "product":
-            # Catálogo: debita e cria order awaiting_delivery
+            # Catálogo: entrada vai para catalog_admin
             pid = item["ad_id"]
-            amt_float = subtotal / 100.0
-            await db.wallets.update_one(
-                {"member_id": member_id},
-                {"$inc": {"balance": -amt_float, "balance_centavos": -subtotal}},
-            )
+            amt_float = entry_cents / 100.0
             tx_id = f"tx_{uuid.uuid4().hex[:10]}"
             await db.wallet_txs.insert_one({
                 "tx_id": tx_id, "from_id": member_id, "to_id": "catalog_admin",
-                "amount": amt_float, "amount_centavos": subtotal,
+                "amount": amt_float, "amount_centavos": entry_cents,
                 "type": "purchase", "status": "settled",
-                "description": f"Compra catálogo: {item.get('title')} x{qty}",
-                "product_id": pid,
+                "description": (
+                    f"Compra catálogo: {item.get('title')} x{qty} · "
+                    f"entrada {cfg['entry_pct']}%"
+                ),
+                "product_id": pid, "pay_option": pay_option,
                 "created_at": now, "settled_at": now,
             })
             order_id = f"ord_{uuid.uuid4().hex[:10]}"
+            status = "settled" if remaining_cents == 0 else "awaiting_delivery_payment"
             await db.orders.insert_one({
                 "order_id": order_id, "member_id": member_id, "product_id": pid,
+                "seller_id": "catalog_admin",
                 "product_name": item.get("title"), "quantity": qty,
-                "unit_cents": subtotal // max(qty, 1), "total_cents": subtotal,
-                "status": "awaiting_delivery", "channel": "cart_catalog",
+                "unit_cents": int(item["unit_cents_final"]),
+                "total_cents": subtotal,
+                "entry_cents": entry_cents, "remaining_cents": remaining_cents,
+                "reserved_on_buyer_cents": remaining_cents,
+                "tier_discount": tier_disc, "pay_option": pay_option,
+                "status": status, "channel": "cart_catalog",
                 "tx_id": tx_id, "created_at": now,
             })
             await db.products.update_one({"product_id": pid}, {"$inc": {"stock": -qty}})
             orders_created.append(order_id)
             txs_created.append(tx_id)
-            total_debited_cents += subtotal
         else:
-            # Ad: debita em escrow (dinheiro fica retido até confirmação de entrega)
+            # Ad Diamante: entrada em escrow
             ad_id = item["ad_id"]
             seller_id = item.get("seller_id")
-            amt_float = subtotal / 100.0
-            # Debita do wallet do comprador
+            amt_float = entry_cents / 100.0
             await db.wallets.update_one(
                 {"member_id": member_id},
-                {"$inc": {
-                    "balance": -amt_float, "balance_centavos": -subtotal,
-                    "escrow_out": amt_float,
-                }},
+                {"$inc": {"escrow_out": amt_float}},
             )
-            # Opcional: incrementar escrow_in do vendedor (para rastreamento)
             if seller_id:
                 await db.wallets.update_one(
                     {"member_id": seller_id},
@@ -3225,36 +3351,52 @@ async def cart_checkout_blx(data: dict):
             tx_id = f"tx_{uuid.uuid4().hex[:10]}"
             await db.wallet_txs.insert_one({
                 "tx_id": tx_id, "from_id": member_id, "to_id": seller_id,
-                "amount": amt_float, "amount_centavos": subtotal,
+                "amount": amt_float, "amount_centavos": entry_cents,
                 "type": "escrow", "status": "pending",
-                "description": f"Reserva Diamante: {item.get('title')} x{qty}",
-                "ad_id": ad_id,
+                "description": (
+                    f"Reserva Diamante: {item.get('title')} x{qty} · "
+                    f"entrada {cfg['entry_pct']}%"
+                ),
+                "ad_id": ad_id, "ad_title": item.get("title"),
+                "pay_option": pay_option,
                 "created_at": now,
             })
             order_id = f"ord_{uuid.uuid4().hex[:10]}"
+            status = "in_escrow" if remaining_cents == 0 else "awaiting_delivery_payment"
             await db.orders.insert_one({
                 "order_id": order_id, "member_id": member_id, "ad_id": ad_id,
                 "seller_id": seller_id,
                 "product_name": item.get("title"), "quantity": qty,
                 "total_cents": subtotal,
-                "status": "in_escrow", "channel": "cart_diamond",
+                "entry_cents": entry_cents, "remaining_cents": remaining_cents,
+                "reserved_on_buyer_cents": remaining_cents,
+                "status": status, "channel": "cart_diamond",
+                "pay_option": pay_option,
                 "tx_id": tx_id, "created_at": now,
             })
             orders_created.append(order_id)
             txs_created.append(tx_id)
-            total_debited_cents += subtotal
 
     # Esvazia o carrinho
     await db.carts.delete_many({"member_id": member_id})
 
-    new_balance_cents = current_cents - total_debited_cents
+    new_balance_cents = current_cents - total_cents
     return {
         "ok": True,
-        "total_debited_cents": total_debited_cents,
+        "total_cents": total_cents,
+        "entry_cents": total_entry_cents,
+        "remaining_cents": total_remaining_cents,
+        "reserved_on_buyer_cents": total_remaining_cents,
+        "pay_option": pay_option,
         "orders": orders_created,
         "txs": txs_created,
         "new_balance_centavos": new_balance_cents,
-        "message": f"Compra concluída! {total_debited_cents / 100:.2f} BLX debitados · {len(orders_created)} pedidos.",
+        "message": (
+            f"Compra concluída! {total_entry_cents/100:.2f} BLX debitados "
+            f"({cfg['entry_pct']}% de entrada) · {len(orders_created)} pedidos."
+            + (f" Saldo de {total_remaining_cents/100:.2f} BLX travado para a entrega."
+               if total_remaining_cents > 0 else "")
+        ),
     }
 
 
@@ -3262,6 +3404,314 @@ async def cart_checkout_blx(data: dict):
 async def cart_clear(member_id: str):
     await db.carts.delete_many({"member_id": member_id})
     return {"ok": True}
+
+
+# ---------- ORDERS (entrega, cancelamento, listagens) ----------
+
+
+async def _staff_or_admin(member_id: str) -> bool:
+    """True se o member_id for staff/admin (catalog_admin ou staff account)."""
+    if member_id == "catalog_admin":
+        return True
+    u = await db.users.find_one({"member_id": member_id}, {"_id": 0, "role": 1})
+    if u and u.get("role") in ("admin", "staff", "master"):
+        return True
+    m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "is_admin": 1, "role": 1})
+    if m and (m.get("is_admin") or m.get("role") in ("admin", "staff", "master")):
+        return True
+    return False
+
+
+@api_router.post("/orders/{order_id}/deliver")
+async def order_deliver(order_id: str, body: dict):
+    """
+    Marca pedido como ENTREGUE (vendedor ou admin/staff confirma).
+    - Libera `remaining_cents` do `reserved_centavos` do comprador e paga o vendedor.
+    - Para itens Diamante (escrow), libera a entrada do escrow para o vendedor também.
+    Body: { actor_id: str }  # vendedor, catalog_admin ou admin/staff
+    """
+    actor_id = (body or {}).get("actor_id")
+    if not actor_id:
+        raise HTTPException(status_code=400, detail="actor_id obrigatório")
+
+    order = await db.orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+
+    # Status já final
+    if order.get("status") in ("delivered_settled", "cancelled", "refunded", "settled"):
+        return {"ok": True, "already_settled": True, "status": order.get("status")}
+
+    seller_id = order.get("seller_id") or "catalog_admin"
+    is_seller = actor_id == seller_id
+    is_admin = await _staff_or_admin(actor_id)
+    if not is_seller and not is_admin:
+        raise HTTPException(status_code=403, detail="Apenas vendedor ou admin podem marcar como entregue")
+
+    buyer_id = order["member_id"]
+    remaining = int(order.get("remaining_cents") or 0)
+    entry = int(order.get("entry_cents") or order.get("total_cents") or 0)
+    channel = order.get("channel", "")
+    now = datetime.now(timezone.utc)
+
+    # 1) Libera saldo devedor: tira de reserved do comprador, credita no vendedor/catálogo
+    if remaining > 0:
+        await db.wallets.update_one(
+            {"member_id": buyer_id},
+            {"$inc": {"reserved_centavos": -remaining}},
+        )
+        if seller_id and seller_id != "catalog_admin":
+            await db.wallets.update_one(
+                {"member_id": seller_id},
+                {"$inc": {"balance": remaining / 100.0, "balance_centavos": remaining}},
+            )
+        # Registra tx de liquidação do saldo devedor
+        tx_settle = f"tx_{uuid.uuid4().hex[:10]}"
+        await db.wallet_txs.insert_one({
+            "tx_id": tx_settle, "from_id": buyer_id, "to_id": seller_id,
+            "amount": remaining / 100.0, "amount_centavos": remaining,
+            "type": "delivery_settle", "status": "settled",
+            "description": f"Pagamento na entrega: {order.get('product_name','Pedido')} · saldo devedor liberado",
+            "order_id": order_id,
+            "created_at": now, "settled_at": now,
+        })
+
+    # 2) Libera escrow da entrada (só para ad_direct/cart_diamond)
+    if channel in ("ad_direct", "cart_diamond") and entry > 0:
+        tx_id = order.get("tx_id")
+        tx = await db.wallet_txs.find_one({"tx_id": tx_id}) if tx_id else None
+        if tx and tx.get("status") == "pending":
+            amt_f = entry / 100.0
+            await db.wallets.update_one(
+                {"member_id": buyer_id},
+                {"$inc": {"escrow_out": -amt_f}},
+            )
+            await db.wallets.update_one(
+                {"member_id": seller_id},
+                {"$inc": {"escrow_in": -amt_f, "balance": amt_f, "balance_centavos": entry}},
+            )
+            await db.wallet_txs.update_one(
+                {"tx_id": tx_id},
+                {"$set": {"status": "settled", "settled_at": now}},
+            )
+
+    await db.orders.update_one(
+        {"order_id": order_id},
+        {"$set": {
+            "status": "delivered_settled",
+            "delivered_at": now,
+            "delivered_by": actor_id,
+        }},
+    )
+    return {"ok": True, "order_id": order_id, "status": "delivered_settled"}
+
+
+@api_router.post("/orders/{order_id}/cancel")
+async def order_cancel(order_id: str, body: dict):
+    """
+    Cancela pedido e devolve o saldo ao comprador.
+    - Libera reserved_centavos do comprador para balance_centavos.
+    - Reverte escrow (para ads) ou devolve entrada do catálogo.
+    Body: { actor_id: str, reason?: str }  # comprador, vendedor ou admin
+    """
+    actor_id = (body or {}).get("actor_id")
+    reason = (body or {}).get("reason") or "Cancelado"
+    if not actor_id:
+        raise HTTPException(status_code=400, detail="actor_id obrigatório")
+
+    order = await db.orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    if order.get("status") in ("delivered_settled", "cancelled", "refunded"):
+        return {"ok": True, "already_final": True, "status": order.get("status")}
+
+    buyer_id = order["member_id"]
+    seller_id = order.get("seller_id") or "catalog_admin"
+    is_buyer = actor_id == buyer_id
+    is_seller = actor_id == seller_id
+    is_admin = await _staff_or_admin(actor_id)
+    if not (is_buyer or is_seller or is_admin):
+        raise HTTPException(status_code=403, detail="Sem permissão para cancelar")
+
+    remaining = int(order.get("remaining_cents") or 0)
+    entry = int(order.get("entry_cents") or order.get("total_cents") or 0)
+    channel = order.get("channel", "")
+    now = datetime.now(timezone.utc)
+
+    # 1) Devolve reserved → balance do comprador
+    if remaining > 0:
+        await db.wallets.update_one(
+            {"member_id": buyer_id},
+            {"$inc": {
+                "reserved_centavos": -remaining,
+                "balance": remaining / 100.0,
+                "balance_centavos": remaining,
+            }},
+        )
+
+    # 2) Devolve entrada ao comprador
+    if entry > 0:
+        if channel in ("ad_direct", "cart_diamond"):
+            tx_id = order.get("tx_id")
+            tx = await db.wallet_txs.find_one({"tx_id": tx_id}) if tx_id else None
+            if tx and tx.get("status") == "pending":
+                amt_f = entry / 100.0
+                await db.wallets.update_one(
+                    {"member_id": buyer_id},
+                    {"$inc": {
+                        "escrow_out": -amt_f,
+                        "balance": amt_f,
+                        "balance_centavos": entry,
+                    }},
+                )
+                await db.wallets.update_one(
+                    {"member_id": seller_id},
+                    {"$inc": {"escrow_in": -amt_f}},
+                )
+                await db.wallet_txs.update_one(
+                    {"tx_id": tx_id},
+                    {"$set": {"status": "refunded", "settled_at": now}},
+                )
+        else:
+            # Catálogo: devolve direto ao comprador
+            await db.wallets.update_one(
+                {"member_id": buyer_id},
+                {"$inc": {
+                    "balance": entry / 100.0,
+                    "balance_centavos": entry,
+                }},
+            )
+        # Registra tx de refund
+        tx_refund = f"tx_{uuid.uuid4().hex[:10]}"
+        await db.wallet_txs.insert_one({
+            "tx_id": tx_refund, "from_id": seller_id, "to_id": buyer_id,
+            "amount": entry / 100.0, "amount_centavos": entry,
+            "type": "refund", "status": "settled",
+            "description": f"Cancelamento: {order.get('product_name','Pedido')} · {reason}",
+            "order_id": order_id,
+            "created_at": now, "settled_at": now,
+        })
+
+    # 3) Devolve estoque (catálogo)
+    if order.get("product_id"):
+        await db.products.update_one(
+            {"product_id": order["product_id"]},
+            {"$inc": {"stock": int(order.get("quantity") or 1)}},
+        )
+
+    await db.orders.update_one(
+        {"order_id": order_id},
+        {"$set": {
+            "status": "cancelled",
+            "cancelled_at": now,
+            "cancelled_by": actor_id,
+            "cancel_reason": reason,
+        }},
+    )
+    return {"ok": True, "order_id": order_id, "status": "cancelled"}
+
+
+async def _enrich_order(o: Dict[str, Any]) -> Dict[str, Any]:
+    """Normaliza/enriquece um documento de order para o frontend."""
+    o.pop("_id", None)
+    # Imagem
+    image = None
+    if o.get("ad_id"):
+        ad = await db.ads.find_one({"ad_id": o["ad_id"]}, {"_id": 0, "images": 1})
+        if ad and ad.get("images"):
+            image = ad["images"][0]
+    if not image and o.get("product_id"):
+        p = await db.products.find_one({"product_id": o["product_id"]}, {"_id": 0, "image_base64": 1, "image": 1})
+        if p:
+            image = p.get("image_base64") or p.get("image")
+    o["image"] = image
+    # Info de contraparte
+    seller_id = o.get("seller_id")
+    buyer_id = o.get("member_id")
+    if seller_id and seller_id != "catalog_admin":
+        s = await db.members.find_one(
+            {"member_id": seller_id},
+            {"_id": 0, "name": 1, "nickname": 1, "tier": 1, "avatar_base64": 1},
+        )
+        if s:
+            o["seller_name"] = s.get("nickname") or s.get("name")
+            o["seller_tier"] = s.get("tier")
+            o["seller_avatar"] = s.get("avatar_base64")
+    else:
+        o["seller_name"] = "BLACKS CLUB · Catálogo"
+        o["seller_tier"] = "official"
+    if buyer_id:
+        b = await db.members.find_one(
+            {"member_id": buyer_id},
+            {"_id": 0, "name": 1, "nickname": 1, "tier": 1, "avatar_base64": 1},
+        )
+        if b:
+            o["buyer_name"] = b.get("nickname") or b.get("name")
+            o["buyer_tier"] = b.get("tier")
+            o["buyer_avatar"] = b.get("avatar_base64")
+    return o
+
+
+@api_router.get("/orders/my-purchases/{member_id}")
+async def orders_my_purchases(member_id: str, status: Optional[str] = None, limit: int = 100):
+    """Lista compras do membro. Filtros opcionais por status."""
+    q: Dict[str, Any] = {"member_id": member_id}
+    if status:
+        q["status"] = status
+    cur = db.orders.find(q, {"_id": 0}).sort("created_at", -1).limit(int(limit))
+    out: List[Dict[str, Any]] = []
+    async for o in cur:
+        out.append(await _enrich_order(o))
+    # Agregados
+    total_paid = sum(int(o.get("entry_cents") or 0) for o in out if o.get("status") not in ("cancelled", "refunded"))
+    total_reserved = sum(int(o.get("reserved_on_buyer_cents") or o.get("remaining_cents") or 0)
+                         for o in out if o.get("status") == "awaiting_delivery_payment")
+    return {
+        "orders": out,
+        "count": len(out),
+        "total_paid_centavos": total_paid,
+        "total_reserved_centavos": total_reserved,
+    }
+
+
+@api_router.get("/orders/my-sales/{member_id}")
+async def orders_my_sales(member_id: str, status: Optional[str] = None, limit: int = 100):
+    """Lista vendas do vendedor com total recebido vs pendente."""
+    q: Dict[str, Any] = {"seller_id": member_id}
+    if status:
+        q["status"] = status
+    cur = db.orders.find(q, {"_id": 0}).sort("created_at", -1).limit(int(limit))
+    out: List[Dict[str, Any]] = []
+    async for o in cur:
+        out.append(await _enrich_order(o))
+    # Agregados
+    total_received = 0
+    total_pending_delivery = 0  # a receber quando liberar saldo devedor
+    total_in_escrow = 0         # entrada em custódia
+    total_sold = 0
+    for o in out:
+        st = o.get("status")
+        total_cents = int(o.get("total_cents") or 0)
+        entry_cents = int(o.get("entry_cents") or total_cents)
+        remaining = int(o.get("remaining_cents") or 0)
+        if st == "delivered_settled":
+            total_received += total_cents
+            total_sold += total_cents
+        elif st == "awaiting_delivery_payment":
+            total_pending_delivery += remaining
+            total_in_escrow += entry_cents
+            total_sold += total_cents
+        elif st == "in_escrow":
+            total_in_escrow += entry_cents
+            total_sold += total_cents
+    return {
+        "orders": out,
+        "count": len(out),
+        "total_sold_centavos": total_sold,
+        "total_received_centavos": total_received,
+        "total_pending_delivery_centavos": total_pending_delivery,
+        "total_in_escrow_centavos": total_in_escrow,
+    }
 
 
 # ---------- BLEX TOKEN (BLX) — P2P Transfer, Lookup, Extrato ----------
@@ -3280,12 +3730,18 @@ class BlxTransferRequest(BaseModel):
 async def blx_get_wallet(member_id: str):
     """Retorna a carteira do membro garantindo wallet_number e balance_centavos."""
     w = await _wallet_get_or_create(member_id)
+    bal = int(w.get("balance_centavos") or 0)
+    res = int(w.get("reserved_centavos") or 0)
     # Normalizar resposta
     return {
         "member_id": w["member_id"],
         "wallet_number": w.get("wallet_number"),
-        "balance_centavos": int(w.get("balance_centavos") or 0),
-        "balance_blx": round(int(w.get("balance_centavos") or 0) / 100.0, 2),
+        "balance_centavos": bal,
+        "balance_blx": round(bal / 100.0, 2),
+        "reserved_centavos": res,
+        "reserved_blx": round(res / 100.0, 2),
+        "total_centavos": bal + res,
+        "total_blx": round((bal + res) / 100.0, 2),
         "escrow_in_centavos": int(round(float(w.get("escrow_in", 0.0)) * 100)),
         "escrow_out_centavos": int(round(float(w.get("escrow_out", 0.0)) * 100)),
         "currency": "BLX",

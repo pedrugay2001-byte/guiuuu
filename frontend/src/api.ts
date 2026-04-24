@@ -28,6 +28,19 @@ export async function setToken(token: string | null) {
   else await AsyncStorage.removeItem(TOKEN_KEY);
 }
 
+export class ApiError extends Error {
+  status: number;
+  data: any;
+  error_code?: string;
+  constructor(message: string, status: number, data: any) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.data = data;
+    if (data && typeof data === "object") this.error_code = data.error_code;
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await getToken();
   const headers: Record<string, string> = {
@@ -37,14 +50,23 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(`${BASE_URL}/api${path}`, { ...options, headers });
   if (!res.ok) {
-    let detail = "Erro na requisição";
+    let detail: any = "Erro na requisição";
+    let raw: any = null;
     try {
       const data = await res.json();
+      raw = data;
       if (typeof data.detail === "string") detail = data.detail;
       else if (Array.isArray(data.detail))
         detail = data.detail.map((e: any) => e.msg || JSON.stringify(e)).join(" ");
+      else if (data.detail && typeof data.detail === "object")
+        detail = data.detail; // objeto estruturado (ex: INSUFFICIENT_BLX)
     } catch {}
-    throw new Error(detail);
+    const msg = typeof detail === "string" ? detail : (detail?.message || "Erro na requisição");
+    throw new ApiError(
+      msg,
+      res.status,
+      typeof detail === "object" ? detail : raw,
+    );
   }
   return res.json();
 }
@@ -148,12 +170,16 @@ export const api = {
     request<Product>(`/products/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteProduct: (id: string) =>
     request<{ ok: boolean }>(`/products/${id}`, { method: "DELETE" }),
-  buyProductBLX: (product_id: string, body: { member_id: string; quantity: number }) =>
+  buyProductBLX: (product_id: string, body: { member_id: string; quantity: number; pay_option?: "full" | "half" | "entry" }) =>
     request<{
       ok: boolean;
       order_id: string;
       tx_id: string;
       total_cents: number;
+      entry_cents: number;
+      remaining_cents: number;
+      reserved_on_buyer_cents: number;
+      pay_option: "full" | "half" | "entry";
       quantity: number;
       new_balance_centavos: number;
       message: string;
@@ -164,6 +190,10 @@ export const api = {
       order_id: string;
       tx_id: string;
       total_cents: number;
+      entry_cents: number;
+      remaining_cents: number;
+      reserved_on_buyer_cents: number;
+      pay_option: "full" | "half" | "entry";
       new_balance_centavos: number;
       message: string;
     }>(`/ads/${ad_id}/buy-blx`, { method: "POST", body: JSON.stringify(body) }),
@@ -349,15 +379,35 @@ export const api = {
     request<CartResponse>(`/cart/${member_id}`),
   cartClear: (member_id: string) =>
     request<{ ok: boolean }>(`/cart/${member_id}`, { method: "DELETE" }),
-  cartCheckoutBLX: (member_id: string) =>
+  cartCheckoutBLX: (member_id: string, pay_option: "full" | "half" | "entry" = "full") =>
     request<{
       ok: boolean;
-      total_debited_cents: number;
+      total_cents: number;
+      entry_cents: number;
+      remaining_cents: number;
+      reserved_on_buyer_cents: number;
+      pay_option: "full" | "half" | "entry";
       orders: string[];
       txs: string[];
       new_balance_centavos: number;
       message: string;
-    }>("/cart/checkout-blx", { method: "POST", body: JSON.stringify({ member_id }) }),
+    }>("/cart/checkout-blx", { method: "POST", body: JSON.stringify({ member_id, pay_option }) }),
+
+  // ----- Orders (partial payment + escrow) -----
+  orderDeliver: (order_id: string, actor_id: string) =>
+    request<{ ok: boolean; order_id: string; status: string }>(`/orders/${order_id}/deliver`, {
+      method: "POST",
+      body: JSON.stringify({ actor_id }),
+    }),
+  orderCancel: (order_id: string, actor_id: string, reason?: string) =>
+    request<{ ok: boolean; order_id: string; status: string }>(`/orders/${order_id}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ actor_id, reason }),
+    }),
+  myPurchases: (member_id: string, status?: string) =>
+    request<OrdersBucket>(`/orders/my-purchases/${member_id}${status ? `?status=${status}` : ""}`),
+  mySales: (member_id: string, status?: string) =>
+    request<OrdersBucket>(`/orders/my-sales/${member_id}${status ? `?status=${status}` : ""}`),
 
   // ----- Stories -----
   listStories: () => request<StoryGroup[]>("/stories"),
@@ -442,9 +492,59 @@ export type BlxWallet = {
   wallet_number: string;
   balance_centavos: number;
   balance_blx: number;
+  reserved_centavos?: number;
+  reserved_blx?: number;
+  total_centavos?: number;
+  total_blx?: number;
   escrow_in_centavos: number;
   escrow_out_centavos: number;
   currency: "BLX";
+};
+
+export type MyOrder = {
+  order_id: string;
+  member_id: string;
+  seller_id?: string;
+  seller_name?: string;
+  seller_tier?: string;
+  seller_avatar?: string | null;
+  buyer_name?: string;
+  buyer_tier?: string;
+  buyer_avatar?: string | null;
+  product_id?: string;
+  ad_id?: string;
+  product_name?: string;
+  image?: string | null;
+  quantity: number;
+  total_cents: number;
+  entry_cents?: number;
+  remaining_cents?: number;
+  reserved_on_buyer_cents?: number;
+  pay_option?: "full" | "half" | "entry";
+  channel?: string;
+  status:
+    | "settled"
+    | "awaiting_delivery_payment"
+    | "awaiting_delivery"
+    | "in_escrow"
+    | "delivered_settled"
+    | "cancelled"
+    | "refunded";
+  tx_id?: string;
+  created_at: string;
+  delivered_at?: string;
+  cancelled_at?: string;
+};
+
+export type OrdersBucket = {
+  orders: MyOrder[];
+  count: number;
+  total_paid_centavos?: number;
+  total_reserved_centavos?: number;
+  total_sold_centavos?: number;
+  total_received_centavos?: number;
+  total_pending_delivery_centavos?: number;
+  total_in_escrow_centavos?: number;
 };
 export type BlxContact = {
   member_id: string;

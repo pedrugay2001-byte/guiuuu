@@ -7,11 +7,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { api, Product } from "../../src/api";
+import { api, Product, ApiError } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { formatBLX } from "../../src/blx";
 import { notify } from "../../src/alerts";
 import { theme, TIERS } from "../../src/theme";
+import InsufficientBalanceModal from "../../src/components/InsufficientBalanceModal";
 
 // Paleta CATÁLOGO — DOURADO
 const GOLD_LIGHT = "#F4D47A";
@@ -43,6 +44,7 @@ export default function ProductDetails() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [buying, setBuying] = useState(false);
   const [addingCart, setAddingCart] = useState(false);
+  const [insuf, setInsuf] = useState<{ required: number; current: number; missing: number } | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -73,14 +75,32 @@ export default function ProductDetails() {
     if (!member) return;
     setBuying(true);
     try {
-      const r = await api.buyProductBLX(product.product_id, { member_id: member.member_id, quantity: 1 });
+      const r = await api.buyProductBLX(product.product_id, {
+        member_id: member.member_id,
+        quantity: 1,
+        pay_option: pay,
+      });
       setShowConfirm(false);
-      notify("Compra confirmada", r.message || "BLX debitados com sucesso.");
+      notify(
+        "Compra confirmada",
+        (r.message || "BLX debitados com sucesso.") +
+          (r.remaining_cents > 0
+            ? ` Saldo de ${(r.remaining_cents / 100).toFixed(2)} BLX travado na sua carteira — liberado automaticamente na entrega.`
+            : ""),
+      );
       refreshMember();
       setTimeout(() => router.back(), 1200);
     } catch (e: any) {
       setShowConfirm(false);
-      notify("Compra não realizada", e?.message || "Tente novamente.");
+      if (e instanceof ApiError && e.error_code === "INSUFFICIENT_BLX") {
+        setInsuf({
+          required: e.data.required_centavos || 0,
+          current: e.data.current_centavos || 0,
+          missing: e.data.missing_centavos || 0,
+        });
+      } else {
+        notify("Compra não realizada", e?.message || "Tente novamente.");
+      }
     } finally {
       setBuying(false);
     }
@@ -272,7 +292,7 @@ export default function ProductDetails() {
                 style={s.buyBtnInner}
               >
                 <MaterialCommunityIcons name="diamond-stone" size={16} color="#0A0A0A" />
-                <Text style={s.buyBtnTxt}>COMPRAR · {formatBLX(finalCents)} BLX</Text>
+                <Text style={s.buyBtnTxt}>COMPRAR · {formatBLX(entryCents)} BLX AGORA</Text>
               </LinearGradient>
             </TouchableOpacity>
           </>
@@ -308,11 +328,30 @@ export default function ProductDetails() {
               </View>
             )}
             <View style={[s.modalRow, { borderTopWidth: 1, borderTopColor: "#1F1F1F", paddingTop: 12, marginTop: 6 }]}>
-              <Text style={[s.modalLbl, { color: GOLD }]}>TOTAL A DEBITAR</Text>
-              <Text style={[s.modalVal, { color: GOLD, fontSize: 18 }]}>{formatBLX(finalCents)} BLX</Text>
+              <Text style={[s.modalLbl, { color: GOLD }]}>TOTAL</Text>
+              <Text style={[s.modalVal, { color: GOLD, fontSize: 17 }]}>{formatBLX(finalCents)} BLX</Text>
             </View>
 
-            <Text style={s.modalNote}>O valor será debitado imediatamente do seu saldo BLX.</Text>
+            {/* Destaque: debitado agora vs travado */}
+            <View style={s.splitBox}>
+              <View style={s.splitCol}>
+                <Text style={s.splitLbl}>A DEBITAR AGORA</Text>
+                <Text style={s.splitVal}>{formatBLX(entryCents)}</Text>
+                <Text style={s.splitUnit}>BLX · {entryPct}%</Text>
+              </View>
+              <View style={[s.splitCol, { borderLeftWidth: 1, borderLeftColor: "#1F1F1F" }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <Ionicons name="lock-closed" size={9} color="#F5C150" />
+                  <Text style={s.splitLbl}>TRAVADO · ENTREGA</Text>
+                </View>
+                <Text style={[s.splitVal, { color: "#F5C150" }]}>{formatBLX(remainingCents)}</Text>
+                <Text style={s.splitUnit}>BLX · {100 - entryPct}%</Text>
+              </View>
+            </View>
+
+            <Text style={s.modalNote}>
+              O saldo devedor fica TRAVADO na sua carteira e é liberado automaticamente ao confirmar a entrega.
+            </Text>
 
             <View style={s.modalActions}>
               <TouchableOpacity style={s.modalCancel} onPress={() => setShowConfirm(false)} disabled={buying}>
@@ -331,6 +370,16 @@ export default function ProductDetails() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de saldo insuficiente */}
+      <InsufficientBalanceModal
+        visible={!!insuf}
+        onClose={() => setInsuf(null)}
+        requiredCents={insuf?.required || 0}
+        currentCents={insuf?.current || 0}
+        missingCents={insuf?.missing || 0}
+        contextLabel={`Compra · ${product.name}`}
+      />
     </View>
   );
 }
@@ -482,6 +531,17 @@ const s = StyleSheet.create({
   modalVal: { color: "#FFF", fontSize: 13, fontWeight: "800" },
   modalNote: { color: "#666", fontSize: 11, marginTop: 14, textAlign: "center", fontStyle: "italic" },
   modalActions: { flexDirection: "row", gap: 10, marginTop: 18 },
+
+  // Split entrada / travado
+  splitBox: {
+    flexDirection: "row", marginTop: 14,
+    backgroundColor: "#070707", borderRadius: 10,
+    borderWidth: 1, borderColor: "#1A1A1A",
+  },
+  splitCol: { flex: 1, padding: 12, alignItems: "center" },
+  splitLbl: { color: "#888", fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
+  splitVal: { color: "#FFF", fontSize: 18, fontWeight: "900", marginTop: 4 },
+  splitUnit: { color: "#666", fontSize: 9, fontWeight: "800", letterSpacing: 1, marginTop: 2 },
   modalCancel: {
     flex: 1, paddingVertical: 13, borderRadius: 10,
     borderWidth: 1, borderColor: "#2A2A2A",

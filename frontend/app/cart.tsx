@@ -7,14 +7,22 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { api, CartResponse, CartGroup, BlxWallet } from "../src/api";
+import { api, CartResponse, BlxWallet, ApiError } from "../src/api";
 import { useGate } from "../src/gate";
 import { formatBLX } from "../src/blx";
 import { TIERS } from "../src/theme";
+import InsufficientBalanceModal from "../src/components/InsufficientBalanceModal";
 
 const GOLD_LIGHT = "#F4D47A";
 const GOLD = "#D4AF37";
 const GOLD_DARK = "#8C6F1E";
+
+type PayOption = "full" | "half" | "entry";
+const PAY_META: Record<PayOption, { label: string; entry_pct: number; disc_pct: number }> = {
+  full:  { label: "100% ANTECIPADO",      entry_pct: 100, disc_pct: 30 },
+  half:  { label: "50% ENTRADA",          entry_pct: 50,  disc_pct: 15 },
+  entry: { label: "10% ENTRADA · SINAL",  entry_pct: 10,  disc_pct: 0 },
+};
 
 /**
  * Carrinho unificado — suporta itens do Catálogo (pagamento direto) e do Círculo Diamante (escrow).
@@ -30,6 +38,8 @@ export default function Cart() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [buying, setBuying] = useState(false);
+  const [payOption, setPayOption] = useState<PayOption>("full");
+  const [insuf, setInsuf] = useState<{ required: number; current: number; missing: number } | null>(null);
 
   const load = useCallback(async () => {
     if (!member) return;
@@ -67,18 +77,29 @@ export default function Cart() {
     if (!member) return;
     setBuying(true);
     try {
-      const r = await api.cartCheckoutBLX(member.member_id);
+      const r = await api.cartCheckoutBLX(member.member_id, payOption);
       setShowConfirm(false);
       Alert.alert(
         "Compra concluída!",
-        `${r.orders.length} pedido(s) processado(s). ${(r.total_debited_cents / 100).toFixed(2)} BLX debitados.`,
-        [{ text: "Ver extrato", onPress: () => router.push("/blx/history" as any) }, { text: "OK" }],
+        `${r.orders.length} pedido(s) processado(s). ${(r.entry_cents / 100).toFixed(2)} BLX debitados.` +
+          (r.remaining_cents > 0
+            ? `\n\nSaldo de ${(r.remaining_cents / 100).toFixed(2)} BLX foi TRAVADO na sua carteira e será liberado automaticamente ao confirmar a entrega.`
+            : ""),
+        [{ text: "Ver meus pedidos", onPress: () => router.push("/blx/orders" as any) }, { text: "OK" }],
       );
       await refreshMember();
       await load();
     } catch (e: any) {
       setShowConfirm(false);
-      Alert.alert("Não foi possível concluir", e?.message || "Tente novamente.");
+      if (e instanceof ApiError && e.error_code === "INSUFFICIENT_BLX") {
+        setInsuf({
+          required: e.data.required_centavos || 0,
+          current: e.data.current_centavos || 0,
+          missing: e.data.missing_centavos || 0,
+        });
+      } else {
+        Alert.alert("Não foi possível concluir", e?.message || "Tente novamente.");
+      }
     } finally {
       setBuying(false);
     }
@@ -89,10 +110,16 @@ export default function Cart() {
   }
 
   const hasItems = !!cart && cart.items.length > 0;
-  const totalCents = cart?.total_centavos || 0;
+  const totalGrossCents = cart?.total_centavos || 0;
   const balanceCents = wallet?.balance_centavos || 0;
-  const canAfford = balanceCents >= totalCents;
-  const missingCents = canAfford ? 0 : totalCents - balanceCents;
+  const reservedCents = wallet?.reserved_centavos || 0;
+  // Estimativa do total final (depois do desconto do pay_option, sem tier)
+  const payMeta = PAY_META[payOption];
+  const estFinalCents = Math.round(totalGrossCents * (100 - payMeta.disc_pct) / 100);
+  const estEntryCents = Math.round(estFinalCents * payMeta.entry_pct / 100);
+  const estRemainingCents = estFinalCents - estEntryCents;
+  const canAfford = balanceCents >= estFinalCents;
+  const missingCents = canAfford ? 0 : estFinalCents - balanceCents;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#050505" }}>
@@ -211,9 +238,11 @@ export default function Cart() {
 
           {hasItems && cart && (
             <View style={styles.infoBox}>
-              <Ionicons name="information-circle" size={15} color={GOLD} />
+              <Ionicons name="lock-closed" size={15} color={GOLD} />
               <Text style={styles.infoTxt}>
-                Catálogo é debitado direto. Círculo Diamante fica em custódia (escrow) até confirmação de entrega.
+                Apenas a <Text style={{ color: GOLD, fontWeight: "900" }}>entrada</Text> é debitada
+                agora. O saldo devedor fica <Text style={{ color: GOLD, fontWeight: "900" }}>TRAVADO</Text>{" "}
+                na sua carteira e é liberado automaticamente na entrega.
               </Text>
             </View>
           )}
@@ -224,27 +253,32 @@ export default function Cart() {
           <SafeAreaView style={styles.footer} edges={["bottom"]}>
             <View style={styles.totalRow}>
               <View>
-                <Text style={styles.totalLbl}>TOTAL</Text>
+                <Text style={styles.totalLbl}>TOTAL ({payMeta.disc_pct}% desc.)</Text>
                 <Text style={[styles.totalVal, { color: canAfford ? GOLD_LIGHT : "#FF6B6B" }]}>
-                  {formatBLX(totalCents)} BLX
+                  {formatBLX(estFinalCents)} BLX
                 </Text>
               </View>
               <View style={{ alignItems: "flex-end" }}>
-                <Text style={styles.balanceLbl}>SEU SALDO</Text>
+                <Text style={styles.balanceLbl}>SALDO LIVRE</Text>
                 <Text style={[styles.balanceVal, { color: canAfford ? "#4EE07F" : "#FF6B6B" }]}>
                   {formatBLX(balanceCents)} BLX
                 </Text>
+                {reservedCents > 0 && (
+                  <Text style={styles.reservedVal}>
+                    <Ionicons name="lock-closed" size={9} color="#F5C150" />{" "}
+                    {formatBLX(reservedCents)} BLX reservado
+                  </Text>
+                )}
               </View>
             </View>
             {!canAfford && (
               <Text style={styles.insufficientTxt}>
-                Faltam {formatBLX(missingCents)} BLX. Adicione saldo ou remova itens.
+                Faltam {formatBLX(missingCents)} BLX. Fale com o suporte para recarregar.
               </Text>
             )}
             <TouchableOpacity
               style={styles.checkoutBtn}
               onPress={() => setShowConfirm(true)}
-              disabled={!canAfford}
               testID="cart-checkout"
               activeOpacity={0.88}
             >
@@ -255,7 +289,9 @@ export default function Cart() {
               >
                 <MaterialCommunityIcons name="diamond-stone" size={16} color={canAfford ? "#0A0A0A" : "#666"} />
                 <Text style={[styles.checkoutTxt, !canAfford && { color: "#666" }]}>
-                  COMPRAR TUDO · {formatBLX(totalCents)} BLX
+                  {canAfford
+                    ? `COMPRAR TUDO · ${formatBLX(estEntryCents)} BLX AGORA`
+                    : "SALDO INSUFICIENTE"}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -263,51 +299,123 @@ export default function Cart() {
         )}
       </SafeAreaView>
 
-      {/* Modal de confirmação */}
+      {/* Modal de confirmação com seletor de forma de pagamento */}
       <Modal visible={showConfirm} transparent animationType="fade" onRequestClose={() => setShowConfirm(false)}>
         <View style={modalS.bg}>
-          <View style={modalS.card}>
-            <LinearGradient
-              colors={[GOLD_LIGHT, GOLD, GOLD_DARK]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={{ height: 2, marginHorizontal: -22, marginBottom: 18 }}
-            />
-            <Text style={modalS.kicker}>CONFIRMAR COMPRA</Text>
-            <Text style={modalS.title}>Você vai debitar {formatBLX(totalCents)} BLX do seu saldo.</Text>
+          <ScrollView style={{ width: "100%", maxWidth: 400 }} contentContainerStyle={{ alignItems: "center", paddingVertical: 20 }}>
+            <View style={modalS.card}>
+              <LinearGradient
+                colors={[GOLD_LIGHT, GOLD, GOLD_DARK]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={{ height: 3, marginHorizontal: -22, marginBottom: 18 }}
+              />
+              <Text style={modalS.kicker}>FINALIZAR COMPRA</Text>
+              <Text style={modalS.title}>Escolha a forma de pagamento</Text>
 
-            <View style={modalS.row}>
-              <Text style={modalS.lbl}>Itens</Text>
-              <Text style={modalS.val}>{cart?.count || 0}</Text>
-            </View>
-            <View style={modalS.row}>
-              <Text style={modalS.lbl}>Pedidos</Text>
-              <Text style={modalS.val}>{cart?.groups.length || 0} {cart?.groups.length === 1 ? "vendedor" : "vendedores"}</Text>
-            </View>
-            <View style={[modalS.row, { borderTopWidth: 1, borderTopColor: "#1F1F1F", paddingTop: 12, marginTop: 6 }]}>
-              <Text style={[modalS.lbl, { color: GOLD }]}>TOTAL</Text>
-              <Text style={[modalS.val, { color: GOLD_LIGHT, fontSize: 18 }]}>{formatBLX(totalCents)} BLX</Text>
-            </View>
-            <Text style={modalS.note}>
-              Itens do Catálogo: debitado imediatamente. Itens Diamante: ficam em escrow até entrega.
-            </Text>
+              {/* Pay options */}
+              <View style={{ gap: 8, marginBottom: 14 }}>
+                {(Object.keys(PAY_META) as PayOption[]).map((opt) => {
+                  const meta = PAY_META[opt];
+                  const selected = payOption === opt;
+                  return (
+                    <TouchableOpacity
+                      key={opt}
+                      onPress={() => setPayOption(opt)}
+                      style={[modalS.payOpt, selected && modalS.payOptSel]}
+                      testID={`pay-opt-${opt}`}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[modalS.payOptLbl, selected && { color: GOLD_LIGHT }]}>
+                          {meta.label}
+                        </Text>
+                        <Text style={modalS.payOptSub}>
+                          {meta.disc_pct > 0
+                            ? `Desconto de ${meta.disc_pct}% sobre o total`
+                            : "Sem desconto · reserva do restante"}
+                        </Text>
+                      </View>
+                      <View style={[modalS.radio, selected && modalS.radioSel]}>
+                        {selected && <View style={modalS.radioInner} />}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
 
-            <View style={modalS.actions}>
-              <TouchableOpacity style={modalS.cancel} onPress={() => setShowConfirm(false)} disabled={buying}>
-                <Text style={modalS.cancelTxt}>CANCELAR</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={modalS.confirm} onPress={handleCheckout} disabled={buying} testID="cart-confirm-checkout">
-                <LinearGradient
-                  colors={buying ? ["#555", "#333"] : [GOLD_LIGHT, GOLD, GOLD_DARK]}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                  style={modalS.confirmInner}
-                >
-                  {buying ? <ActivityIndicator color="#000" size="small" /> : <Text style={modalS.confirmTxt}>CONFIRMAR COMPRA</Text>}
-                </LinearGradient>
-              </TouchableOpacity>
+              {/* Summary */}
+              <View style={modalS.summary}>
+                <View style={modalS.row}>
+                  <Text style={modalS.lbl}>Subtotal ({cart?.count || 0} {cart?.count === 1 ? "item" : "itens"})</Text>
+                  <Text style={modalS.val}>{formatBLX(totalGrossCents)} BLX</Text>
+                </View>
+                {payMeta.disc_pct > 0 && (
+                  <View style={modalS.row}>
+                    <Text style={[modalS.lbl, { color: "#4EE07F" }]}>Desconto ({payMeta.disc_pct}%)</Text>
+                    <Text style={[modalS.val, { color: "#4EE07F" }]}>
+                      -{formatBLX(totalGrossCents - estFinalCents)} BLX
+                    </Text>
+                  </View>
+                )}
+                <View style={[modalS.row, modalS.rowTop]}>
+                  <Text style={[modalS.lbl, { color: GOLD, fontWeight: "900" }]}>TOTAL</Text>
+                  <Text style={[modalS.val, { color: GOLD_LIGHT, fontSize: 16 }]}>
+                    {formatBLX(estFinalCents)} BLX
+                  </Text>
+                </View>
+
+                {/* Destaque: debitado agora vs travado */}
+                <View style={modalS.splitBox}>
+                  <View style={modalS.splitCol}>
+                    <Text style={modalS.splitLbl}>A DEBITAR AGORA</Text>
+                    <Text style={modalS.splitVal}>{formatBLX(estEntryCents)}</Text>
+                    <Text style={modalS.splitUnit}>BLX · {payMeta.entry_pct}%</Text>
+                  </View>
+                  <View style={[modalS.splitCol, { borderLeftWidth: 1, borderLeftColor: "#1F1F1F" }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <Ionicons name="lock-closed" size={9} color="#F5C150" />
+                      <Text style={modalS.splitLbl}>TRAVADO · ENTREGA</Text>
+                    </View>
+                    <Text style={[modalS.splitVal, { color: "#F5C150" }]}>
+                      {formatBLX(estRemainingCents)}
+                    </Text>
+                    <Text style={modalS.splitUnit}>BLX · {100 - payMeta.entry_pct}%</Text>
+                  </View>
+                </View>
+              </View>
+
+              <Text style={modalS.note}>
+                O saldo devedor fica TRAVADO na sua carteira e é liberado automaticamente ao
+                confirmar a entrega. Em caso de cancelamento, devolvemos tudo.
+              </Text>
+
+              <View style={modalS.actions}>
+                <TouchableOpacity style={modalS.cancel} onPress={() => setShowConfirm(false)} disabled={buying}>
+                  <Text style={modalS.cancelTxt}>CANCELAR</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={modalS.confirm} onPress={handleCheckout} disabled={buying} testID="cart-confirm-checkout">
+                  <LinearGradient
+                    colors={buying ? ["#555", "#333"] : [GOLD_LIGHT, GOLD, GOLD_DARK]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                    style={modalS.confirmInner}
+                  >
+                    {buying ? <ActivityIndicator color="#000" size="small" /> : <Text style={modalS.confirmTxt}>CONFIRMAR</Text>}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
+
+      {/* Modal de saldo insuficiente */}
+      <InsufficientBalanceModal
+        visible={!!insuf}
+        onClose={() => setInsuf(null)}
+        requiredCents={insuf?.required || 0}
+        currentCents={insuf?.current || 0}
+        missingCents={insuf?.missing || 0}
+        contextLabel="Carrinho"
+      />
     </View>
   );
 }
@@ -360,6 +468,7 @@ const styles = StyleSheet.create({
   balanceLbl: { color: "#888", fontSize: 9, fontWeight: "900", letterSpacing: 1.5 },
   balanceVal: { fontSize: 13, fontWeight: "900", marginTop: 2 },
   insufficientTxt: { color: "#FF6B6B", fontSize: 11, fontWeight: "700", textAlign: "center", marginBottom: 6 },
+  reservedVal: { color: "#F5C150", fontSize: 10, fontWeight: "700", marginTop: 2 },
 
   checkoutBtn: { borderRadius: 12, overflow: "hidden", marginTop: 4 },
   checkoutInner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14 },
@@ -367,7 +476,7 @@ const styles = StyleSheet.create({
 });
 
 const modalS = StyleSheet.create({
-  bg: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", alignItems: "center", justifyContent: "center", padding: 24 },
+  bg: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", alignItems: "center", justifyContent: "center", padding: 22 },
   card: {
     width: "100%", maxWidth: 380,
     backgroundColor: "#0B0B0B", borderRadius: 18, padding: 22,
@@ -375,11 +484,44 @@ const modalS = StyleSheet.create({
   },
   kicker: { color: GOLD, fontSize: 10, fontWeight: "900", letterSpacing: 2.5 },
   title: { color: "#FFF", fontSize: 15, fontWeight: "800", marginTop: 6, marginBottom: 16, lineHeight: 20 },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 5 },
+
+  payOpt: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: "#0A0A0A", borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: "#1A1A1A",
+  },
+  payOptSel: { borderColor: GOLD, backgroundColor: "rgba(212,175,55,0.07)" },
+  payOptLbl: { color: "#DDD", fontSize: 12, fontWeight: "900", letterSpacing: 0.8 },
+  payOptSub: { color: "#777", fontSize: 10.5, marginTop: 2 },
+  radio: {
+    width: 18, height: 18, borderRadius: 9,
+    borderWidth: 1.5, borderColor: "#333",
+    alignItems: "center", justifyContent: "center",
+  },
+  radioSel: { borderColor: GOLD },
+  radioInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: GOLD },
+
+  summary: {
+    backgroundColor: "#0A0A0A", borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: "#1A1A1A", marginBottom: 10,
+  },
+  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 },
+  rowTop: { borderTopWidth: 1, borderTopColor: "#1F1F1F", paddingTop: 10, marginTop: 6 },
   lbl: { color: "#888", fontSize: 12, fontWeight: "700", letterSpacing: 0.5 },
   val: { color: "#FFF", fontSize: 13, fontWeight: "800" },
-  note: { color: "#666", fontSize: 11, marginTop: 14, textAlign: "center", fontStyle: "italic", lineHeight: 15 },
-  actions: { flexDirection: "row", gap: 10, marginTop: 18 },
+
+  splitBox: {
+    flexDirection: "row", gap: 0, marginTop: 12,
+    backgroundColor: "#070707", borderRadius: 10,
+    borderWidth: 1, borderColor: "#1A1A1A",
+  },
+  splitCol: { flex: 1, padding: 12, alignItems: "center" },
+  splitLbl: { color: "#888", fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
+  splitVal: { color: "#FFF", fontSize: 18, fontWeight: "900", marginTop: 4 },
+  splitUnit: { color: "#666", fontSize: 9, fontWeight: "800", letterSpacing: 1, marginTop: 2 },
+
+  note: { color: "#666", fontSize: 11, marginTop: 10, textAlign: "center", fontStyle: "italic", lineHeight: 15 },
+  actions: { flexDirection: "row", gap: 10, marginTop: 16 },
   cancel: {
     flex: 1, paddingVertical: 13, borderRadius: 10,
     borderWidth: 1, borderColor: "#2A2A2A",
