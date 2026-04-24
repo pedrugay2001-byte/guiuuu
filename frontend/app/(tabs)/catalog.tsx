@@ -61,7 +61,7 @@ const TIERS: TierCard[] = [
     kicker: "Acesso Inicial",
     access: "Linha essencial · Produtos básicos",
     image:
-      "https://images.unsplash.com/photo-1577744168855-0391d2ed2b3a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwxfHxjaW5lbWF0aWMlMjBneW0lMjBtYW4lMjBjcm9zc2VkJTIwYXJtc3xlbnwwfHx8YmxhY2t8MTc3NzA2Mjk4M3ww&ixlib=rb-4.1.0&q=85",
+      "https://customer-assets.emergentagent.com/job_member-shop-2/artifacts/54hcb9bu_iuuuuuuuuuuuuuuuuuu.png",
     gradient: ["#E8E8E8", "#B8B8B8", "#6F6F6F"],
     bgGradient: ["#141416", "#0A0A0A", "#050505"],
     borderColor: "rgba(184,184,184,0.35)",
