@@ -35,7 +35,7 @@ const TIERS: TierCard[] = [
     kicker: "Acesso Total",
     access: "Marketplace completo · Todas as categorias",
     image:
-      "https://images.pexels.com/photos/31918891/pexels-photo-31918891.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "https://customer-assets.emergentagent.com/job_member-shop-2/artifacts/3rkrh49f_qqqqqqqqqqqqqqqq.png",
     gradient: ["#EAF1F6", "#C5D1DA", "#4A5F74"],
     bgGradient: ["#0E1820", "#0A1016", "#05080B"],
     borderColor: "rgba(197,209,218,0.35)",
