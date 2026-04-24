@@ -213,6 +213,12 @@ export default function Member() {
         </TouchableOpacity>
 
         <View style={styles.menu}>
+          <MenuRow
+            icon="person-circle-outline"
+            label="Ver meu perfil público"
+            onPress={() => member?.member_id && router.push(`/community/member/${member.member_id}` as any)}
+            testID="member-view-my-public-profile"
+          />
           <MenuRow icon="sparkles-outline" label="Solicitar orçamento" onPress={() => router.push("/quote")} testID="member-quote" />
           <MenuRow icon="share-social-outline" label="Compartilhar referência" onPress={shareGeneric} testID="member-share" />
         </View>

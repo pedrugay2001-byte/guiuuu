@@ -14,7 +14,7 @@ import GalleryViewer from "../../src/gallery-viewer";
 
 export default function EditProfile() {
   const router = useRouter();
-  const { member, updateMember } = useGate();
+  const { member, updateMember, refreshMember } = useGate();
   const [me, setMe] = useState<CommunityMember | null>(null);
   const [nickname, setNickname] = useState("");
   const [bio, setBio] = useState("");
@@ -71,6 +71,8 @@ export default function EditProfile() {
       await api.updatePhotos(member.member_id, photos);
       // Update local gate cache so the avatar shows up immediately in Home + Member screens
       try { await updateMember({ avatar_base64: avatar, nickname: nickname.trim() || null } as any); } catch {}
+      // Force full sync with backend so cache is bullet-proof on next app open
+      try { await refreshMember(); } catch {}
       notify("Perfil salvo!", "Sua foto e dados foram atualizados.");
       router.back();
     } catch (e: any) {

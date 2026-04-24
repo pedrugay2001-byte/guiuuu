@@ -53,6 +53,11 @@ export default function Community() {
 
   const myStories = stories.find(s => s.member_id === member?.member_id);
   const otherStories = stories.filter(s => s.member_id !== member?.member_id);
+  // Ordem: se usuário já tem story, o próprio avatar dele aparece primeiro (clicável);
+  //   senão, mostra o botão "+" para criar.
+  const storiesData = myStories
+    ? [{ type: "me-has", data: myStories } as any, ...otherStories.map(s => ({ type: "story", data: s } as any))]
+    : [{ type: "me" } as any, ...otherStories.map(s => ({ type: "story", data: s } as any))];
 
   const filteredPosts = tab === "workouts" ? posts.filter(p => (p.tags || []).some(t => t.toLowerCase().includes("treino") || t.toLowerCase().includes("workout"))) : posts;
 
@@ -80,7 +85,7 @@ export default function Community() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 14, gap: 12 }}
-            data={[{ type: "me" }, ...otherStories.map(s => ({ type: "story", data: s }))] as any[]}
+            data={storiesData}
             keyExtractor={(_, i) => String(i)}
             renderItem={({ item }) => {
               if (item.type === "me") {
@@ -90,6 +95,37 @@ export default function Community() {
                       <View style={styles.myStoryAvatar}>
                         <Ionicons name="add" size={24} color="#D4AF37" />
                       </View>
+                    </View>
+                    <Text style={styles.storyName}>Seu story</Text>
+                  </TouchableOpacity>
+                );
+              }
+              if (item.type === "me-has") {
+                const s: StoryGroup = item.data;
+                const tier = TIERS[s.tier] || TIERS.silver;
+                return (
+                  <TouchableOpacity
+                    style={styles.storyItem}
+                    onPress={() => router.push(`/community/story/${s.member_id}`)}
+                    testID="my-story-view"
+                  >
+                    <View style={[styles.storyRing, { borderColor: tier.color }]}>
+                      {s.avatar_base64 ? (
+                        <Image source={{ uri: s.avatar_base64 }} style={styles.storyAvatar} resizeMode="cover" />
+                      ) : (
+                        <View style={[styles.storyAvatar, { backgroundColor: "#2A2A2A", alignItems: "center", justifyContent: "center" }]}>
+                          <Text style={{ color: "#EEE", fontWeight: "800" }}>{(s.nickname || "E").charAt(0).toUpperCase()}</Text>
+                        </View>
+                      )}
+                      {/* Botão "+" sobreposto para adicionar novo story */}
+                      <TouchableOpacity
+                        style={styles.myStoryAddBadge}
+                        onPress={() => router.push("/community/create-story")}
+                        hitSlop={{ top: 6, right: 6, bottom: 6, left: 6 }}
+                        testID="my-story-add-new"
+                      >
+                        <Ionicons name="add" size={14} color="#000" />
+                      </TouchableOpacity>
                     </View>
                     <Text style={styles.storyName}>Seu story</Text>
                   </TouchableOpacity>
@@ -294,6 +330,13 @@ const styles = StyleSheet.create({
   storyAvatar: { width: 56, height: 56, borderRadius: 28 },
   myStoryAvatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: "#141414", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#333" },
   storyName: { color: "#CCC", fontSize: 11, marginTop: 6, fontWeight: "700" },
+  myStoryAddBadge: {
+    position: "absolute", bottom: -2, right: -2,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: "#D4AF37",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "#050505",
+  },
 
   filters: { paddingHorizontal: 14, paddingVertical: 8, gap: 8 },
   chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: "#222", backgroundColor: "#0F0F0F" },
