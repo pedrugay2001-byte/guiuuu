@@ -10,26 +10,33 @@ import { LinearGradient } from "expo-linear-gradient";
 import { api, Category, Product, Ad, formatBRL } from "../../src/api";
 import { formatBLX } from "../../src/blx";
 import { useGate } from "../../src/gate";
+import { useAuth } from "../../src/auth";
 import { theme } from "../../src/theme";
 
 const GOLD = "#D4AF37";
 const DIAMOND_BLUE = "#7FD7E5"; // ciano premium usado para destacar seção Diamond
 
 const CAT_META: Record<string, { label: string; icon: string; color: string }> = {
-  // Públicas
+  // NOVAS CATEGORIAS BLACKSCLUB — classes de performance/metabolismo
+  metabolicos: { label: "Metabólicos", icon: "flame",              color: "#FF6B35" },
+  performance: { label: "Performance", icon: "flash",              color: "#FFD700" },
+  regeneracao: { label: "Regeneração", icon: "leaf",               color: "#95D5B2" },
+  estetica:    { label: "Estética",    icon: "sparkles",           color: "#F58FC3" },
+  foco:        { label: "Foco",        icon: "bulb",               color: "#B794F4" },
+  funcionais:  { label: "Funcionais",  icon: "barbell",            color: "#7FD7E5" },
+  // Umbrella Saúde (Diamond) — AZUL premium para destacar exclusividade
+  saude_diamante: { label: "Saúde Diamante", icon: "shield-checkmark", color: "#7FD7E5" },
+  // Legados (retrocompat de produtos antigos — não aparecem no seletor novo)
+  hormonios:    { label: "Hormônios",   icon: "pulse",              color: "#E8C96B" },
+  emagrecedores:{ label: "Emagrecedores", icon: "flame",            color: "#FF6B35" },
+  peptideos:    { label: "Peptídeos",     icon: "flask",            color: "#7FD7E5" },
+  landerlan:    { label: "Landerlan",     icon: "shield-checkmark", color: "#D4AF37" },
   tecnologia:   { label: "Tecnologia",  icon: "hardware-chip",      color: "#B794F4" },
   bem_estar:    { label: "Bem-estar",   icon: "leaf",               color: "#95D5B2" },
   beleza:       { label: "Beleza",      icon: "sparkles",           color: "#F58FC3" },
   suplementos:  { label: "Suplementos", icon: "nutrition",          color: "#2ECC71" },
   eletronicos:  { label: "Eletrônicos", icon: "phone-portrait",     color: "#7FD7E5" },
   outros:       { label: "Outros",      icon: "cube",               color: "#999" },
-  // Umbrella Saúde (Diamond) — AZUL premium para destacar exclusividade
-  saude_diamante: { label: "Saúde Diamante", icon: "shield-checkmark", color: "#7FD7E5" },
-  // Legados (mantidos para retrocompatibilidade interna)
-  hormonios:    { label: "Hormônios",   icon: "pulse",              color: "#E8C96B" },
-  emagrecedores:{ label: "Emagrecedores", icon: "flame",            color: "#FF6B35" },
-  peptideos:    { label: "Peptídeos",     icon: "flask",            color: "#7FD7E5" },
-  landerlan:    { label: "Landerlan",     icon: "shield-checkmark", color: "#D4AF37" },
 };
 
 // Cache em memória simples (dura enquanto a app está aberta) para
@@ -46,6 +53,7 @@ const TIER_META: Record<string, { label: string; color: string; accent: string; 
 export default function Marketplace() {
   const router = useRouter();
   const { member } = useGate();
+  const { user } = useAuth();
   const { tier: tierParam } = useLocalSearchParams<{ tier: string }>();
   const paramTier = (String(tierParam || "").toLowerCase()) as "silver" | "gold" | "diamond";
   const tierMeta = TIER_META[paramTier];
@@ -55,6 +63,10 @@ export default function Marketplace() {
   // Diamond acessa todos; Gold acessa Gold+Silver; Silver só Silver; Black nenhum.
   const TIER_RANK: Record<string, number> = { silver: 1, gold: 2, diamond: 3, black: 0 };
   const hasMarketplaceAccess = (TIER_RANK[myTier] ?? 0) >= (TIER_RANK[paramTier] ?? 99);
+  // Apenas staff (admin/support/financeiro) pode publicar anúncios — marketplace curado
+  const canPost = !!user && ["admin", "support", "financeiro"].includes((user.role || "") as string);
+  // Diamond é marketplace exclusivamente de anúncios curados (sem catálogo de produtos dourados)
+  const isDiamondView = paramTier === "diamond";
 
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
@@ -185,8 +197,8 @@ export default function Marketplace() {
         </TouchableOpacity>
       </View>
 
-      {/* CTA — Botão de publicar anúncio (apenas Diamond pode publicar em qualquer tier) */}
-      {isDiamond && (
+      {/* CTA — Botão de publicar anúncio (apenas staff: admin/support/financeiro) */}
+      {canPost && (
         <TouchableOpacity
           style={[st.postCta, { borderColor: tierMeta.color + "55", backgroundColor: tierMeta.color + "10" }]}
           onPress={() => router.push({ pathname: "/ads/create", params: { tier: paramTier } } as any)}
@@ -200,149 +212,143 @@ export default function Marketplace() {
             <Text style={[st.postCtaTitle, { color: tierMeta.accent }]}>
               PUBLICAR ANÚNCIO NO {paramTier.toUpperCase()}
             </Text>
-            <Text style={st.postCtaSub}>Exclusivo membros Diamante · Alcance direto</Text>
+            <Text style={st.postCtaSub}>Curadoria oficial BlacksClub · Staff autorizado</Text>
           </View>
           <Ionicons name="arrow-forward" size={14} color={tierMeta.color} />
         </TouchableOpacity>
       )}
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Categorias públicas */}
-        <Text style={st.sectionTitle}>CATEGORIAS</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.catRow}>
-          <CatChip active={cat === "all"} onPress={() => setCat("all")} label="Todos" icon="apps" color="#EEE" />
-          {publicCats.map((c) => {
-            const meta = CAT_META[c.id] || { label: c.name, icon: c.icon || "cube", color: "#888" };
-            return (
-              <CatChip
-                key={c.id}
-                active={cat === c.id}
-                onPress={() => setCat(c.id)}
-                label={meta.label}
-                icon={meta.icon}
-                color={meta.color}
-              />
-            );
-          })}
-        </ScrollView>
 
-        {/* MEMBROS BLACK DIAMOND — apresentação leve e elegante */}
-        {isDiamond && (
-          <View style={st.diamondSection}>
-            {/* Divisor elegante com título embutido */}
-            <View style={st.diamondDivider}>
-              <View style={st.diamondDividerLine} />
-              <View style={st.diamondDividerBadge}>
-                <Ionicons name="diamond" size={10} color={DIAMOND_BLUE} />
-                <Text style={st.diamondDividerTxt}>CÍRCULO DIAMANTE</Text>
-                <Ionicons name="diamond" size={10} color={DIAMOND_BLUE} />
+        {/* ==================== DIAMOND VIEW — apenas anúncios curados ==================== */}
+        {isDiamondView ? (
+          <>
+            {/* Header premium Diamante */}
+            <View style={st.diamondHeroHead}>
+              <View style={st.diamondDivider}>
+                <View style={st.diamondDividerLine} />
+                <View style={st.diamondDividerBadge}>
+                  <Ionicons name="diamond" size={10} color={DIAMOND_BLUE} />
+                  <Text style={st.diamondDividerTxt}>CURADORIA OFICIAL</Text>
+                  <Ionicons name="diamond" size={10} color={DIAMOND_BLUE} />
+                </View>
+                <View style={st.diamondDividerLine} />
               </View>
-              <View style={st.diamondDividerLine} />
+              <Text style={st.diamondHeroTitle}>Anúncios Exclusivos Diamante</Text>
+              <Text style={st.diamondHeroSub}>
+                Seleção curada pelo time BlacksClub · Todos os itens verificados
+              </Text>
             </View>
 
-            {/* Subheader simples */}
-            <View style={st.diamondSubheadRow}>
-              <Text style={st.diamondSubheadTxt}>Transações privadas entre membros</Text>
-              <TouchableOpacity
-                onPress={() => router.push("/ads")}
-                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                style={st.diamondSeeAllBtn}
-              >
-                <Text style={st.diamondSeeAllTxt}>VER TUDO</Text>
-                <Ionicons name="arrow-forward" size={11} color={DIAMOND_BLUE} />
-              </TouchableOpacity>
-            </View>
-
-            {ads.length > 0 ? (
-              <FlatList
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                data={ads}
-                keyExtractor={(a) => a.ad_id}
-                contentContainerStyle={{ paddingHorizontal: 14, gap: 10 }}
-                renderItem={({ item }) => <AdCard ad={item} onPress={() => router.push({ pathname: "/ads/[id]", params: { id: item.ad_id } })} />}
-              />
+            {loading ? (
+              <View style={{ padding: 32, alignItems: "center" }}>
+                <ActivityIndicator color={DIAMOND_BLUE} />
+              </View>
+            ) : ads.length === 0 ? (
+              <View style={st.emptyBox}>
+                <Ionicons name="diamond-outline" size={36} color={DIAMOND_BLUE + "55"} />
+                <Text style={[st.emptyTitle, { color: DIAMOND_BLUE }]}>Marketplace em curadoria</Text>
+                <Text style={st.emptySub}>Aguarde — novos anúncios serão publicados em breve pela equipe oficial.</Text>
+              </View>
             ) : (
-              <TouchableOpacity
-                style={st.diamondEmptyCta}
-                onPress={() => router.push("/ads")}
-                activeOpacity={0.88}
-              >
-                <Ionicons name="diamond-outline" size={14} color={DIAMOND_BLUE} />
-                <Text style={st.diamondEmptyCtaTxt}>EXPLORAR MARKETPLACE DIAMOND</Text>
-                <Ionicons name="chevron-forward" size={14} color={DIAMOND_BLUE} />
-              </TouchableOpacity>
+              <View style={st.adsGrid}>
+                {ads.map((ad) => (
+                  <AdGridCard
+                    key={ad.ad_id}
+                    ad={ad}
+                    onPress={() => router.push({ pathname: "/ads/[id]", params: { id: ad.ad_id } })}
+                  />
+                ))}
+              </View>
             )}
-
-            {/* Fechamento do círculo com divider */}
-            <View style={st.diamondCloseLine} />
-          </View>
-        )}
-
-        {/* CATÁLOGO OFICIAL — divisor elegante em DOURADO (sem símbolo de diamante) */}
-        <View style={st.catalogDivider}>
-          <View style={st.catalogDividerLine} />
-          <View style={st.catalogDividerBadge}>
-            <Ionicons name="ribbon" size={10} color={GOLD} />
-            <Text style={st.catalogDividerTxt}>CATÁLOGO</Text>
-            <Ionicons name="ribbon" size={10} color={GOLD} />
-          </View>
-          <View style={st.catalogDividerLine} />
-        </View>
-        <View style={st.catalogSubRow}>
-          <Text style={st.catalogSubTxt}>Selecionados pela curadoria do clube</Text>
-          {!loading && <Text style={st.catalogCount}>{products.length} itens</Text>}
-        </View>
-
-        {loading ? (
-          <View style={{ padding: 32, alignItems: "center" }}>
-            <ActivityIndicator color={GOLD} />
-          </View>
-        ) : products.length === 0 ? (
-          <View style={st.emptyBox}>
-            <Ionicons name="search" size={32} color="#444" />
-            <Text style={st.emptyTitle}>Nada encontrado</Text>
-            <Text style={st.emptySub}>Tente outra categoria ou palavra.</Text>
-          </View>
+          </>
         ) : (
-          <View style={st.grid}>
-            {products.map((p) => (
-              <TouchableOpacity
-                key={p.product_id}
-                style={st.productCard}
-                onPress={() => router.push({ pathname: "/product/[id]", params: { id: p.product_id } })}
-                activeOpacity={0.88}
-              >
-                <View style={st.prodImgWrap}>
-                  {p.image_url ? (
-                    <Image source={{ uri: p.image_url }} style={st.prodImg} resizeMode="cover" />
-                  ) : (
-                    <View style={[st.prodImg, { backgroundColor: "#141414", alignItems: "center", justifyContent: "center" }]}>
-                      <Ionicons name="cube" size={26} color="#444" />
+          <>
+            {/* ==================== GOLD / SILVER VIEW ==================== */}
+            {/* Categorias públicas */}
+            <Text style={st.sectionTitle}>CATEGORIAS</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.catRow}>
+              <CatChip active={cat === "all"} onPress={() => setCat("all")} label="Todos" icon="apps" color="#EEE" />
+              {publicCats.map((c) => {
+                const meta = CAT_META[c.id] || { label: c.name, icon: c.icon || "cube", color: "#888" };
+                return (
+                  <CatChip
+                    key={c.id}
+                    active={cat === c.id}
+                    onPress={() => setCat(c.id)}
+                    label={meta.label}
+                    icon={meta.icon}
+                    color={meta.color}
+                  />
+                );
+              })}
+            </ScrollView>
+
+            {/* CATÁLOGO OFICIAL — divisor elegante em DOURADO */}
+            <View style={st.catalogDivider}>
+              <View style={st.catalogDividerLine} />
+              <View style={st.catalogDividerBadge}>
+                <Ionicons name="ribbon" size={10} color={GOLD} />
+                <Text style={st.catalogDividerTxt}>CATÁLOGO</Text>
+                <Ionicons name="ribbon" size={10} color={GOLD} />
+              </View>
+              <View style={st.catalogDividerLine} />
+            </View>
+            <View style={st.catalogSubRow}>
+              <Text style={st.catalogSubTxt}>Selecionados pela curadoria do clube</Text>
+              {!loading && <Text style={st.catalogCount}>{products.length} itens</Text>}
+            </View>
+
+            {loading ? (
+              <View style={{ padding: 32, alignItems: "center" }}>
+                <ActivityIndicator color={GOLD} />
+              </View>
+            ) : products.length === 0 ? (
+              <View style={st.emptyBox}>
+                <Ionicons name="search" size={32} color="#444" />
+                <Text style={st.emptyTitle}>Nada encontrado</Text>
+                <Text style={st.emptySub}>Tente outra categoria ou palavra.</Text>
+              </View>
+            ) : (
+              <View style={st.grid}>
+                {products.map((p) => (
+                  <TouchableOpacity
+                    key={p.product_id}
+                    style={st.productCard}
+                    onPress={() => router.push({ pathname: "/product/[id]", params: { id: p.product_id } })}
+                    activeOpacity={0.88}
+                  >
+                    <View style={st.prodImgWrap}>
+                      {p.image_url ? (
+                        <Image source={{ uri: p.image_url }} style={st.prodImg} resizeMode="cover" />
+                      ) : (
+                        <View style={[st.prodImg, { backgroundColor: "#141414", alignItems: "center", justifyContent: "center" }]}>
+                          <Ionicons name="cube" size={26} color="#444" />
+                        </View>
+                      )}
+                      <View style={st.prodAccentStripe} />
                     </View>
-                  )}
-                  {/* Faixa sutil dourada no topo da imagem — toque elitizado */}
-                  <View style={st.prodAccentStripe} />
-                </View>
-                <Text style={st.prodName} numberOfLines={2}>{p.name}</Text>
-                <View style={{ marginTop: 6 }}>
-                  {tierDisc > 0 ? (
-                    <>
-                      <Text style={st.prodPriceOld}>{formatBRL(p.member_price)}</Text>
-                      <Text style={st.prodPrice}>{formatBRL(priceFor(p.member_price))}</Text>
-                    </>
-                  ) : (
-                    <Text style={st.prodPrice}>{formatBRL(p.member_price)}</Text>
-                  )}
-                </View>
-                {tierDisc > 0 && (
-                  <View style={st.discBadge}>
-                    <Text style={st.discBadgeTxt}>-{Math.round(tierDisc * 100)}%</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
+                    <Text style={st.prodName} numberOfLines={2}>{p.name}</Text>
+                    <View style={{ marginTop: 6 }}>
+                      {tierDisc > 0 ? (
+                        <>
+                          <Text style={st.prodPriceOld}>{formatBRL(p.member_price)}</Text>
+                          <Text style={st.prodPrice}>{formatBRL(priceFor(p.member_price))}</Text>
+                        </>
+                      ) : (
+                        <Text style={st.prodPrice}>{formatBRL(p.member_price)}</Text>
+                      )}
+                    </View>
+                    {tierDisc > 0 && (
+                      <View style={st.discBadge}>
+                        <Text style={st.discBadgeTxt}>-{Math.round(tierDisc * 100)}%</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
     </View>
@@ -371,6 +377,39 @@ function AdCard({ ad, onPress }: { ad: Ad; onPress: () => void }) {
       </View>
       <Text style={st.adName} numberOfLines={2}>{ad.title}</Text>
       <Text style={st.adPrice}>{formatBLX(Math.round(ad.price_full * 100))} BLX</Text>
+    </TouchableOpacity>
+  );
+}
+
+/**
+ * AdGridCard — Card premium de anúncio Diamante usado no grid vertical.
+ * Exibe imagem em destaque + badge "VERIFICADO · BLACKSCLUB" em cyan/platinum.
+ */
+function AdGridCard({ ad, onPress }: { ad: Ad; onPress: () => void }) {
+  const img = ad.images?.[0];
+  return (
+    <TouchableOpacity onPress={onPress} style={st.adGridCard} activeOpacity={0.88}>
+      <View style={st.adGridImgWrap}>
+        {img ? (
+          <Image source={{ uri: img }} style={st.adGridImg} resizeMode="cover" />
+        ) : (
+          <View style={[st.adGridImg, { backgroundColor: "#0E1620", alignItems: "center", justifyContent: "center" }]}>
+            <Ionicons name="diamond" size={32} color={DIAMOND_BLUE + "77"} />
+          </View>
+        )}
+        {/* Faixa cyan no topo */}
+        <View style={st.adGridAccent} />
+        {/* Badge VERIFICADO BLACKSCLUB */}
+        <View style={st.adGridVerified}>
+          <Ionicons name="shield-checkmark" size={9} color={DIAMOND_BLUE} />
+          <Text style={st.adGridVerifiedTxt}>VERIFICADO</Text>
+        </View>
+      </View>
+      <Text style={st.adGridTitle} numberOfLines={2}>{ad.title}</Text>
+      <View style={st.adGridPriceRow}>
+        <Ionicons name="diamond" size={11} color={DIAMOND_BLUE} />
+        <Text style={st.adGridPrice}>{formatBLX(Math.round(ad.price_full * 100))} BLX</Text>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -578,5 +617,69 @@ const st = StyleSheet.create({
   },
   postCtaSub: {
     color: "#888", fontSize: 10, fontWeight: "600", marginTop: 2,
+  },
+
+  // === Hero Diamante (topo do marketplace exclusivo) ===
+  diamondHeroHead: {
+    marginTop: 10, marginBottom: 14,
+    paddingHorizontal: 20,
+    alignItems: "center",
+  },
+  diamondHeroTitle: {
+    color: "#EAF1F6",
+    fontSize: 20, fontWeight: "900",
+    letterSpacing: -0.3,
+    marginTop: 8,
+    textAlign: "center",
+  },
+  diamondHeroSub: {
+    color: "#888", fontSize: 12,
+    marginTop: 4, lineHeight: 17,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+
+  // === Grid vertical de anúncios Diamante ===
+  adsGrid: {
+    flexDirection: "row", flexWrap: "wrap",
+    paddingHorizontal: 12, gap: 10, marginTop: 6,
+  },
+  adGridCard: {
+    width: "48.5%",
+    backgroundColor: "#0B1218",
+    borderRadius: 14, padding: 10,
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.15)",
+  },
+  adGridImgWrap: {
+    width: "100%", aspectRatio: 1, borderRadius: 10,
+    overflow: "hidden", backgroundColor: "#0E1620",
+    position: "relative",
+  },
+  adGridImg: { width: "100%", height: "100%" },
+  adGridAccent: {
+    position: "absolute", top: 0, left: 0, right: 0, height: 2,
+    backgroundColor: DIAMOND_BLUE, opacity: 0.75,
+  },
+  adGridVerified: {
+    position: "absolute", top: 6, right: 6,
+    flexDirection: "row", alignItems: "center", gap: 3,
+    paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6,
+    backgroundColor: "rgba(4,8,12,0.72)",
+    borderWidth: 0.5, borderColor: "rgba(127,215,229,0.4)",
+  },
+  adGridVerifiedTxt: {
+    color: DIAMOND_BLUE, fontSize: 7.5, fontWeight: "900",
+    letterSpacing: 1,
+  },
+  adGridTitle: {
+    color: "#EAF1F6", fontSize: 13, fontWeight: "700",
+    marginTop: 10, minHeight: 34,
+  },
+  adGridPriceRow: {
+    flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4,
+  },
+  adGridPrice: {
+    color: DIAMOND_BLUE, fontSize: 14.5, fontWeight: "900",
+    letterSpacing: 0.3,
   },
 });

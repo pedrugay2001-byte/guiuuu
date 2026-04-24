@@ -7,16 +7,17 @@ import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api } from "../../src/api";
 import { useGate } from "../../src/gate";
+import { useAuth } from "../../src/auth";
 import { pickCompressedImage } from "../../src/imagepicker";
 import ScreenHeader from "../../src/screen-header";
 
 const CATS = [
-  { id: "emagrecedores", name: "Emagrecedores" },
-  { id: "peptideos", name: "Peptídeos" },
-  { id: "hormonios", name: "Hormônios" },
-  { id: "pre_treinos", name: "Pré-treinos" },
-  { id: "suplementos", name: "Suplementos" },
-  { id: "outros", name: "Outros" },
+  { id: "metabolicos", name: "Metabólicos" },
+  { id: "performance", name: "Performance" },
+  { id: "regeneracao", name: "Regeneração" },
+  { id: "estetica",    name: "Estética" },
+  { id: "foco",        name: "Foco" },
+  { id: "funcionais",  name: "Funcionais" },
 ];
 
 // Tema visual de cada marketplace — aplicado ao card do anúncio
@@ -30,16 +31,17 @@ const TIER_THEME: Record<AdTier, { label: string; icon: string; color: string; a
 export default function CreateAd() {
   const router = useRouter();
   const { member } = useGate();
+  const { user } = useAuth();
   const { tier: tierParam } = useLocalSearchParams<{ tier?: string }>();
 
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [price, setPrice] = useState("");
-  const [cat, setCat] = useState("emagrecedores");
+  const [cat, setCat] = useState("metabolicos");
   const [stock, setStock] = useState("1");
   const [images, setImages] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  // Tier do anúncio — Diamond pode escolher; default vem da URL (?tier=) ou "diamond"
+  // Tier do anúncio — Staff pode escolher; default vem da URL (?tier=) ou "diamond"
   const initialTier = (String(tierParam || "diamond").toLowerCase()) as AdTier;
   const [adTier, setAdTier] = useState<AdTier>(
     ["silver", "gold", "diamond"].includes(initialTier) ? initialTier : "diamond"
@@ -47,19 +49,22 @@ export default function CreateAd() {
 
   const theme = useMemo(() => TIER_THEME[adTier], [adTier]);
 
-  if (member?.tier !== "diamond") {
+  // Apenas staff (admin/support/financeiro) pode publicar — marketplace curado BlacksClub
+  const canPost = !!user && ["admin", "support", "financeiro"].includes((user.role || "") as string);
+
+  if (!canPost) {
     return (
       <View style={{ flex: 1, backgroundColor: "#050505" }}>
         <Stack.Screen options={{ headerShown: false }} />
         <ScreenHeader title="Anunciar" />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <Ionicons name="diamond" size={48} color="#7FD7E5" />
-          <Text style={{ color: "#FFF", fontSize: 17, fontWeight: "900", marginTop: 14 }}>Exclusivo BLACK DIAMOND</Text>
+          <Ionicons name="shield-checkmark" size={48} color="#7FD7E5" />
+          <Text style={{ color: "#FFF", fontSize: 17, fontWeight: "900", marginTop: 14 }}>Marketplace Curado</Text>
           <Text style={{ color: "#999", fontSize: 13, textAlign: "center", marginTop: 8, lineHeight: 18 }}>
-            Somente membros com plano BLACK DIAMOND podem anunciar no marketplace do clube.
+            Todos os anúncios do BlacksClub passam por curadoria oficial. Apenas a equipe autorizada do clube pode publicar.
           </Text>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/negocios")} style={{ marginTop: 20, backgroundColor: "#7FD7E5", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10 }}>
-            <Text style={{ color: "#000", fontWeight: "900", letterSpacing: 1 }}>VER PLANOS</Text>
+          <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20, backgroundColor: "#7FD7E5", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10 }}>
+            <Text style={{ color: "#000", fontWeight: "900", letterSpacing: 1 }}>VOLTAR</Text>
           </TouchableOpacity>
         </View>
       </View>

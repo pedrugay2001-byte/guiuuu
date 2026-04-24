@@ -423,7 +423,18 @@ async def member_login(data: MemberLogin):
     member.pop("password_hash", None)
     member.pop("name_norm", None)
     member.pop("phone_norm", None)
-    return member
+    # Staff/admin com e-mail vinculado a um user também recebem JWT para operar features de staff
+    # (ex.: publicar anúncios no marketplace curado)
+    staff_token = None
+    staff_user = None
+    u = await db.users.find_one({"email": email}, {"_id": 0, "password_hash": 0})
+    if u:
+        staff_token = jwt.encode(
+            {"sub": u["user_id"], "exp": datetime.now(timezone.utc) + timedelta(days=7)},
+            JWT_SECRET, algorithm=JWT_ALGORITHM,
+        )
+        staff_user = u
+    return {**member, "staff_token": staff_token, "staff_user": staff_user}
 
 
 @api_router.post("/members/forgot")
@@ -1519,7 +1530,7 @@ class Product(BaseModel):
 # -------------- Marketplace Category Access Rules --------------
 # Apenas Silver, Gold e Diamante acessam o marketplace.
 # Categorias sensíveis são ocultas sob a etiqueta "saude_diamante" (diamond).
-PUBLIC_CATEGORIES = ["tecnologia", "bem_estar", "beleza", "suplementos", "eletronicos", "outros"]
+PUBLIC_CATEGORIES = ["metabolicos", "performance", "regeneracao", "estetica", "foco", "funcionais"]
 HEALTH_CATEGORIES = ["emagrecedores", "peptideos", "landerlan", "hormonios"]
 HEALTH_UMBRELLA_ID = "saude_diamante"
 
@@ -1841,14 +1852,14 @@ async def get_categories(member_id: Optional[str] = None):
     if tier == "black":
         raise HTTPException(status_code=403, detail="Marketplace exclusivo para membros Silver, Gold e Diamante")
 
-    # Categorias públicas — nomes leves sem referências sensíveis
+    # Categorias públicas — novo padrão BlacksClub (classes metabólicas/performance)
     public = [
-        {"id": "tecnologia",  "name": "Tecnologia",  "icon": "hardware-chip",  "restricted": False, "group": "public"},
-        {"id": "bem_estar",   "name": "Bem-estar",   "icon": "leaf",           "restricted": False, "group": "public"},
-        {"id": "beleza",      "name": "Beleza",      "icon": "sparkles",       "restricted": False, "group": "public"},
-        {"id": "suplementos", "name": "Suplementos", "icon": "nutrition",      "restricted": False, "group": "public"},
-        {"id": "eletronicos", "name": "Eletrônicos", "icon": "phone-portrait", "restricted": False, "group": "public"},
-        {"id": "outros",      "name": "Outros",      "icon": "cube",           "restricted": False, "group": "public"},
+        {"id": "metabolicos",  "name": "Metabólicos",  "icon": "flame",              "restricted": False, "group": "public"},
+        {"id": "performance",  "name": "Performance",  "icon": "flash",              "restricted": False, "group": "public"},
+        {"id": "regeneracao",  "name": "Regeneração",  "icon": "leaf",               "restricted": False, "group": "public"},
+        {"id": "estetica",     "name": "Estética",     "icon": "sparkles",           "restricted": False, "group": "public"},
+        {"id": "foco",         "name": "Foco",         "icon": "bulb",               "restricted": False, "group": "public"},
+        {"id": "funcionais",   "name": "Funcionais",   "icon": "barbell",            "restricted": False, "group": "public"},
     ]
     if tier != "diamond":
         return public
@@ -2821,20 +2832,20 @@ async def buy_ad_with_blx(ad_id: str, data: AdBLXBuy):
 
 
 @api_router.post("/ads")
-async def create_ad(data: AdCreate):
+async def create_ad(data: AdCreate, staff: dict = Depends(require_staff)):
+    """
+    Publica anúncio no marketplace.
+    ⚠️ Apenas staff do clube (admin, support, financeiro) podem publicar.
+    Membros comuns, mesmo Diamond, não têm permissão — o marketplace é curado.
+    """
     m = await db.members.find_one({"member_id": data.seller_id})
     if not m:
         raise HTTPException(status_code=404, detail="Membro não encontrado")
     seller_tier = (m.get("tier") or "silver").lower()
-    if not _can_sell(seller_tier):
-        raise HTTPException(status_code=403, detail="Apenas membros BLACK DIAMOND podem anunciar no marketplace.")
-    # Validação de ad_tier: Diamond pode publicar em qualquer marketplace,
-    # vendedores de outros tiers são limitados ao próprio tier.
-    requested_tier = (data.ad_tier or seller_tier).lower()
+    # Validação de ad_tier: staff pode publicar em qualquer marketplace.
+    requested_tier = (data.ad_tier or "diamond").lower()
     if requested_tier not in ("silver", "gold", "diamond"):
-        requested_tier = seller_tier
-    if seller_tier != "diamond" and requested_tier != seller_tier:
-        raise HTTPException(status_code=403, detail="Apenas membros DIAMOND podem publicar em outras categorias de marketplace.")
+        requested_tier = "diamond"
     ad = {
         "ad_id": f"ad_{uuid.uuid4().hex[:12]}",
         "seller_id": data.seller_id,
@@ -2846,11 +2857,23 @@ async def create_ad(data: AdCreate):
         "images": [img for img in (data.images or []) if isinstance(img, str)][:6],
         "stock": max(int(data.stock or 1), 1),
         "active": True,
+        "verified": True,  # anúncios publicados por staff são oficiais/verificados
+        "posted_by_role": staff.get("role"),
         "created_at": datetime.now(timezone.utc),
     }
     await db.ads.insert_one(ad.copy())
     ad.pop("_id", None)
     return ad
+
+
+@api_router.delete("/admin/ads/clear")
+async def admin_clear_ads(staff: dict = Depends(require_staff)):
+    """
+    Limpa todos os anúncios do marketplace (hard delete).
+    Uso: reset completo do marketplace antes de curadoria oficial.
+    """
+    r = await db.ads.delete_many({})
+    return {"ok": True, "deleted": r.deleted_count}
 
 
 @api_router.delete("/ads/{ad_id}")
