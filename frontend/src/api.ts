@@ -338,6 +338,17 @@ export const api = {
     note?: string;
   }) => request<BlxTx>("/blx/transfer", { method: "POST", body: JSON.stringify(body) }),
 
+  blxTransferLimits: (member_id: string) =>
+    request<{
+      tier: string;
+      role: string | null;
+      unlimited: boolean;
+      limit_centavos: number;
+      used_centavos: number;
+      available_centavos: number;
+      month_start: string;
+    }>(`/blx/transfer/limits/${member_id}`),
+
   // ----- BLX Orders (escrow marketplace) -----
   blxOrders: (member_id: string, role: "buyer" | "seller" | "all" = "all") =>
     request<BlxOrder[]>(`/blx/orders/${member_id}?role=${role}`),

@@ -170,9 +170,47 @@ export default function Marketplace() {
   const publicCats = categories.filter(c => (c as any).group !== "saude");
   const healthCats = categories.filter(c => (c as any).group === "saude");
 
+  // Filtro client-side de anúncios por categoria (Diamond view)
+  // + busca por texto (title/description) também funciona no Diamond
+  const qLower = q.trim().toLowerCase();
+  const filteredAds = ads.filter((a) => {
+    const matchCat = cat === "all" || a.category === cat;
+    const matchQ = !qLower ||
+      (a.title || "").toLowerCase().includes(qLower) ||
+      (a.description || "").toLowerCase().includes(qLower);
+    return matchCat && matchQ;
+  });
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="marketplace-screen">
-      {/* Search + ações (carrinho e favoritos) */}
+      {/* HEADER premium — título do tier + carrinho (ícone de sacola à direita) */}
+      <SafeAreaView edges={["top"]} style={{ backgroundColor: theme.colors.bg }}>
+        <View style={st.topHeader}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={st.topBackBtn}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+          >
+            <Ionicons name="chevron-back" size={22} color="#EEE" />
+          </TouchableOpacity>
+          <View style={st.topTitleWrap}>
+            <View style={[st.topDot, { backgroundColor: tierMeta.color }]} />
+            <Text style={st.topTitle}>
+              MARKETPLACE <Text style={{ color: tierMeta.accent, fontWeight: "900" }}>{paramTier.toUpperCase()}</Text>
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => router.push("/cart" as any)}
+            style={st.topCartBtn}
+            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+            testID="marketplace-cart"
+          >
+            <Ionicons name="bag-handle-outline" size={20} color="#EEE" />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+
+      {/* Search ocupa toda largura agora — carrinho já saiu daqui */}
       <View style={st.searchRow}>
         <Ionicons name="search" size={16} color="#777" />
         <TextInput
@@ -188,13 +226,6 @@ export default function Marketplace() {
             <Ionicons name="close-circle" size={16} color="#666" />
           </TouchableOpacity>
         )}
-        <TouchableOpacity
-          style={st.headerIconBtn}
-          onPress={() => router.push("/cart" as any)}
-          testID="marketplace-cart"
-        >
-          <Ionicons name="bag-handle-outline" size={18} color="#EEE" />
-        </TouchableOpacity>
       </View>
 
       {/* CTA — Botão de publicar anúncio (apenas staff: admin/support/financeiro) */}
@@ -240,19 +271,44 @@ export default function Marketplace() {
               </Text>
             </View>
 
+            {/* Categorias (chips horizontais) — também presentes no Diamond */}
+            <Text style={[st.sectionTitle, { marginTop: 2 }]}>CATEGORIAS</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.catRow}>
+              <CatChip active={cat === "all"} onPress={() => setCat("all")} label="Todos" icon="apps" color={DIAMOND_BLUE} />
+              {publicCats.map((c) => {
+                const meta = CAT_META[c.id] || { label: c.name, icon: c.icon || "cube", color: "#888" };
+                return (
+                  <CatChip
+                    key={c.id}
+                    active={cat === c.id}
+                    onPress={() => setCat(c.id)}
+                    label={meta.label}
+                    icon={meta.icon}
+                    color={meta.color}
+                  />
+                );
+              })}
+            </ScrollView>
+
             {loading ? (
               <View style={{ padding: 32, alignItems: "center" }}>
                 <ActivityIndicator color={DIAMOND_BLUE} />
               </View>
-            ) : ads.length === 0 ? (
+            ) : filteredAds.length === 0 ? (
               <View style={st.emptyBox}>
                 <Ionicons name="diamond-outline" size={36} color={DIAMOND_BLUE + "55"} />
-                <Text style={[st.emptyTitle, { color: DIAMOND_BLUE }]}>Marketplace em curadoria</Text>
-                <Text style={st.emptySub}>Aguarde — novos anúncios serão publicados em breve pela equipe oficial.</Text>
+                <Text style={[st.emptyTitle, { color: DIAMOND_BLUE }]}>
+                  {ads.length === 0 ? "Marketplace em curadoria" : "Nenhum anúncio nessa categoria"}
+                </Text>
+                <Text style={st.emptySub}>
+                  {ads.length === 0
+                    ? "Aguarde — novos anúncios serão publicados em breve pela equipe oficial."
+                    : "Experimente outra categoria ou busque por palavra-chave."}
+                </Text>
               </View>
             ) : (
               <View style={st.adsGrid}>
-                {ads.map((ad) => (
+                {filteredAds.map((ad) => (
                   <AdGridCard
                     key={ad.ad_id}
                     ad={ad}
@@ -681,5 +737,31 @@ const st = StyleSheet.create({
   adGridPrice: {
     color: DIAMOND_BLUE, fontSize: 14.5, fontWeight: "900",
     letterSpacing: 0.3,
+  },
+
+  // === Header premium do marketplace (título + carrinho) ===
+  topHeader: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 14, paddingTop: 8, paddingBottom: 10,
+    gap: 10,
+  },
+  topBackBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#141414", borderWidth: 1, borderColor: "#222",
+  },
+  topTitleWrap: {
+    flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
+  },
+  topDot: {
+    width: 7, height: 7, borderRadius: 3.5,
+  },
+  topTitle: {
+    color: "#AAA", fontSize: 12, fontWeight: "800", letterSpacing: 2,
+  },
+  topCartBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#141414", borderWidth: 1, borderColor: "#222",
   },
 });

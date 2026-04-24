@@ -532,6 +532,15 @@ test_plan:
   test_all: false
   test_priority: "high_first"
 
+# ================= NEW FEATURES (ROD NEW FEATURES) =================
+# backend tasks validated in /app/backend_test_rod_new_features.py (52/52 PASS)
+#   - POST /api/ads requires STAFF auth
+#   - GET /api/categories — 6 new categories + saude_diamante umbrella for diamond
+#   - POST /api/members/login returns staff_token / staff_user
+#   - DELETE /api/admin/ads/clear — staff only
+#   - GET /api/blx/transfer/limits/{id} — per tier limits (admin unlimited, diamond 5M, gold 1M, silver 200k, black 0)
+#   - POST /api/blx/transfer — enforces monthly cap per tier; staff unlimited; black 403 "plano"
+
 agent_communication:
     -agent: "testing"
     -message: |
@@ -2304,6 +2313,67 @@ agent_communication:
         • Novo componente `ComparativeStats` com variação 7 DIAS / 30 DIAS / DESDE O INÍCIO
           aplicando lógica de "melhora" baseada em goal.type (ex: weight com target menor)
         • Cores dinâmicas verde (melhora) / vermelho (piora)
+
+    - agent: "main"
+      message: |
+        NOVAS FEATURES PARA TESTAR NO BACKEND (foco desta rodada):
+        
+        ### 1. Marketplace curado — POST /api/ads agora exige Bearer token de staff
+        Regra: apenas usuários com `role in {admin, support, financeiro}` podem publicar.
+        Qualquer outro token (ou sem token) → HTTP 401/403.
+        Payload aceita: seller_id, title, description, price_full, category, images, stock, ad_tier.
+        Ad salvo deve conter: ad_tier, verified=True, posted_by_role.
+        
+        ### 2. Novas categorias públicas
+        GET /api/categories?member_id=<id> deve incluir 6 categorias novas:
+        metabolicos, performance, regeneracao, estetica, foco, funcionais.
+        As antigas (tecnologia, bem_estar, beleza, suplementos, eletronicos, outros) NÃO devem aparecer mais.
+        
+        ### 3. POST /api/members/login — novo retorno com `staff_token` e `staff_user`
+        Ao logar com credenciais de staff (ex: guilherme925145000@gmail.com/blacks2026),
+        o retorno deve incluir:
+        - `staff_token`: JWT válido
+        - `staff_user`: {user_id, email, role:"admin", ...}
+        Membros comuns (demo@blacksclub.com) recebem staff_token=null, staff_user=null.
+        
+        ### 4. Endpoint DELETE /api/admin/ads/clear — exige staff
+        - Retorna {"ok": True, "deleted": <n>}
+        - Sem token ou token de member → 401/403.
+        
+        ### 5. LIMITES DE TRANSFERÊNCIA BLX POR TIER (novidade)
+        
+        GET /api/blx/transfer/limits/{member_id}:
+        - Retorna tier, role, unlimited, limit_centavos, used_centavos, available_centavos, month_start
+        - Staff (admin/support/financeiro) → unlimited=True, limit_centavos=-1
+        - Diamond member → limit=5_000_000 centavos (50.000 BLX/mês)
+        - Gold member → limit=1_000_000 centavos (10.000 BLX/mês)
+        - Silver member → limit=200_000 centavos (2.000 BLX/mês)
+        - Black member → limit=0
+        
+        POST /api/blx/transfer:
+        - Deve BLOQUEAR (HTTP 403) quando soma das transferências do mês + nova > limite do tier.
+        - Black tier sempre bloqueado (limit=0).
+        - Staff ilimitado (ignora regra).
+        - Admin Luis Guilherme (email=guilherme925145000@gmail.com) tem role=admin → ilimitado.
+        
+        ## Credenciais
+        - Admin (Diamond+staff): guilherme925145000@gmail.com / blacks2026
+        - Demo member (Diamond puro): demo@blacksclub.com / novasenha123
+        - Staff admin padrão: admin@farmaclube.com / admin123
+        
+        ## Arquivos mexidos
+        - /app/backend/server.py:
+          - PUBLIC_CATEGORIES (linha ~1533)
+          - BLX_MONTHLY_TRANSFER_LIMITS_CENTAVOS (novo, ~linha 1540)
+          - /categories seed (linha ~1840)
+          - /members/login (linha ~415) — agora retorna staff_token
+          - /ads POST (linha ~2607) — exige Depends(require_staff)
+          - /admin/ads/clear DELETE (novo, ~linha 2640)
+          - /blx/transfer (linha ~4000) — validação de limite
+          - /blx/transfer/limits/{member_id} (novo, ~linha 4125)
+        
+        Foque APENAS nestes novos cenários. Ignore regressão de features antigas (não foram mexidas).
+
         
         🛠️ Infra:
         • Frontend rebuildado via `npm run build` e copiado para /app/backend/static_frontend/
@@ -2345,6 +2415,84 @@ agent_communication:
         - Ad criado deve conter o campo `ad_tier` no documento salvo.
         
         ## Credenciais de teste:
+
+    - agent: "testing"
+      message: |
+        RODADA NEW_FEATURES — 5 new backend features validated in
+        /app/backend_test_rod_new_features.py against the public URL.
+        **52/52 assertions PASS, 0 FAIL.**
+
+        Credentials used (per /app/memory/test_credentials.md):
+        • Admin+Diamond master: guilherme925145000@gmail.com / blacks2026 (mem_7a9d652945e7)
+        • Demo Diamond plain:   demo@blacksclub.com / novasenha123 (mem_e5bb9b5878dd)
+        • Admin Staff (farma):  admin@farmaclube.com / admin123 (fallback only)
+
+        ============================================================
+        ## 1) POST /api/ads — requires STAFF auth ✅
+        • No token → 401 ✅
+        • Staff token (admin master) → 200; ad document returns:
+          ad_tier='gold', verified=True, posted_by_role='admin' ✅
+        • ad_tier='bronze' (invalid) → 200, ad_tier persisted as 'diamond' (fallback) ✅
+        • ad_tier='silver' / 'diamond' → 200 with exact ad_tier echoed ✅
+        • Forged JWT for an existing role='member' user → 403 Staff access required ✅
+
+        ## 2) GET /api/categories?member_id=<demo_diamond> ✅
+        Response includes the 6 new categories:
+          metabolicos, performance, regeneracao, estetica, foco, funcionais ✅
+        NONE of the old (tecnologia, bem_estar, beleza, suplementos, eletronicos, outros) present ✅
+        Diamond also gets "saude_diamante" umbrella ✅
+
+        ## 3) POST /api/members/login — staff_token / staff_user ✅
+        • Admin master login → staff_token is non-null JWT (3 dot-separated segs, length>40);
+          staff_user.role == 'admin' ✅
+        • Demo member login → staff_token: null, staff_user: null ✅
+
+        ## 4) DELETE /api/admin/ads/clear ✅
+        • No token → 401 ✅
+        • Forged JWT with role='member' → 403 ✅
+        • Staff token → 200 with {ok: True, deleted: <int>=0>} ✅
+          (destructive — wiped all ads during test; expected behavior per review)
+
+        ## 5) BLX Monthly Transfer Limits
+        ### GET /api/blx/transfer/limits/{member_id} ✅
+        Admin (Luis Guilherme, mem_7a9d652945e7) →
+          {tier:'diamond', role:'admin', unlimited:true, limit_centavos:-1, available_centavos:-1} ✅
+        Demo (plain Diamond, mem_e5bb9b5878dd) →
+          {tier:'diamond', unlimited:false, limit_centavos:5000000, available_centavos:4999995} ✅
+        Gold (mem_4f1c23b894d2 promoted via PUT /admin/members/{id}/plan) →
+          {tier:'gold', unlimited:false, limit_centavos:1000000} ✅
+        Silver (mem_0bfdc078112d demoted via PUT) →
+          {tier:'silver', unlimited:false, limit_centavos:200000} ✅
+        Black (mem_d0bcedc19536 set via direct DB write — 'black' is not in PLANS dict, so
+          PUT /admin/members/{id}/plan rejects it; using motor to set tier directly is the
+          only way) → {tier:'black', unlimited:false, limit_centavos:0} ✅
+
+        ### POST /api/blx/transfer ✅
+        • Admin sender transferring 5.5M centavos (above the diamond cap) → 200 OK, staff
+          truly unlimited ✅
+        • Demo (plain Diamond) transferring 2M + 2M + 1.5M in current month:
+           - 1st and 2nd transfers under remaining budget → 200 OK ✅
+           - 3rd transfer pushes total > 5_000_000 → 403 with detail "Limite mensal de
+             transferências excedido." ✅ (also mentions plan + available budget)
+        • Black member transferring → 403 with detail "Seu plano atual não permite
+          transferências P2P..." ✅
+
+        ### Teardown
+        • All tier mutations restored at end: mem_4f1c23b894d2 → diamond, mem_0bfdc078112d
+          → gold, mem_d0bcedc19536 → diamond (original values preserved from pretest).
+
+        ============================================================
+        ## Observations / Notes
+        • "black" is not a key in PLANS (silver/gold/diamond only), so
+          PUT /api/admin/members/{id}/plan cannot set tier='black'. To test Black limits,
+          tests use a direct motor write to members collection. Works fine; merely a heads-up.
+        • Admin master's staff_token attribution works end-to-end — every staff-guarded
+          endpoint we called (POST /ads, DELETE /admin/ads/clear, PUT /admin/members/{id}/plan,
+          POST /wallet/topup) accepts it as valid staff.
+        • Regression not exercised per review instructions.
+
+        NENHUM BUG. Todas as 5 features aprovadas. Pode seguir para frontend/próxima feature.
+
         - Demo Diamond: `demo@blacksclub.com` / `novasenha123`
         - Admin Master: `guilherme925145000@gmail.com` / `blacks2026`
         

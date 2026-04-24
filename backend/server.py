@@ -1534,6 +1534,16 @@ PUBLIC_CATEGORIES = ["metabolicos", "performance", "regeneracao", "estetica", "f
 HEALTH_CATEGORIES = ["emagrecedores", "peptideos", "landerlan", "hormonios"]
 HEALTH_UMBRELLA_ID = "saude_diamante"
 
+# Limites mensais de transferência P2P em BLX (em centavos)
+# Black: não pode transferir; Silver: 2.000 BLX; Gold: 10.000 BLX; Diamond: 50.000 BLX
+# Staff (admin/support/financeiro) não possuem limite.
+BLX_MONTHLY_TRANSFER_LIMITS_CENTAVOS = {
+    "black":   0,
+    "silver":  200_000,     # 2.000 BLX
+    "gold":    1_000_000,   # 10.000 BLX
+    "diamond": 5_000_000,   # 50.000 BLX
+}
+
 @api_router.get("/products", response_model=List[Product])
 async def list_products(
     category: Optional[str] = None,
@@ -4000,7 +4010,8 @@ async def blx_lookup(q: str):
 @api_router.post("/blx/transfer")
 async def blx_transfer(data: BlxTransferRequest):
     """Transferência P2P instantânea em BLX entre dois membros.
-    Valor em centavos. Não exige escrow — liquidação imediata."""
+    Valor em centavos. Não exige escrow — liquidação imediata.
+    Sujeito a limite mensal por tier (ver BLX_MONTHLY_TRANSFER_LIMITS_CENTAVOS)."""
     amt = int(data.amount_centavos or 0)
     if amt <= 0:
         raise HTTPException(status_code=400, detail="Valor inválido")
@@ -4027,6 +4038,48 @@ async def blx_transfer(data: BlxTransferRequest):
         raise HTTPException(status_code=404, detail="Remetente não encontrado")
     if not recipient:
         raise HTTPException(status_code=404, detail="Destinatário não encontrado")
+
+    # === Validação de LIMITE MENSAL POR TIER ===
+    # Staff (admin/support/financeiro) não têm limite — identificados via users.role
+    sender_role = None
+    u = await db.users.find_one({"email": (sender.get("email") or "").lower()}, {"_id": 0, "role": 1})
+    if u:
+        sender_role = u.get("role")
+    is_staff = sender_role in ("admin", "support", "financeiro")
+
+    if not is_staff:
+        sender_tier = (sender.get("tier") or "black").lower()
+        monthly_limit = BLX_MONTHLY_TRANSFER_LIMITS_CENTAVOS.get(sender_tier, 0)
+        if monthly_limit == 0:
+            raise HTTPException(
+                status_code=403,
+                detail="Seu plano atual não permite transferências P2P. Faça upgrade para liberar este recurso."
+            )
+        # Soma transferências enviadas no mês corrente
+        now_ref = datetime.now(timezone.utc)
+        month_start = datetime(now_ref.year, now_ref.month, 1, tzinfo=timezone.utc)
+        agg = db.wallet_txs.aggregate([
+            {"$match": {
+                "type": "transfer",
+                "from_id": data.from_member_id,
+                "status": "settled",
+                "created_at": {"$gte": month_start},
+            }},
+            {"$group": {"_id": None, "total": {"$sum": "$amount_centavos"}}},
+        ])
+        total_used = 0
+        async for row in agg:
+            total_used = int(row.get("total") or 0)
+        if total_used + amt > monthly_limit:
+            remaining = max(monthly_limit - total_used, 0)
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"Limite mensal de transferências excedido. "
+                    f"Plano {sender_tier.upper()}: {monthly_limit/100:,.0f} BLX/mês · "
+                    f"Disponível agora: {remaining/100:,.0f} BLX."
+                ),
+            )
 
     wf = await _wallet_get_or_create(data.from_member_id)
     wt = await _wallet_get_or_create(to_member_id)
@@ -4066,6 +4119,49 @@ async def blx_transfer(data: BlxTransferRequest):
     await db.wallet_txs.insert_one(tx.copy())
     tx.pop("_id", None)
     return tx
+
+
+@api_router.get("/blx/transfer/limits/{member_id}")
+async def blx_transfer_limits(member_id: str):
+    """Retorna o limite mensal de transferência BLX do membro, quanto usado e restante.
+    Staff (admin/support/financeiro) é retornado como ilimitado (-1)."""
+    m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "tier": 1, "email": 1})
+    if not m:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    tier = (m.get("tier") or "black").lower()
+    u = await db.users.find_one({"email": (m.get("email") or "").lower()}, {"_id": 0, "role": 1})
+    role = (u or {}).get("role")
+    is_staff = role in ("admin", "support", "financeiro")
+
+    now_ref = datetime.now(timezone.utc)
+    month_start = datetime(now_ref.year, now_ref.month, 1, tzinfo=timezone.utc)
+    agg = db.wallet_txs.aggregate([
+        {"$match": {
+            "type": "transfer",
+            "from_id": member_id,
+            "status": "settled",
+            "created_at": {"$gte": month_start},
+        }},
+        {"$group": {"_id": None, "total": {"$sum": "$amount_centavos"}}},
+    ])
+    total_used = 0
+    async for row in agg:
+        total_used = int(row.get("total") or 0)
+
+    if is_staff:
+        return {
+            "tier": tier, "role": role, "unlimited": True,
+            "limit_centavos": -1, "used_centavos": total_used,
+            "available_centavos": -1, "month_start": month_start.isoformat(),
+        }
+    monthly_limit = BLX_MONTHLY_TRANSFER_LIMITS_CENTAVOS.get(tier, 0)
+    return {
+        "tier": tier, "role": role, "unlimited": False,
+        "limit_centavos": monthly_limit,
+        "used_centavos": total_used,
+        "available_centavos": max(monthly_limit - total_used, 0),
+        "month_start": month_start.isoformat(),
+    }
 
 
 @api_router.get("/blx/transactions/{member_id}")

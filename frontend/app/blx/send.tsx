@@ -28,11 +28,18 @@ export default function Send() {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [txSuccess, setTxSuccess] = useState<any>(null);
+  const [limits, setLimits] = useState<{
+    unlimited: boolean;
+    limit_centavos: number;
+    used_centavos: number;
+    available_centavos: number;
+  } | null>(null);
   const debounceRef = useRef<any>(null);
 
   useEffect(() => {
     if (!member) return;
     api.blxWallet(member.member_id).then(setW).catch(() => {});
+    api.blxTransferLimits(member.member_id).then(setLimits).catch(() => {});
   }, [member]);
 
   // Busca com debounce
@@ -130,6 +137,46 @@ export default function Send() {
 
         {step === "search" && (
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+            {/* CARD — Limite mensal de transferência por tier */}
+            {limits && !limits.unlimited && (
+              <View style={styles.limitCard}>
+                <View style={styles.limitHeaderRow}>
+                  <View style={styles.limitTitleRow}>
+                    <Ionicons name="speedometer-outline" size={14} color="#D4AF37" />
+                    <Text style={styles.limitTitle}>LIMITE MENSAL</Text>
+                  </View>
+                  <Text style={styles.limitValue}>
+                    {formatBLX(limits.used_centavos)} / {formatBLX(limits.limit_centavos)} BLX
+                  </Text>
+                </View>
+                <View style={styles.limitBar}>
+                  <View
+                    style={[
+                      styles.limitBarFill,
+                      {
+                        width: `${Math.min(100, limits.limit_centavos > 0 ? (limits.used_centavos / limits.limit_centavos) * 100 : 0)}%`,
+                        backgroundColor: limits.available_centavos <= 0 ? "#E74C3C" : "#D4AF37",
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.limitSub}>
+                  {limits.available_centavos <= 0
+                    ? "Limite mensal atingido — renova no próximo mês."
+                    : `Disponível: ${formatBLX(limits.available_centavos)} BLX`}
+                </Text>
+              </View>
+            )}
+            {limits && limits.unlimited && (
+              <View style={[styles.limitCard, { borderColor: "#7FD7E5" + "44" }]}>
+                <View style={styles.limitTitleRow}>
+                  <Ionicons name="infinite" size={14} color="#7FD7E5" />
+                  <Text style={[styles.limitTitle, { color: "#7FD7E5" }]}>TRANSFERÊNCIAS ILIMITADAS</Text>
+                </View>
+                <Text style={styles.limitSub}>Seu perfil de staff não possui limite mensal.</Text>
+              </View>
+            )}
+
             <Text style={styles.label}>BUSCAR POR CARTEIRA, NOME, E-MAIL OU TELEFONE</Text>
             <View style={styles.inputBox}>
               <Ionicons name="search" size={16} color="#8A8A8A" />
@@ -517,4 +564,34 @@ const styles = StyleSheet.create({
   successTitle: { color: "#4EE07F", fontSize: 13, fontWeight: "900", letterSpacing: 2.5 },
   successAmount: { color: "#FFF", fontSize: 34, fontWeight: "900", marginTop: 12, letterSpacing: -1 },
   successSub: { color: "#8A8A8A", fontSize: 13, marginTop: 6 },
+
+  // Card de limite mensal de transferência
+  limitCard: {
+    backgroundColor: "#0E0E0E",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(212,175,55,0.22)",
+    padding: 12,
+    marginBottom: 16,
+  },
+  limitHeaderRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+  },
+  limitTitleRow: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+  },
+  limitTitle: {
+    color: "#D4AF37", fontSize: 10.5, fontWeight: "900", letterSpacing: 1.5,
+  },
+  limitValue: {
+    color: "#EEE", fontSize: 11.5, fontWeight: "800", fontVariant: ["tabular-nums"],
+  },
+  limitBar: {
+    height: 5, borderRadius: 3,
+    backgroundColor: "#1A1A1A", marginTop: 10, overflow: "hidden",
+  },
+  limitBarFill: { height: "100%", borderRadius: 3 },
+  limitSub: {
+    color: "#888", fontSize: 10.5, fontWeight: "600", marginTop: 8,
+  },
 });
