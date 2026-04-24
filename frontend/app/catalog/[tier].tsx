@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  Image, ActivityIndicator, ScrollView, FlatList,
+  Image, ActivityIndicator, ScrollView, FlatList, Keyboard,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect, useLocalSearchParams, Stack } from "expo-router";
@@ -211,22 +211,59 @@ export default function Marketplace() {
         </View>
       </SafeAreaView>
 
-      {/* Search ocupa toda largura agora — carrinho já saiu daqui */}
+      {/* CATEGORIAS — barra fixa acima da busca (aproveita o espaço vazio do topo) */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={st.catRowTop}
+        keyboardShouldPersistTaps="handled"
+      >
+        <CatChip active={cat === "all"} onPress={() => setCat("all")} label="Todos" icon="apps" color={tierMeta.accent} />
+        {publicCats.map((c) => {
+          const meta = CAT_META[c.id] || { label: c.name, icon: c.icon || "cube", color: "#888" };
+          return (
+            <CatChip
+              key={c.id}
+              active={cat === c.id}
+              onPress={() => setCat(c.id)}
+              label={meta.label}
+              icon={meta.icon}
+              color={meta.color}
+            />
+          );
+        })}
+      </ScrollView>
+
+      {/* Busca FUNCIONAL — input ocupa toda largura, botão lupa à direita dispara/foca a busca */}
       <View style={st.searchRow}>
-        <Ionicons name="search" size={16} color="#777" />
         <TextInput
-          style={st.searchInput}
-          value={q} onChangeText={setQ}
-          placeholder="Buscar produto..."
+          style={st.searchInputFull}
+          value={q}
+          onChangeText={setQ}
+          placeholder="Buscar produto pelo nome..."
           placeholderTextColor="#666"
           autoCapitalize="none"
+          returnKeyType="search"
+          onSubmitEditing={() => Keyboard.dismiss()}
           testID="marketplace-search"
         />
         {q.length > 0 && (
-          <TouchableOpacity onPress={() => setQ("")} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+          <TouchableOpacity
+            onPress={() => setQ("")}
+            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+            style={st.searchClearBtn}
+          >
             <Ionicons name="close-circle" size={16} color="#666" />
           </TouchableOpacity>
         )}
+        <TouchableOpacity
+          onPress={() => Keyboard.dismiss()}
+          style={[st.searchBtn, { backgroundColor: tierMeta.color }]}
+          activeOpacity={0.85}
+          testID="marketplace-search-btn"
+        >
+          <Ionicons name="search" size={16} color="#0A0A0A" />
+        </TouchableOpacity>
       </View>
 
       {/* CTA — Botão de publicar anúncio (apenas staff: admin/support/financeiro) */}
@@ -272,25 +309,6 @@ export default function Marketplace() {
               </Text>
             </View>
 
-            {/* Categorias (chips horizontais) — também presentes no Diamond */}
-            <Text style={[st.sectionTitle, { marginTop: 2 }]}>CATEGORIAS</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.catRow}>
-              <CatChip active={cat === "all"} onPress={() => setCat("all")} label="Todos" icon="apps" color={DIAMOND_BLUE} />
-              {publicCats.map((c) => {
-                const meta = CAT_META[c.id] || { label: c.name, icon: c.icon || "cube", color: "#888" };
-                return (
-                  <CatChip
-                    key={c.id}
-                    active={cat === c.id}
-                    onPress={() => setCat(c.id)}
-                    label={meta.label}
-                    icon={meta.icon}
-                    color={meta.color}
-                  />
-                );
-              })}
-            </ScrollView>
-
             {loading ? (
               <View style={{ padding: 32, alignItems: "center" }}>
                 <ActivityIndicator color={DIAMOND_BLUE} />
@@ -322,25 +340,6 @@ export default function Marketplace() {
         ) : (
           <>
             {/* ==================== GOLD / SILVER VIEW ==================== */}
-            {/* Categorias públicas */}
-            <Text style={st.sectionTitle}>CATEGORIAS</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.catRow}>
-              <CatChip active={cat === "all"} onPress={() => setCat("all")} label="Todos" icon="apps" color="#EEE" />
-              {publicCats.map((c) => {
-                const meta = CAT_META[c.id] || { label: c.name, icon: c.icon || "cube", color: "#888" };
-                return (
-                  <CatChip
-                    key={c.id}
-                    active={cat === c.id}
-                    onPress={() => setCat(c.id)}
-                    label={meta.label}
-                    icon={meta.icon}
-                    color={meta.color}
-                  />
-                );
-              })}
-            </ScrollView>
-
             {/* CATÁLOGO OFICIAL — divisor elegante em DOURADO */}
             <View style={st.catalogDivider}>
               <View style={st.catalogDividerLine} />
@@ -764,5 +763,26 @@ const st = StyleSheet.create({
     width: 38, height: 38, borderRadius: 19,
     alignItems: "center", justifyContent: "center",
     backgroundColor: "#141414", borderWidth: 1, borderColor: "#222",
+  },
+
+  // === Categoria chips no topo (acima da busca) ===
+  catRowTop: {
+    paddingHorizontal: 14,
+    paddingTop: 4,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  // === Busca funcional (full width + botão lupa à direita) ===
+  searchInputFull: {
+    flex: 1, color: "#EEE", fontSize: 14, paddingVertical: 0,
+  },
+  searchClearBtn: {
+    width: 22, height: 22, alignItems: "center", justifyContent: "center",
+    marginRight: 4,
+  },
+  searchBtn: {
+    width: 36, height: 30, borderRadius: 8,
+    alignItems: "center", justifyContent: "center",
+    marginLeft: 4,
   },
 });
