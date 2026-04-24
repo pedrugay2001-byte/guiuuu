@@ -1642,17 +1642,15 @@ async def delete_product(product_id: str, admin: dict = Depends(require_staff)):
 class ProductBLXPurchase(BaseModel):
     member_id: str
     quantity: int = 1
+    pay_option: str = "full"  # "full" (100%, -30%) | "half" (50%, -15%) | "entry" (10%, 0%)
 
 
 @api_router.post("/products/{product_id}/buy-blx")
 async def buy_product_with_blx(product_id: str, data: ProductBLXPurchase):
     """
-    Compra um item do catálogo oficial descontando BLX diretamente do wallet.
-    - Valida saldo em balance_centavos
-    - Debita o valor
-    - Cria registro em wallet_txs (type=purchase, status=settled)
-    - Cria registro em orders (catalog order)
-    - Aplica tier discount automaticamente
+    Compra um item do catálogo oficial com BLX.
+    - pay_option define: % de entrada debitada AGORA + desconto no total.
+    - Saldo restante fica registrado como "remaining_cents" no order (a pagar na entrega).
     """
     if data.quantity < 1:
         raise HTTPException(status_code=400, detail="Quantidade inválida")
@@ -1665,98 +1663,108 @@ async def buy_product_with_blx(product_id: str, data: ProductBLXPurchase):
         raise HTTPException(status_code=400, detail="Estoque insuficiente")
 
     # Load member + tier
-    m = await db.members.find_one({"member_id": data.member_id}, {"_id": 0, "tier": 1, "name": 1, "nickname": 1})
+    m = await db.members.find_one({"member_id": data.member_id}, {"_id": 0, "tier": 1})
     if not m:
         raise HTTPException(status_code=404, detail="Membro não encontrado")
     tier = (m.get("tier") or "black").lower()
 
-    # Tier discount (apenas silver/gold/diamond podem comprar catálogo)
     if tier not in ("silver", "gold", "diamond"):
         raise HTTPException(
             status_code=403,
             detail="Catálogo disponível apenas para membros Silver, Gold ou Diamante",
         )
+
     TIER_DISCOUNT = {"silver": 0.05, "gold": 0.10, "diamond": 0.15}
-    disc = TIER_DISCOUNT.get(tier, 0.0)
+    tier_disc = TIER_DISCOUNT.get(tier, 0.0)
+
+    # Pay-option mapping: (entry%, extra_discount%)
+    PAY = {
+        "full":  {"entry_pct": 100, "disc_pct": 30},
+        "half":  {"entry_pct": 50,  "disc_pct": 15},
+        "entry": {"entry_pct": 10,  "disc_pct": 0},
+    }
+    cfg = PAY.get(data.pay_option, PAY["full"])
+
     unit_price_brl = float(prod.get("member_price") or prod.get("price") or 0)
-    discounted_brl = round(unit_price_brl * (1 - disc), 2)
-    # 1 BLX == 1 BRL (convenção interna) → centavos = centavos
+    # Aplica tier discount + pay-option discount
+    discounted_brl = round(unit_price_brl * (1 - tier_disc) * (1 - cfg["disc_pct"] / 100), 2)
     unit_cents = int(round(discounted_brl * 100))
     total_cents = unit_cents * data.quantity
 
     if total_cents <= 0:
         raise HTTPException(status_code=400, detail="Valor do produto inválido")
 
-    # Load/ensure wallet
+    # Calcula entrada (debita agora) e saldo devedor (na entrega)
+    entry_cents = int(round(total_cents * cfg["entry_pct"] / 100))
+    remaining_cents = total_cents - entry_cents
+
     wallet = await db.wallets.find_one({"member_id": data.member_id}, {"_id": 0})
     if not wallet:
         raise HTTPException(status_code=400, detail="Carteira BLX não encontrada")
 
     current_cents = int(wallet.get("balance_centavos") or 0)
-    if current_cents < total_cents:
-        faltante = (total_cents - current_cents) / 100.0
+    if current_cents < entry_cents:
+        faltante = (entry_cents - current_cents) / 100.0
         raise HTTPException(
             status_code=400,
-            detail=f"Saldo BLX insuficiente. Faltam {faltante:.2f} BLX.",
+            detail=f"Saldo BLX insuficiente para a entrada. Faltam {faltante:.2f} BLX.",
         )
 
-    # Debit wallet (integer math for balance_centavos)
-    amt_float = total_cents / 100.0
+    # Debita APENAS a entrada
+    amt_float = entry_cents / 100.0
     await db.wallets.update_one(
         {"member_id": data.member_id},
-        {"$inc": {"balance": -amt_float, "balance_centavos": -total_cents}},
+        {"$inc": {"balance": -amt_float, "balance_centavos": -entry_cents}},
     )
 
-    # Create tx ledger entry
     tx_id = f"tx_{uuid.uuid4().hex[:10]}"
     now = datetime.now(timezone.utc)
-    tx_doc = {
-        "tx_id": tx_id,
-        "from_id": data.member_id,
-        "to_id": "catalog_admin",  # destino: admin do clube
-        "amount": amt_float,
-        "amount_centavos": total_cents,
-        "type": "purchase",
-        "status": "settled",
-        "description": f"Compra catálogo: {prod.get('name')} x{data.quantity}",
-        "product_id": product_id,
-        "created_at": now,
-        "settled_at": now,
-    }
-    await db.wallet_txs.insert_one(tx_doc)
-
-    # Create order record (for tracking / future delivery)
-    order_id = f"ord_{uuid.uuid4().hex[:10]}"
-    await db.orders.insert_one({
-        "order_id": order_id,
-        "member_id": data.member_id,
-        "product_id": product_id,
-        "product_name": prod.get("name"),
-        "quantity": data.quantity,
-        "unit_cents": unit_cents,
-        "total_cents": total_cents,
-        "tier_discount": disc,
-        "status": "awaiting_delivery",
-        "channel": "catalog_blx",
-        "tx_id": tx_id,
-        "created_at": now,
+    await db.wallet_txs.insert_one({
+        "tx_id": tx_id, "from_id": data.member_id, "to_id": "catalog_admin",
+        "amount": amt_float, "amount_centavos": entry_cents,
+        "type": "purchase", "status": "settled",
+        "description": (
+            f"Compra catálogo: {prod.get('name')} x{data.quantity} · "
+            f"entrada {cfg['entry_pct']}%"
+        ),
+        "product_id": product_id, "pay_option": data.pay_option,
+        "created_at": now, "settled_at": now,
     })
 
-    # Decrement stock
+    order_id = f"ord_{uuid.uuid4().hex[:10]}"
+    status = "settled" if remaining_cents == 0 else "awaiting_delivery_payment"
+    await db.orders.insert_one({
+        "order_id": order_id, "member_id": data.member_id, "product_id": product_id,
+        "product_name": prod.get("name"), "quantity": data.quantity,
+        "unit_cents": unit_cents, "total_cents": total_cents,
+        "entry_cents": entry_cents, "remaining_cents": remaining_cents,
+        "tier_discount": tier_disc, "pay_option": data.pay_option,
+        "status": status, "channel": "catalog_blx",
+        "tx_id": tx_id, "created_at": now,
+    })
+
     await db.products.update_one(
         {"product_id": product_id},
         {"$inc": {"stock": -data.quantity}},
     )
 
-    new_balance_cents = current_cents - total_cents
+    new_balance_cents = current_cents - entry_cents
     return {
         "ok": True,
         "order_id": order_id,
         "tx_id": tx_id,
         "total_cents": total_cents,
+        "entry_cents": entry_cents,
+        "remaining_cents": remaining_cents,
+        "pay_option": data.pay_option,
         "quantity": data.quantity,
         "new_balance_centavos": new_balance_cents,
-        "message": f"Compra realizada! {amt_float:.2f} BLX debitados do seu saldo.",
+        "message": (
+            f"Compra realizada! {amt_float:.2f} BLX debitados "
+            f"({cfg['entry_pct']}% de entrada)."
+            + (f" Saldo de {remaining_cents/100:.2f} BLX a pagar na entrega."
+               if remaining_cents > 0 else "")
+        ),
     }
 
 
