@@ -4460,6 +4460,7 @@ app.include_router(api_router)
 
 from fastapi.responses import FileResponse, Response, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+import shutil
 
 FRONTEND_DIST = "/app/frontend/dist"
 FRONTEND_ROOT = "/app/frontend"
@@ -4468,30 +4469,77 @@ FRONTEND_ROOT = "/app/frontend"
 _build_in_progress = {"running": False, "done": False, "error": None}
 
 
+def _pick_node_runner():
+    """
+    Detect which package manager is available in the container.
+    Priority: yarn (fast, used in dev) → npm (always with Node) → npx (last resort).
+    Returns a tuple: (install_cmd, build_cmd) or (None, None) if nothing available.
+    """
+    if shutil.which("yarn"):
+        return (["yarn", "install", "--frozen-lockfile", "--ignore-scripts"],
+                ["yarn", "build"])
+    if shutil.which("npm"):
+        return (["npm", "ci", "--ignore-scripts"],
+                ["npm", "run", "build"])
+    if shutil.which("npx"):
+        # Last resort: direct expo export without package manager
+        return (None, ["npx", "--yes", "expo", "export", "--platform", "web", "--output-dir", "dist"])
+    return (None, None)
+
+
+async def _run_cmd(cmd, cwd):
+    """Run a subprocess command asynchronously and capture output."""
+    logger.info(f"Running: {' '.join(cmd)} (cwd={cwd})")
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        cwd=cwd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    stdout, _ = await proc.communicate()
+    output = stdout.decode("utf-8", errors="ignore")
+    return proc.returncode, output
+
+
 async def _run_frontend_build_bg():
-    """Run `yarn build` as background task if dist is missing (production fallback)."""
+    """
+    Run frontend build as background task if dist is missing.
+    Auto-detects yarn/npm/npx and handles missing node_modules gracefully.
+    """
     if _build_in_progress["running"] or os.path.isdir(FRONTEND_DIST):
         return
     _build_in_progress["running"] = True
     try:
-        logger.info("Starting frontend build: yarn build (background)")
-        proc = await asyncio.create_subprocess_exec(
-            "yarn", "build",
-            cwd=FRONTEND_ROOT,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        stdout, _ = await proc.communicate()
-        if proc.returncode == 0:
+        install_cmd, build_cmd = _pick_node_runner()
+        if not build_cmd:
+            err = "No package manager found (yarn/npm/npx missing) — cannot build frontend"
+            _build_in_progress["error"] = err
+            logger.error(err)
+            return
+
+        # Step 1: Install deps if node_modules is missing (safe no-op if present)
+        node_modules = os.path.join(FRONTEND_ROOT, "node_modules")
+        if not os.path.isdir(node_modules) and install_cmd:
+            logger.info(f"node_modules missing — running install: {' '.join(install_cmd)}")
+            code, out = await _run_cmd(install_cmd, FRONTEND_ROOT)
+            if code != 0:
+                _build_in_progress["error"] = f"install failed: exit {code}"
+                logger.error(f"Install FAILED (exit {code}):\n{out[-1500:]}")
+                return
+            logger.info("Install SUCCESS")
+
+        # Step 2: Run build
+        logger.info(f"Starting frontend build: {' '.join(build_cmd)}")
+        code, out = await _run_cmd(build_cmd, FRONTEND_ROOT)
+        if code == 0 and os.path.isdir(FRONTEND_DIST):
             _build_in_progress["done"] = True
             logger.info(f"Frontend build SUCCESS — dist created at {FRONTEND_DIST}")
         else:
-            _build_in_progress["error"] = f"exit {proc.returncode}"
-            logger.error(f"Frontend build FAILED: exit {proc.returncode}")
-            logger.error(stdout.decode("utf-8", errors="ignore")[-1500:])
+            _build_in_progress["error"] = f"build failed: exit {code}"
+            logger.error(f"Frontend build FAILED (exit {code}):\n{out[-1500:]}")
     except Exception as e:  # noqa: BLE001
         _build_in_progress["error"] = str(e)
-        logger.error(f"Frontend build error: {e}")
+        logger.error(f"Frontend build exception: {e}")
     finally:
         _build_in_progress["running"] = False
 
@@ -4500,7 +4548,11 @@ async def _run_frontend_build_bg():
 @app.on_event("startup")
 async def ensure_frontend_build_on_startup():
     if not os.path.isdir(FRONTEND_DIST):
-        logger.warning(f"{FRONTEND_DIST} missing — scheduling background yarn build")
+        install_cmd, build_cmd = _pick_node_runner()
+        runner_name = build_cmd[0] if build_cmd else "NONE"
+        logger.warning(
+            f"{FRONTEND_DIST} missing — scheduling background build (runner: {runner_name})"
+        )
         asyncio.create_task(_run_frontend_build_bg())
     else:
         logger.info(f"Frontend dist already present at {FRONTEND_DIST}")
