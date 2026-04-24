@@ -4461,7 +4461,18 @@ app.include_router(api_router)
 from fastapi.responses import FileResponse, Response, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-FRONTEND_DIST = "/app/frontend/dist"
+# Frontend build location. Primary path is INSIDE /app/backend/ so it always
+# ships with the deploy (Emergent Restic backup system excludes `**/dist/**`
+# at infrastructure level, so /app/frontend/dist is unreliable in production).
+# We fall back to /app/frontend/dist for local dev convenience.
+_CANDIDATE_DIRS = [
+    "/app/backend/static_frontend",
+    "/app/frontend/dist",
+]
+FRONTEND_DIST = next(
+    (d for d in _CANDIDATE_DIRS if os.path.isdir(d)),
+    _CANDIDATE_DIRS[0],  # default to first even if missing (for error msg)
+)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
