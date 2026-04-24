@@ -1,22 +1,32 @@
 import { useEffect, useState } from "react";
 import {
   View, Text, StyleSheet, Image, ScrollView, TouchableOpacity,
-  ActivityIndicator, Modal,
+  ActivityIndicator, Modal, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { api, Product, formatBRL } from "../../src/api";
+import { api, Product } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { formatBLX } from "../../src/blx";
 import { notify } from "../../src/alerts";
-import { theme } from "../../src/theme";
+import { theme, TIERS } from "../../src/theme";
 
+// Paleta CATÁLOGO — DOURADO
 const GOLD_LIGHT = "#F4D47A";
 const GOLD = "#D4AF37";
 const GOLD_DARK = "#8C6F1E";
 
+// Opções de pagamento (iguais do Diamante para unificação visual)
+const PAY_OPTIONS = [
+  { id: "full", label: "Antecipado 100%", discount: 30, sub: "Melhor preço" },
+  { id: "half", label: "50% de entrada", discount: 15, sub: "50% saldo na entrega" },
+  { id: "entry", label: "10% de entrada", discount: 0, sub: "90% saldo na entrega" },
+] as const;
+type PayId = typeof PAY_OPTIONS[number]["id"];
+
+// Desconto adicional por tier (para o catálogo oficial)
 const TIER_DISCOUNT: Record<string, number> = {
   silver: 0.05,
   gold: 0.10,
@@ -29,6 +39,7 @@ export default function ProductDetails() {
   const { member, refreshMember } = useGate();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pay, setPay] = useState<PayId>("full");
   const [showConfirm, setShowConfirm] = useState(false);
   const [buying, setBuying] = useState(false);
 
@@ -37,21 +48,34 @@ export default function ProductDetails() {
     api.product(id).then(setProduct).catch(() => setProduct(null)).finally(() => setLoading(false));
   }, [id]);
 
+  if (loading) {
+    return <View style={{ flex: 1, backgroundColor: theme.colors.bg, justifyContent: "center" }}><ActivityIndicator color={GOLD} /></View>;
+  }
+  if (!product) {
+    return <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg }}><Text style={{ color: "#FFF", padding: 20 }}>Produto não encontrado.</Text></SafeAreaView>;
+  }
+
   const tier = (member?.tier || "black").toLowerCase();
-  const disc = TIER_DISCOUNT[tier] || 0;
-  const discountedBRL = product ? Math.round(product.member_price * (1 - disc) * 100) / 100 : 0;
-  const priceCents = Math.round(discountedBRL * 100);
+  const tierDisc = TIER_DISCOUNT[tier] || 0;
+  // 1 BLX ≡ 1 BRL interno → aplicamos tier + pagamento
+  const baseBrl = product.member_price * (1 - tierDisc);
+  const opt = PAY_OPTIONS.find(o => o.id === pay)!;
+  const fullCents = Math.round(baseBrl * 100);
+  const finalCents = Math.round(fullCents * (100 - opt.discount) / 100);
+  const entryPct = pay === "full" ? 100 : pay === "half" ? 50 : 10;
+  const entryCents = Math.round(finalCents * entryPct / 100);
+  const remainingCents = finalCents - entryCents;
+
+  const canBuy = tier === "silver" || tier === "gold" || tier === "diamond";
 
   const handleBuy = async () => {
-    if (!product || !member) return;
+    if (!member) return;
     setBuying(true);
     try {
       const r = await api.buyProductBLX(product.product_id, { member_id: member.member_id, quantity: 1 });
       setShowConfirm(false);
       notify("Compra confirmada", r.message || "BLX debitados com sucesso.");
-      // Atualizar saldo local
       refreshMember();
-      // Voltar após 1.5s
       setTimeout(() => router.back(), 1200);
     } catch (e: any) {
       setShowConfirm(false);
@@ -61,98 +85,145 @@ export default function ProductDetails() {
     }
   };
 
-  const consultDelivery = () => router.push("/chat");
-
-  if (loading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.bg, justifyContent: "center" }}>
-        <ActivityIndicator color={GOLD} />
-      </View>
+  const consultDelivery = () => {
+    Alert.alert(
+      "Prazo de entrega",
+      "Prazos e logística são combinados com o suporte. Deseja falar com o suporte agora?",
+      [{ text: "Agora não" }, { text: "Falar com suporte", onPress: () => router.push("/chat" as any) }],
     );
-  }
-
-  if (!product) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-        <Text style={{ color: theme.colors.text, padding: 20 }}>Produto não encontrado.</Text>
-      </SafeAreaView>
-    );
-  }
-
-  const canBuy = tier === "silver" || tier === "gold" || tier === "diamond";
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="product-details">
       <Stack.Screen options={{ title: "" }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 130 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
+        {/* HEADER — imagem compacta + faixa dourada lateral */}
         <View style={s.imageWrap}>
           <Image source={{ uri: product.image_url }} style={s.image} resizeMode="cover" />
-          {/* Gradiente elegante no topo da imagem */}
-          <LinearGradient
-            colors={["rgba(5,5,5,0.7)", "transparent"]}
-            style={s.imageTopGradient}
-            pointerEvents="none"
-          />
-          {/* Gradiente inferior para transição suave */}
-          <LinearGradient
-            colors={["transparent", theme.colors.bg]}
-            style={s.imageBottomGradient}
-            pointerEvents="none"
-          />
-          {/* Faixa dourada lateral — acento premium */}
+          <LinearGradient colors={["rgba(5,5,5,0.55)", "transparent"]} style={s.imageTopGradient} pointerEvents="none" />
+          <LinearGradient colors={["transparent", theme.colors.bg]} style={s.imageBottomGradient} pointerEvents="none" />
           <View style={s.goldStripe} />
         </View>
 
         <View style={s.body}>
+          {/* Título + categoria */}
           <Text style={s.category}>{product.category.toUpperCase()}</Text>
-          <Text style={s.name}>{product.name}</Text>
+          <View style={s.titleRow}>
+            <Text style={s.title} numberOfLines={2}>{product.name}</Text>
+            <View style={s.sealPill}>
+              <Ionicons name="ribbon" size={9} color={GOLD} />
+              <Text style={s.sealTxt}>OFICIAL</Text>
+            </View>
+          </View>
 
-          {/* Price card com degradê dourado */}
+          {/* Preço principal compacto */}
           <LinearGradient
-            colors={[GOLD_LIGHT + "20", "#0B0906", GOLD_DARK + "14"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+            colors={[GOLD_LIGHT + "18", "#0B0906", GOLD_DARK + "10"]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             style={s.priceCard}
           >
             <View>
               <Text style={s.priceLabel}>VALOR EM BLX</Text>
               <View style={s.priceRow}>
-                <Text style={s.priceBLX}>{formatBLX(priceCents)}</Text>
+                <Text style={s.priceBLX}>{formatBLX(finalCents)}</Text>
                 <Text style={s.priceUnit}>BLX</Text>
               </View>
-              {disc > 0 && (
+              {tierDisc > 0 && (
                 <Text style={s.priceOld}>
-                  {formatBRL(product.member_price)} · desconto {tier.toUpperCase()} -{Math.round(disc * 100)}%
+                  Valor cheio {formatBLX(Math.round(product.member_price * 100))} BLX · tier {tier.toUpperCase()} −{Math.round(tierDisc * 100)}%
                 </Text>
               )}
             </View>
-            <View style={s.tierSeal}>
-              <Ionicons name="diamond" size={12} color={GOLD} />
-              <Text style={s.tierSealTxt}>{tier.toUpperCase()}</Text>
-            </View>
           </LinearGradient>
 
-          <View style={s.divider} />
+          {/* Forma de pagamento — igual Diamante */}
+          <Text style={s.sectionLbl}>FORMA DE PAGAMENTO</Text>
+          <View style={{ gap: 6 }}>
+            {PAY_OPTIONS.map(o => {
+              const discCents = Math.round(fullCents * (100 - o.discount) / 100);
+              const selected = pay === o.id;
+              return (
+                <TouchableOpacity
+                  key={o.id}
+                  style={[s.payOpt, selected && s.payOptActive]}
+                  onPress={() => setPay(o.id)}
+                  activeOpacity={0.85}
+                  testID={`product-pay-${o.id}`}
+                >
+                  <View style={[s.payRadio, selected && { borderColor: GOLD }]}>
+                    {selected && <View style={[s.payRadioDot, { backgroundColor: GOLD }]} />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.payLabel, selected && { color: "#FFF" }]}>{o.label}</Text>
+                    <Text style={s.paySub}>{o.sub}</Text>
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    {o.discount > 0 && (
+                      <View style={s.discPill}>
+                        <Text style={s.discPillTxt}>−{o.discount}%</Text>
+                      </View>
+                    )}
+                    <Text style={[s.payPrice, selected && { color: GOLD_LIGHT }]}>{formatBLX(discCents)} BLX</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-          <Text style={s.label}>DESCRIÇÃO</Text>
+          {/* Resumo */}
+          <View style={s.summaryBox}>
+            {pay !== "full" && (
+              <>
+                <View style={s.summaryRow}>
+                  <Text style={s.summaryLbl}>Entrada ({entryPct}%)</Text>
+                  <Text style={s.summaryVal}>{formatBLX(entryCents)} BLX</Text>
+                </View>
+                <View style={s.summaryRow}>
+                  <Text style={s.summaryLbl}>Saldo na entrega</Text>
+                  <Text style={s.summaryVal}>{formatBLX(remainingCents)} BLX</Text>
+                </View>
+                <View style={s.summaryDivider} />
+              </>
+            )}
+            <View style={s.summaryRow}>
+              <Text style={s.summaryLblBold}>Total</Text>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={[s.summaryTotal, { color: GOLD_LIGHT }]}>{formatBLX(finalCents)} BLX</Text>
+                {opt.discount > 0 && <Text style={s.summarySaving}>economia {formatBLX(fullCents - finalCents)} BLX</Text>}
+              </View>
+            </View>
+          </View>
+
+          {/* Prazo de entrega — ícone igual do Diamante */}
+          <TouchableOpacity style={s.deliveryBox} onPress={consultDelivery} testID="product-delivery">
+            <Ionicons name="bicycle-outline" size={18} color="#AAA" />
+            <View style={{ flex: 1 }}>
+              <Text style={s.deliveryLbl}>PRAZO DE ENTREGA</Text>
+              <Text style={s.deliveryTxt}>Consultar no suporte</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#666" />
+          </TouchableOpacity>
+
+          {/* Descrição + segurança */}
+          <Text style={s.sectionLbl}>DESCRIÇÃO</Text>
           <Text style={s.desc}>{product.description}</Text>
 
           <View style={s.infoRow}>
-            <InfoBlock icon="cube-outline" label="Estoque" value={`${product.stock} un.`} />
-            <InfoBlock icon="shield-checkmark-outline" label="Autêntico" value="Original" />
-            <InfoBlock icon="rocket-outline" label="Envio" value="Discreto" />
+            <InfoBlock icon="cube-outline" label="Estoque" value={`${product.stock}`} color={GOLD} />
+            <InfoBlock icon="shield-checkmark-outline" label="Origem" value="Oficial" color={GOLD} />
+            <InfoBlock icon="rocket-outline" label="Envio" value="Discreto" color={GOLD} />
           </View>
 
-          {/* Link discreto "Consultar prazo" (sem cor chamativa) */}
-          <TouchableOpacity style={s.supportLink} onPress={consultDelivery} testID="product-delivery-support">
-            <Ionicons name="time-outline" size={13} color="#888" />
-            <Text style={s.supportLinkTxt}>Consultar prazo de entrega</Text>
-            <Ionicons name="chevron-forward" size={13} color="#888" />
-          </TouchableOpacity>
+          <View style={s.securityBox}>
+            <Ionicons name="shield-checkmark" size={18} color="#AAA" />
+            <Text style={s.securityTxt}>
+              Produto oficial do clube. Pagamento em BLEX Token (BLX). Curadoria verificada com envio discreto.
+            </Text>
+          </View>
         </View>
       </ScrollView>
 
-      {/* FOOTER — Botão principal "Comprar com BLX" */}
+      {/* FOOTER */}
       <SafeAreaView style={s.footer} edges={["bottom"]}>
         {!canBuy ? (
           <View style={s.blockedBox}>
@@ -168,18 +239,17 @@ export default function ProductDetails() {
           >
             <LinearGradient
               colors={[GOLD_LIGHT, GOLD, GOLD_DARK]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={s.buyBtnInner}
             >
               <MaterialCommunityIcons name="diamond-stone" size={16} color="#0A0A0A" />
-              <Text style={s.buyBtnTxt}>COMPRAR · {formatBLX(priceCents)} BLX</Text>
+              <Text style={s.buyBtnTxt}>COMPRAR · {formatBLX(finalCents)} BLX</Text>
             </LinearGradient>
           </TouchableOpacity>
         )}
       </SafeAreaView>
 
-      {/* Modal de confirmação (evita clique acidental) */}
+      {/* Modal de confirmação */}
       <Modal visible={showConfirm} transparent animationType="fade" onRequestClose={() => setShowConfirm(false)}>
         <View style={s.modalBg}>
           <View style={s.modalCard}>
@@ -192,48 +262,39 @@ export default function ProductDetails() {
             <Text style={s.modalTitle} numberOfLines={2}>{product.name}</Text>
 
             <View style={s.modalRow}>
-              <Text style={s.modalLbl}>Valor</Text>
-              <Text style={s.modalVal}>{formatBLX(priceCents)} BLX</Text>
+              <Text style={s.modalLbl}>Pagamento</Text>
+              <Text style={s.modalVal}>{opt.label}</Text>
             </View>
-            {disc > 0 && (
+            {opt.discount > 0 && (
+              <View style={s.modalRow}>
+                <Text style={s.modalLbl}>Desconto pagamento</Text>
+                <Text style={[s.modalVal, { color: "#4EE07F" }]}>−{opt.discount}%</Text>
+              </View>
+            )}
+            {tierDisc > 0 && (
               <View style={s.modalRow}>
                 <Text style={s.modalLbl}>Desconto {tier.toUpperCase()}</Text>
-                <Text style={[s.modalVal, { color: "#4EE07F" }]}>-{Math.round(disc * 100)}%</Text>
+                <Text style={[s.modalVal, { color: "#4EE07F" }]}>−{Math.round(tierDisc * 100)}%</Text>
               </View>
             )}
             <View style={[s.modalRow, { borderTopWidth: 1, borderTopColor: "#1F1F1F", paddingTop: 12, marginTop: 6 }]}>
               <Text style={[s.modalLbl, { color: GOLD }]}>TOTAL A DEBITAR</Text>
-              <Text style={[s.modalVal, { color: GOLD, fontSize: 18 }]}>{formatBLX(priceCents)} BLX</Text>
+              <Text style={[s.modalVal, { color: GOLD, fontSize: 18 }]}>{formatBLX(finalCents)} BLX</Text>
             </View>
 
-            <Text style={s.modalNote}>
-              O valor será debitado imediatamente do seu saldo BLX.
-            </Text>
+            <Text style={s.modalNote}>O valor será debitado imediatamente do seu saldo BLX.</Text>
 
             <View style={s.modalActions}>
-              <TouchableOpacity
-                style={s.modalCancel}
-                onPress={() => setShowConfirm(false)}
-                disabled={buying}
-              >
+              <TouchableOpacity style={s.modalCancel} onPress={() => setShowConfirm(false)} disabled={buying}>
                 <Text style={s.modalCancelTxt}>CANCELAR</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={s.modalConfirm}
-                onPress={handleBuy}
-                disabled={buying}
-                testID="product-confirm-buy"
-              >
+              <TouchableOpacity style={s.modalConfirm} onPress={handleBuy} disabled={buying} testID="product-confirm-buy">
                 <LinearGradient
                   colors={buying ? ["#555", "#333"] : [GOLD_LIGHT, GOLD, GOLD_DARK]}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                   style={s.modalConfirmInner}
                 >
-                  {buying ? (
-                    <ActivityIndicator color="#000" size="small" />
-                  ) : (
-                    <Text style={s.modalConfirmTxt}>CONFIRMAR</Text>
-                  )}
+                  {buying ? <ActivityIndicator color="#000" size="small" /> : <Text style={s.modalConfirmTxt}>CONFIRMAR</Text>}
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -244,10 +305,10 @@ export default function ProductDetails() {
   );
 }
 
-function InfoBlock({ icon, label, value }: { icon: any; label: string; value: string }) {
+function InfoBlock({ icon, label, value, color }: { icon: any; label: string; value: string; color: string }) {
   return (
     <View style={s.infoBlock}>
-      <Ionicons name={icon} size={16} color={GOLD} />
+      <Ionicons name={icon} size={14} color={color} />
       <Text style={s.infoLabel}>{label}</Text>
       <Text style={s.infoValue}>{value}</Text>
     </View>
@@ -255,101 +316,133 @@ function InfoBlock({ icon, label, value }: { icon: any; label: string; value: st
 }
 
 const s = StyleSheet.create({
+  // HEADER — imagem COMPACTA (~200px)
   imageWrap: { backgroundColor: "#0B0B0B", position: "relative" },
-  image: { width: "100%", height: 360 },
-  imageTopGradient: {
-    position: "absolute", top: 0, left: 0, right: 0, height: 80,
-  },
-  imageBottomGradient: {
-    position: "absolute", bottom: 0, left: 0, right: 0, height: 60,
-  },
-  goldStripe: {
-    position: "absolute", right: 0, top: 40, bottom: 40, width: 2.5,
-    backgroundColor: GOLD, opacity: 0.7,
-  },
+  image: { width: "100%", height: 220 },
+  imageTopGradient: { position: "absolute", top: 0, left: 0, right: 0, height: 60 },
+  imageBottomGradient: { position: "absolute", bottom: 0, left: 0, right: 0, height: 40 },
+  goldStripe: { position: "absolute", right: 0, top: 30, bottom: 30, width: 2.5, backgroundColor: GOLD, opacity: 0.7 },
 
-  body: { padding: 18, gap: 4 },
+  body: { padding: 16, paddingTop: 12, gap: 4 },
   category: { color: GOLD_DARK, fontSize: 10, fontWeight: "800", letterSpacing: 2.5 },
-  name: { color: "#FFF", fontSize: 22, fontWeight: "900", marginTop: 6, lineHeight: 28, letterSpacing: -0.3 },
-
-  // Price card com gradiente dourado elitizado
-  priceCard: {
-    marginTop: 16, padding: 18, borderRadius: 14,
-    borderWidth: 1, borderColor: "rgba(212,175,55,0.28)",
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-  },
-  priceLabel: { color: GOLD_DARK, fontSize: 10, fontWeight: "900", letterSpacing: 2 },
-  priceRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginTop: 6 },
-  priceBLX: { color: "#FFF", fontSize: 32, fontWeight: "900", letterSpacing: -1 },
-  priceUnit: { color: GOLD, fontSize: 14, fontWeight: "900", letterSpacing: 1.5, marginBottom: 6 },
-  priceOld: { color: "#777", fontSize: 11, marginTop: 6, textDecorationLine: "line-through" },
-  tierSeal: {
+  titleRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginTop: 4 },
+  title: { flex: 1, color: "#FFF", fontSize: 19, fontWeight: "900", lineHeight: 24, letterSpacing: -0.3 },
+  sealPill: {
     flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20,
     borderWidth: 1, borderColor: GOLD_DARK + "60",
     backgroundColor: "rgba(212,175,55,0.08)",
   },
-  tierSealTxt: { color: GOLD_LIGHT, fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
+  sealTxt: { color: GOLD_LIGHT, fontSize: 8.5, fontWeight: "900", letterSpacing: 1.2 },
 
-  divider: { height: 1, backgroundColor: "#1A1A1A", marginVertical: 20 },
-  label: { color: GOLD_DARK, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginBottom: 8 },
-  desc: { color: "#BBB", fontSize: 14, lineHeight: 22 },
+  priceCard: {
+    marginTop: 14, padding: 14, borderRadius: 12,
+    borderWidth: 1, borderColor: "rgba(212,175,55,0.28)",
+  },
+  priceLabel: { color: GOLD_DARK, fontSize: 9.5, fontWeight: "900", letterSpacing: 2 },
+  priceRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginTop: 4 },
+  priceBLX: { color: "#FFF", fontSize: 26, fontWeight: "900", letterSpacing: -1 },
+  priceUnit: { color: GOLD, fontSize: 13, fontWeight: "900", letterSpacing: 1.5, marginBottom: 5 },
+  priceOld: { color: "#777", fontSize: 10.5, marginTop: 4, fontStyle: "italic" },
 
-  infoRow: { flexDirection: "row", gap: 8, marginTop: 18 },
-  infoBlock: {
-    flex: 1, padding: 12, borderRadius: 10,
-    backgroundColor: "#0B0B0B",
+  sectionLbl: { color: GOLD_DARK, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: 18, marginBottom: 8 },
+
+  payOpt: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingVertical: 10, paddingHorizontal: 12,
+    backgroundColor: "#0B0B0B", borderRadius: 10,
+    borderWidth: 1, borderColor: "rgba(212,175,55,0.1)",
+  },
+  payOptActive: { borderColor: GOLD, backgroundColor: "rgba(212,175,55,0.06)" },
+  payRadio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: "#444", alignItems: "center", justifyContent: "center" },
+  payRadioDot: { width: 8, height: 8, borderRadius: 4 },
+  payLabel: { color: "#DDD", fontSize: 12.5, fontWeight: "800" },
+  paySub: { color: "#777", fontSize: 10.5, marginTop: 1 },
+  discPill: {
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10,
+    backgroundColor: "rgba(78,224,127,0.15)",
+    borderWidth: 1, borderColor: "rgba(78,224,127,0.3)",
+    marginBottom: 3,
+  },
+  discPillTxt: { color: "#4EE07F", fontSize: 9, fontWeight: "900" },
+  payPrice: { color: "#DDD", fontSize: 12, fontWeight: "900" },
+
+  summaryBox: {
+    marginTop: 10, padding: 12,
+    backgroundColor: "#0B0B0B", borderRadius: 10,
     borderWidth: 1, borderColor: "rgba(212,175,55,0.15)",
-    alignItems: "center", gap: 4,
   },
-  infoLabel: { color: "#888", fontSize: 10, letterSpacing: 1, fontWeight: "700" },
-  infoValue: { color: "#FFF", fontSize: 12, fontWeight: "800" },
+  summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 3 },
+  summaryDivider: { height: 1, backgroundColor: "#1A1A1A", marginVertical: 6 },
+  summaryLbl: { color: "#AAA", fontSize: 11.5 },
+  summaryLblBold: { color: "#EEE", fontSize: 12.5, fontWeight: "800" },
+  summaryVal: { color: "#DDD", fontSize: 12, fontWeight: "700" },
+  summaryTotal: { fontSize: 16, fontWeight: "900" },
+  summarySaving: { color: "#4EE07F", fontSize: 10, fontWeight: "700", marginTop: 2 },
 
-  // Link discreto (sem cor chamativa)
-  supportLink: {
-    marginTop: 22,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    paddingVertical: 12, paddingHorizontal: 10,
-    borderTopWidth: 1, borderTopColor: "#1A1A1A",
-    borderBottomWidth: 1, borderBottomColor: "#1A1A1A",
+  // Prazo de entrega — ícone igual do Diamante
+  deliveryBox: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    marginTop: 12, padding: 12,
+    backgroundColor: "#0B0B0B", borderRadius: 10,
+    borderWidth: 1, borderColor: "rgba(212,175,55,0.15)",
   },
-  supportLinkTxt: { color: "#AAA", fontSize: 12, fontWeight: "600" },
+  deliveryLbl: { color: GOLD_DARK, fontSize: 9.5, fontWeight: "900", letterSpacing: 1.8 },
+  deliveryTxt: { color: "#DDD", fontSize: 12, fontWeight: "700", marginTop: 2 },
 
-  // Footer e botão de compra
+  desc: { color: "#BBB", fontSize: 13, lineHeight: 19 },
+
+  infoRow: { flexDirection: "row", gap: 6, marginTop: 14 },
+  infoBlock: {
+    flex: 1, padding: 10, borderRadius: 8,
+    backgroundColor: "#0B0B0B",
+    borderWidth: 1, borderColor: "rgba(212,175,55,0.1)",
+    alignItems: "center", gap: 3,
+  },
+  infoLabel: { color: "#888", fontSize: 9, letterSpacing: 0.8, fontWeight: "700" },
+  infoValue: { color: "#FFF", fontSize: 11, fontWeight: "800" },
+
+  securityBox: {
+    flexDirection: "row", gap: 8,
+    marginTop: 14, padding: 10,
+    backgroundColor: "#0A0A0A", borderRadius: 8,
+    borderWidth: 1, borderColor: "#141414",
+  },
+  securityTxt: { flex: 1, color: "#888", fontSize: 10.5, lineHeight: 15 },
+
+  // FOOTER
   footer: {
     position: "absolute", left: 0, right: 0, bottom: 0,
-    paddingHorizontal: 14, paddingVertical: 10,
+    paddingHorizontal: 12, paddingVertical: 8,
     backgroundColor: "#050505",
     borderTopWidth: 1, borderTopColor: "rgba(212,175,55,0.15)",
   },
   buyBtn: { borderRadius: 12, overflow: "hidden" },
   buyBtnInner: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    paddingVertical: 15,
+    paddingVertical: 14,
   },
-  buyBtnTxt: { color: "#0A0A0A", fontWeight: "900", fontSize: 13, letterSpacing: 1.8 },
+  buyBtnTxt: { color: "#0A0A0A", fontWeight: "900", fontSize: 12.5, letterSpacing: 1.5 },
 
   blockedBox: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    paddingVertical: 15, borderRadius: 10, backgroundColor: "#0B0B0B",
+    paddingVertical: 14, borderRadius: 10, backgroundColor: "#0B0B0B",
     borderWidth: 1, borderColor: "#1A1A1A",
   },
   blockedTxt: { color: "#888", fontSize: 12, fontWeight: "700" },
 
-  // Modal confirmação
+  // Modal
   modalBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", alignItems: "center", justifyContent: "center", padding: 24 },
   modalCard: {
     width: "100%", maxWidth: 380,
-    backgroundColor: "#0B0B0B",
-    borderRadius: 18, padding: 22,
-    borderWidth: 1, borderColor: "rgba(212,175,55,0.3)",
-    overflow: "hidden",
+    backgroundColor: "#0B0B0B", borderRadius: 18, padding: 22,
+    borderWidth: 1, borderColor: "rgba(212,175,55,0.3)", overflow: "hidden",
   },
   modalKicker: { color: GOLD, fontSize: 10, fontWeight: "900", letterSpacing: 2.5 },
   modalTitle: { color: "#FFF", fontSize: 16, fontWeight: "800", marginTop: 6, marginBottom: 16, lineHeight: 21 },
-  modalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6 },
+  modalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 5 },
   modalLbl: { color: "#888", fontSize: 12, fontWeight: "700", letterSpacing: 0.5 },
-  modalVal: { color: "#FFF", fontSize: 14, fontWeight: "800" },
+  modalVal: { color: "#FFF", fontSize: 13, fontWeight: "800" },
   modalNote: { color: "#666", fontSize: 11, marginTop: 14, textAlign: "center", fontStyle: "italic" },
   modalActions: { flexDirection: "row", gap: 10, marginTop: 18 },
   modalCancel: {

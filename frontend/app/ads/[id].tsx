@@ -1,31 +1,24 @@
 import { useEffect, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Image, TouchableOpacity,
-  ActivityIndicator, Alert, Dimensions,
+  View, Text, StyleSheet, Image, ScrollView, TouchableOpacity,
+  ActivityIndicator, Alert,
 } from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api, Ad } from "../../src/api";
 import { useGate } from "../../src/gate";
-import { TIERS } from "../../src/theme";
-import ScreenHeader from "../../src/screen-header";
 import { formatBLX } from "../../src/blx";
+import { notify } from "../../src/alerts";
+import { theme, TIERS } from "../../src/theme";
 
-const { width } = Dimensions.get("window");
+// Paleta DIAMANTE — CIANO / AZUL
+const DIAMOND_LIGHT = "#A8E4EF";
+const DIAMOND = "#7FD7E5";
+const DIAMOND_DARK = "#4A8F99";
 
-/**
- * Marketplace — Detalhe do anúncio (DIAMOND ONLY).
- *
- * Regras de negócio:
- *  - Não há desconto por tier (apenas Diamond acessa).
- *  - Desconto é por forma de pagamento:
- *      Antecipado 100%  → −30%
- *      50% de entrada   → −15%
- *      10% de entrada   → 0% (preço cheio)
- *  - Prazo de entrega: consultar suporte no chat dedicado.
- *  - Ações: Favoritar, Adicionar ao carrinho, Falar com vendedor.
- */
-
+// Opções de pagamento — regra Diamante
 const PAY_OPTIONS = [
   { id: "full", label: "Antecipado 100%", discount: 30, sub: "Melhor preço" },
   { id: "half", label: "50% de entrada", discount: 15, sub: "50% saldo na entrega" },
@@ -51,15 +44,19 @@ export default function AdView() {
     }
   }, [id, member]);
 
-  if (!ad) return <View style={{ flex: 1, backgroundColor: "#050505", justifyContent: "center" }}><ActivityIndicator color="#FFF" /></View>;
+  if (!ad) {
+    return <View style={{ flex: 1, backgroundColor: theme.colors.bg, justifyContent: "center" }}><ActivityIndicator color={DIAMOND} /></View>;
+  }
 
   const opt = PAY_OPTIONS.find(o => o.id === pay)!;
   const fullCents = Math.round(ad.price_full * 100);
   const finalCents = Math.round(fullCents * (100 - opt.discount) / 100);
-  const entryCents = Math.round(finalCents * (pay === "full" ? 100 : pay === "half" ? 50 : 10) / 100);
+  const entryPct = pay === "full" ? 100 : pay === "half" ? 50 : 10;
+  const entryCents = Math.round(finalCents * entryPct / 100);
   const remainingCents = finalCents - entryCents;
   const isOwner = ad.seller_id === member?.member_id;
-  const tier = TIERS[ad.seller_tier || "diamond"];
+  const sellerTier = (ad.seller_tier || "diamond").toLowerCase();
+  const sellerIsDiamond = sellerTier === "diamond";
 
   const toggleFav = async () => {
     if (!member) return;
@@ -86,221 +83,355 @@ export default function AdView() {
   };
 
   const chatSeller = () => router.push(`/community/dm/${ad.seller_id}` as any);
+
   const consultDelivery = () => {
     Alert.alert(
       "Prazo de entrega",
-      "Prazos e logística são combinados caso a caso. Deseja falar com o suporte agora?",
+      "Prazos e logística são combinados com o suporte. Deseja falar com o suporte agora?",
       [{ text: "Agora não" }, { text: "Falar com suporte", onPress: () => router.push("/chat" as any) }],
     );
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#050505" }}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <ScreenHeader title="Anúncio" />
-      <ScrollView>
-        {ad.images?.[0] ? (
-          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
-            {ad.images.map((uri, i) => (
-              <Image key={i} source={{ uri }} style={{ width, height: width, backgroundColor: "#111" }} />
-            ))}
-          </ScrollView>
-        ) : (
-          <View style={{ width, height: width, backgroundColor: "#111", alignItems: "center", justifyContent: "center" }}>
-            <Ionicons name="cube-outline" size={60} color="#333" />
-          </View>
-        )}
-
-        <View style={{ padding: 16, paddingBottom: 20 }}>
-          <View style={styles.titleRow}>
-            <Text style={styles.title}>{ad.title}</Text>
-            <TouchableOpacity
-              style={[styles.favBtn, favorited && styles.favBtnActive]}
-              onPress={toggleFav}
-              disabled={favoriting}
-              testID="ad-favorite"
-            >
-              <Ionicons name={favorited ? "heart" : "heart-outline"} size={22} color={favorited ? "#FF6B6B" : "#DDD"} />
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity style={styles.sellerRow} onPress={() => router.push(`/community/member/${ad.seller_id}` as any)}>
-            <View style={[styles.sellerAv, { backgroundColor: tier.color + "22", borderColor: tier.color }]}>
-              {ad.seller_avatar ? <Image source={{ uri: ad.seller_avatar }} style={{ width: 30, height: 30, borderRadius: 15 }} /> : <Text style={{ color: tier.color, fontWeight: "900" }}>{(ad.seller_nickname || "?").charAt(0)}</Text>}
+    <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="ad-details">
+      <Stack.Screen options={{ title: "" }} />
+      <ScrollView contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
+        {/* HEADER — imagem COMPACTA com faixa CIANO lateral */}
+        <View style={s.imageWrap}>
+          {ad.images?.[0] ? (
+            <Image source={{ uri: ad.images[0] }} style={s.image} resizeMode="cover" />
+          ) : (
+            <View style={[s.image, { backgroundColor: "#111", alignItems: "center", justifyContent: "center" }]}>
+              <Ionicons name="cube-outline" size={48} color="#333" />
             </View>
-            <View>
-              <Text style={styles.sellerName}>{ad.seller_nickname}</Text>
-              <Text style={[styles.sellerTier, { color: tier.color }]}>{tier.label.toUpperCase()} · VENDEDOR VERIFICADO</Text>
+          )}
+          <LinearGradient colors={["rgba(5,5,5,0.55)", "transparent"]} style={s.imageTopGradient} pointerEvents="none" />
+          <LinearGradient colors={["transparent", theme.colors.bg]} style={s.imageBottomGradient} pointerEvents="none" />
+          <View style={s.cyanStripe} />
+          {/* Botão Favoritar no canto */}
+          <TouchableOpacity
+            style={[s.favBtn, favorited && s.favBtnActive]}
+            onPress={toggleFav}
+            disabled={favoriting}
+            testID="ad-favorite"
+          >
+            <Ionicons name={favorited ? "heart" : "heart-outline"} size={18} color={favorited ? "#FF6B6B" : "#FFF"} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={s.body}>
+          {/* Categoria + título + selo Diamante do vendedor (pequeno) */}
+          <Text style={s.category}>CÍRCULO DIAMANTE</Text>
+          <View style={s.titleRow}>
+            <Text style={s.title} numberOfLines={2}>{ad.title}</Text>
+            {sellerIsDiamond && (
+              <View style={s.sealPill}>
+                <Ionicons name="diamond" size={9} color={DIAMOND} />
+                <Text style={s.sealTxt}>DIAMOND</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Vendedor — linha compacta (sem card "VENDEDOR VERIFICADO" enorme) */}
+          <TouchableOpacity style={s.sellerRow} onPress={() => router.push(`/community/member/${ad.seller_id}` as any)}>
+            <View style={s.sellerAv}>
+              {ad.seller_avatar
+                ? <Image source={{ uri: ad.seller_avatar }} style={{ width: 26, height: 26, borderRadius: 13 }} resizeMode="cover" />
+                : <Text style={{ color: DIAMOND, fontWeight: "900", fontSize: 11 }}>{(ad.seller_nickname || "?").charAt(0).toUpperCase()}</Text>}
             </View>
+            <Text style={s.sellerName} numberOfLines={1}>Vendedor: {ad.seller_nickname}</Text>
+            <Ionicons name="chevron-forward" size={14} color="#555" />
           </TouchableOpacity>
 
-          {/* Preço de tabela */}
-          <View style={styles.priceBox}>
-            <Text style={styles.priceLbl}>PREÇO DE TABELA</Text>
-            <View style={styles.priceRow}>
-              <Text style={styles.priceNew}>{formatBLX(fullCents)}</Text>
-              <Text style={styles.priceUnit}>BLX</Text>
+          {/* Preço principal — gradiente CIANO */}
+          <LinearGradient
+            colors={[DIAMOND_LIGHT + "18", "#0A0E10", DIAMOND_DARK + "10"]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={s.priceCard}
+          >
+            <View>
+              <Text style={s.priceLabel}>VALOR EM BLX</Text>
+              <View style={s.priceRow}>
+                <Text style={s.priceBLX}>{formatBLX(finalCents)}</Text>
+                <Text style={s.priceUnit}>BLX</Text>
+              </View>
+              {opt.discount > 0 && (
+                <Text style={s.priceOld}>
+                  Valor cheio {formatBLX(fullCents)} BLX · {opt.label.toLowerCase()} −{opt.discount}%
+                </Text>
+              )}
             </View>
-          </View>
+          </LinearGradient>
 
-          {/* Formas de pagamento — regra Diamond */}
-          <Text style={styles.sectionLbl}>FORMA DE PAGAMENTO</Text>
-          <View style={{ gap: 8 }}>
+          {/* Formas de pagamento — IGUAL Catálogo, só muda a cor */}
+          <Text style={s.sectionLbl}>FORMA DE PAGAMENTO</Text>
+          <View style={{ gap: 6 }}>
             {PAY_OPTIONS.map(o => {
               const discCents = Math.round(fullCents * (100 - o.discount) / 100);
               const selected = pay === o.id;
               return (
                 <TouchableOpacity
                   key={o.id}
-                  style={[styles.payOpt, selected && styles.payOptActive]}
+                  style={[s.payOpt, selected && s.payOptActive]}
                   onPress={() => setPay(o.id)}
                   activeOpacity={0.85}
                   testID={`ad-pay-${o.id}`}
                 >
-                  <View style={[styles.payRadio, selected && styles.payRadioActive]}>
-                    {selected && <View style={styles.payRadioDot} />}
+                  <View style={[s.payRadio, selected && { borderColor: DIAMOND }]}>
+                    {selected && <View style={[s.payRadioDot, { backgroundColor: DIAMOND }]} />}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.payLabel, selected && { color: "#FFF" }]}>{o.label}</Text>
-                    <Text style={styles.paySub}>{o.sub}</Text>
+                    <Text style={[s.payLabel, selected && { color: "#FFF" }]}>{o.label}</Text>
+                    <Text style={s.paySub}>{o.sub}</Text>
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
                     {o.discount > 0 && (
-                      <View style={styles.discPill}>
-                        <Text style={styles.discPillTxt}>−{o.discount}%</Text>
+                      <View style={s.discPill}>
+                        <Text style={s.discPillTxt}>−{o.discount}%</Text>
                       </View>
                     )}
-                    <Text style={[styles.payPrice, selected && { color: "#FFF" }]}>{formatBLX(discCents)} BLX</Text>
+                    <Text style={[s.payPrice, selected && { color: DIAMOND_LIGHT }]}>{formatBLX(discCents)} BLX</Text>
                   </View>
                 </TouchableOpacity>
               );
             })}
           </View>
 
-          {/* Resumo */}
-          <View style={styles.summaryBox}>
+          {/* Resumo — IGUAL Catálogo */}
+          <View style={s.summaryBox}>
             {pay !== "full" && (
               <>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLbl}>Entrada ({pay === "half" ? 50 : 10}%)</Text>
-                  <Text style={styles.summaryVal}>{formatBLX(entryCents)} BLX</Text>
+                <View style={s.summaryRow}>
+                  <Text style={s.summaryLbl}>Entrada ({entryPct}%)</Text>
+                  <Text style={s.summaryVal}>{formatBLX(entryCents)} BLX</Text>
                 </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLbl}>Saldo na entrega</Text>
-                  <Text style={styles.summaryVal}>{formatBLX(remainingCents)} BLX</Text>
+                <View style={s.summaryRow}>
+                  <Text style={s.summaryLbl}>Saldo na entrega</Text>
+                  <Text style={s.summaryVal}>{formatBLX(remainingCents)} BLX</Text>
                 </View>
-                <View style={styles.summaryDivider} />
+                <View style={s.summaryDivider} />
               </>
             )}
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLblBold}>Total a pagar</Text>
+            <View style={s.summaryRow}>
+              <Text style={s.summaryLblBold}>Total</Text>
               <View style={{ alignItems: "flex-end" }}>
-                <Text style={styles.summaryTotal}>{formatBLX(finalCents)} BLX</Text>
-                {opt.discount > 0 && <Text style={styles.summarySaving}>economia {formatBLX(fullCents - finalCents)} BLX</Text>}
+                <Text style={[s.summaryTotal, { color: DIAMOND_LIGHT }]}>{formatBLX(finalCents)} BLX</Text>
+                {opt.discount > 0 && <Text style={s.summarySaving}>economia {formatBLX(fullCents - finalCents)} BLX</Text>}
               </View>
             </View>
           </View>
 
-          {/* Prazo de entrega */}
-          <TouchableOpacity style={styles.deliveryBox} onPress={consultDelivery} testID="ad-delivery">
-            <Ionicons name="bicycle-outline" size={18} color="#DDD" />
+          {/* Prazo de entrega — MESMO ícone do Catálogo */}
+          <TouchableOpacity style={s.deliveryBox} onPress={consultDelivery} testID="ad-delivery">
+            <Ionicons name="bicycle-outline" size={18} color="#AAA" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.deliveryLbl}>PRAZO DE ENTREGA</Text>
-              <Text style={styles.deliveryTxt}>Consultar no suporte</Text>
+              <Text style={s.deliveryLbl}>PRAZO DE ENTREGA</Text>
+              <Text style={s.deliveryTxt}>Consultar no suporte</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="#666" />
           </TouchableOpacity>
 
-          <Text style={styles.sectionLbl}>DESCRIÇÃO</Text>
-          <Text style={styles.desc}>{ad.description}</Text>
+          {/* Descrição */}
+          <Text style={s.sectionLbl}>DESCRIÇÃO</Text>
+          <Text style={s.desc}>{ad.description}</Text>
 
-          <View style={styles.securityBox}>
-            <Ionicons name="shield-checkmark" size={20} color="#AAA" />
-            <Text style={styles.securityTxt}>
-              Transação privada entre membros Diamond. Pagamento em BLEX Token (BLX) com custódia em escrow. Entrega combinada diretamente com o vendedor após reserva.
+          {/* Info blocks IGUAL Catálogo */}
+          <View style={s.infoRow}>
+            <InfoBlock icon="shield-checkmark-outline" label="Escrow" value="BLX" color={DIAMOND} />
+            <InfoBlock icon="lock-closed-outline" label="Acesso" value="Privado" color={DIAMOND} />
+            <InfoBlock icon="rocket-outline" label="Envio" value="Discreto" color={DIAMOND} />
+          </View>
+
+          <View style={s.securityBox}>
+            <Ionicons name="shield-checkmark" size={18} color="#AAA" />
+            <Text style={s.securityTxt}>
+              Transação privada entre membros do Círculo Diamante. Pagamento em BLEX Token (BLX) com custódia em escrow. Entrega combinada diretamente com o vendedor.
             </Text>
           </View>
         </View>
       </ScrollView>
 
-      {/* FOOTER */}
+      {/* FOOTER — chat + reservar */}
       {!isOwner && (
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.footerIconBtn} onPress={chatSeller} testID="ad-chat">
-            <Ionicons name="chatbubble" size={18} color="#FFF" />
+        <SafeAreaView style={s.footer} edges={["bottom"]}>
+          <TouchableOpacity style={s.iconBtn} onPress={chatSeller} testID="ad-chat">
+            <Ionicons name="chatbubble" size={17} color="#FFF" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.cartBtn, adding && { opacity: 0.6 }]}
+            style={s.buyBtn}
             onPress={addToCart}
             disabled={adding}
-            testID="ad-cart"
+            testID="ad-buy-now"
+            activeOpacity={0.88}
           >
-            {adding ? <ActivityIndicator color="#FFF" size="small" /> : (
-              <>
-                <Ionicons name="bag-add" size={17} color="#FFF" />
-                <Text style={styles.cartBtnTxt}>ADICIONAR</Text>
-              </>
-            )}
+            <LinearGradient
+              colors={[DIAMOND_LIGHT, DIAMOND, DIAMOND_DARK]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={s.buyBtnInner}
+            >
+              {adding ? (
+                <ActivityIndicator color="#0A0A0A" size="small" />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="diamond-stone" size={16} color="#0A0A0A" />
+                  <Text style={s.buyBtnTxt}>RESERVAR · {formatBLX(finalCents)} BLX</Text>
+                </>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.buyBtn} onPress={addToCart} testID="ad-buy-now">
-            <Text style={styles.buyTxt}>RESERVAR · {formatBLX(finalCents)}</Text>
-          </TouchableOpacity>
-        </View>
+        </SafeAreaView>
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  titleRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  title: { flex: 1, color: "#FFF", fontSize: 19, fontWeight: "900", lineHeight: 25 },
-  favBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#141414", borderWidth: 1, borderColor: "#222", alignItems: "center", justifyContent: "center" },
-  favBtnActive: { borderColor: "rgba(255,107,107,0.5)", backgroundColor: "rgba(255,107,107,0.08)" },
+function InfoBlock({ icon, label, value, color }: { icon: any; label: string; value: string; color: string }) {
+  return (
+    <View style={s.infoBlock}>
+      <Ionicons name={icon} size={14} color={color} />
+      <Text style={s.infoLabel}>{label}</Text>
+      <Text style={s.infoValue}>{value}</Text>
+    </View>
+  );
+}
 
-  sellerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: "#0E0E0E", borderRadius: 10, borderWidth: 1, borderColor: "#1A1A1A" },
-  sellerAv: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center", overflow: "hidden" },
-  sellerName: { color: "#EEE", fontSize: 13, fontWeight: "800" },
-  sellerTier: { fontSize: 9, fontWeight: "900", letterSpacing: 1.5, marginTop: 2 },
+const s = StyleSheet.create({
+  // HEADER — mesma altura compacta do Catálogo
+  imageWrap: { backgroundColor: "#0B0B0B", position: "relative" },
+  image: { width: "100%", height: 220 },
+  imageTopGradient: { position: "absolute", top: 0, left: 0, right: 0, height: 60 },
+  imageBottomGradient: { position: "absolute", bottom: 0, left: 0, right: 0, height: 40 },
+  cyanStripe: { position: "absolute", right: 0, top: 30, bottom: 30, width: 2.5, backgroundColor: DIAMOND, opacity: 0.7 },
+  favBtn: {
+    position: "absolute", top: 12, right: 12,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.15)",
+    alignItems: "center", justifyContent: "center",
+  },
+  favBtnActive: { borderColor: "rgba(255,107,107,0.5)", backgroundColor: "rgba(255,107,107,0.12)" },
 
-  priceBox: { marginTop: 18, alignItems: "center" },
-  priceLbl: { color: "#8A8A8A", fontSize: 10, fontWeight: "900", letterSpacing: 2.5 },
-  priceRow: { flexDirection: "row", alignItems: "baseline", gap: 8, marginTop: 6 },
-  priceNew: { color: "#FFF", fontSize: 30, fontWeight: "900", letterSpacing: -0.5 },
-  priceUnit: { color: "#D4AF37", fontSize: 13, fontWeight: "900", letterSpacing: 1.5 },
+  body: { padding: 16, paddingTop: 12, gap: 4 },
+  category: { color: DIAMOND_DARK, fontSize: 10, fontWeight: "800", letterSpacing: 2.5 },
+  titleRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginTop: 4 },
+  title: { flex: 1, color: "#FFF", fontSize: 19, fontWeight: "900", lineHeight: 24, letterSpacing: -0.3 },
+  // Selo Diamond PEQUENO (igual pattern do Catálogo "OFICIAL")
+  sealPill: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20,
+    borderWidth: 1, borderColor: DIAMOND_DARK + "80",
+    backgroundColor: "rgba(127,215,229,0.08)",
+  },
+  sealTxt: { color: DIAMOND_LIGHT, fontSize: 8.5, fontWeight: "900", letterSpacing: 1.2 },
 
-  sectionLbl: { color: "#8A8A8A", fontSize: 10, fontWeight: "900", letterSpacing: 2.5, marginTop: 22, marginBottom: 10 },
-  payOpt: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 14, backgroundColor: "#0E0E0E", borderRadius: 12, borderWidth: 1, borderColor: "#1A1A1A" },
-  payOptActive: { borderColor: "#444", backgroundColor: "#161616" },
-  payRadio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: "#444", alignItems: "center", justifyContent: "center" },
-  payRadioActive: { borderColor: "#FFF" },
-  payRadioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#FFF" },
-  payLabel: { color: "#DDD", fontSize: 13, fontWeight: "800" },
-  paySub: { color: "#777", fontSize: 11, marginTop: 2 },
-  discPill: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 10, backgroundColor: "rgba(78,224,127,0.15)", borderWidth: 1, borderColor: "rgba(78,224,127,0.35)", marginBottom: 4 },
-  discPillTxt: { color: "#4EE07F", fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
-  payPrice: { color: "#DDD", fontSize: 13, fontWeight: "900" },
+  // Vendedor — linha discreta
+  sellerRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginTop: 10, paddingVertical: 8, paddingHorizontal: 10,
+    backgroundColor: "#0B0B0B", borderRadius: 10,
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.15)",
+  },
+  sellerAv: {
+    width: 28, height: 28, borderRadius: 14,
+    borderWidth: 1, borderColor: DIAMOND,
+    backgroundColor: "rgba(127,215,229,0.1)",
+    alignItems: "center", justifyContent: "center", overflow: "hidden",
+  },
+  sellerName: { flex: 1, color: "#EEE", fontSize: 12.5, fontWeight: "700" },
 
-  summaryBox: { marginTop: 14, padding: 14, backgroundColor: "#0E0E0E", borderRadius: 12, borderWidth: 1, borderColor: "#1A1A1A" },
-  summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 },
-  summaryDivider: { height: 1, backgroundColor: "#1A1A1A", marginVertical: 8 },
-  summaryLbl: { color: "#AAA", fontSize: 12 },
-  summaryLblBold: { color: "#EEE", fontSize: 13, fontWeight: "800" },
-  summaryVal: { color: "#EEE", fontSize: 12.5, fontWeight: "700" },
-  summaryTotal: { color: "#FFF", fontSize: 17, fontWeight: "900" },
-  summarySaving: { color: "#4EE07F", fontSize: 10.5, fontWeight: "700", marginTop: 2 },
+  priceCard: {
+    marginTop: 14, padding: 14, borderRadius: 12,
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.3)",
+  },
+  priceLabel: { color: DIAMOND_DARK, fontSize: 9.5, fontWeight: "900", letterSpacing: 2 },
+  priceRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginTop: 4 },
+  priceBLX: { color: "#FFF", fontSize: 26, fontWeight: "900", letterSpacing: -1 },
+  priceUnit: { color: DIAMOND, fontSize: 13, fontWeight: "900", letterSpacing: 1.5, marginBottom: 5 },
+  priceOld: { color: "#777", fontSize: 10.5, marginTop: 4, fontStyle: "italic" },
 
-  deliveryBox: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 14, padding: 14, backgroundColor: "#0E0E0E", borderRadius: 12, borderWidth: 1, borderColor: "#1A1A1A" },
-  deliveryLbl: { color: "#8A8A8A", fontSize: 10, fontWeight: "900", letterSpacing: 1.8 },
-  deliveryTxt: { color: "#EEE", fontSize: 13, fontWeight: "700", marginTop: 3 },
+  sectionLbl: { color: DIAMOND_DARK, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: 18, marginBottom: 8 },
 
-  desc: { color: "#CCC", fontSize: 14, lineHeight: 21 },
-  securityBox: { flexDirection: "row", gap: 10, marginTop: 20, padding: 12, backgroundColor: "#0A0A0A", borderRadius: 10, borderWidth: 1, borderColor: "#1A1A1A" },
-  securityTxt: { flex: 1, color: "#AAA", fontSize: 11, lineHeight: 16 },
+  payOpt: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingVertical: 10, paddingHorizontal: 12,
+    backgroundColor: "#0B0B0B", borderRadius: 10,
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.12)",
+  },
+  payOptActive: { borderColor: DIAMOND, backgroundColor: "rgba(127,215,229,0.06)" },
+  payRadio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: "#444", alignItems: "center", justifyContent: "center" },
+  payRadioDot: { width: 8, height: 8, borderRadius: 4 },
+  payLabel: { color: "#DDD", fontSize: 12.5, fontWeight: "800" },
+  paySub: { color: "#777", fontSize: 10.5, marginTop: 1 },
+  discPill: {
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10,
+    backgroundColor: "rgba(78,224,127,0.15)",
+    borderWidth: 1, borderColor: "rgba(78,224,127,0.3)",
+    marginBottom: 3,
+  },
+  discPillTxt: { color: "#4EE07F", fontSize: 9, fontWeight: "900" },
+  payPrice: { color: "#DDD", fontSize: 12, fontWeight: "900" },
 
-  footer: { flexDirection: "row", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: "#151515", backgroundColor: "#0A0A0A" },
-  footerIconBtn: { width: 48, height: 48, borderRadius: 10, backgroundColor: "#1A1A1A", borderWidth: 1, borderColor: "#2A2A2A", alignItems: "center", justifyContent: "center" },
-  cartBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 48, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "#1A1A1A", borderWidth: 1, borderColor: "#2A2A2A" },
-  cartBtnTxt: { color: "#FFF", fontSize: 11.5, fontWeight: "900", letterSpacing: 1.2 },
-  buyBtn: { flex: 1, height: 48, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
-  buyTxt: { color: "#000", fontSize: 12.5, fontWeight: "900", letterSpacing: 1 },
+  summaryBox: {
+    marginTop: 10, padding: 12,
+    backgroundColor: "#0B0B0B", borderRadius: 10,
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.15)",
+  },
+  summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 3 },
+  summaryDivider: { height: 1, backgroundColor: "#1A1A1A", marginVertical: 6 },
+  summaryLbl: { color: "#AAA", fontSize: 11.5 },
+  summaryLblBold: { color: "#EEE", fontSize: 12.5, fontWeight: "800" },
+  summaryVal: { color: "#DDD", fontSize: 12, fontWeight: "700" },
+  summaryTotal: { fontSize: 16, fontWeight: "900" },
+  summarySaving: { color: "#4EE07F", fontSize: 10, fontWeight: "700", marginTop: 2 },
+
+  // Prazo — MESMO layout do Catálogo
+  deliveryBox: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    marginTop: 12, padding: 12,
+    backgroundColor: "#0B0B0B", borderRadius: 10,
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.15)",
+  },
+  deliveryLbl: { color: DIAMOND_DARK, fontSize: 9.5, fontWeight: "900", letterSpacing: 1.8 },
+  deliveryTxt: { color: "#DDD", fontSize: 12, fontWeight: "700", marginTop: 2 },
+
+  desc: { color: "#BBB", fontSize: 13, lineHeight: 19 },
+
+  infoRow: { flexDirection: "row", gap: 6, marginTop: 14 },
+  infoBlock: {
+    flex: 1, padding: 10, borderRadius: 8,
+    backgroundColor: "#0B0B0B",
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.1)",
+    alignItems: "center", gap: 3,
+  },
+  infoLabel: { color: "#888", fontSize: 9, letterSpacing: 0.8, fontWeight: "700" },
+  infoValue: { color: "#FFF", fontSize: 11, fontWeight: "800" },
+
+  securityBox: {
+    flexDirection: "row", gap: 8,
+    marginTop: 14, padding: 10,
+    backgroundColor: "#0A0A0A", borderRadius: 8,
+    borderWidth: 1, borderColor: "#141414",
+  },
+  securityTxt: { flex: 1, color: "#888", fontSize: 10.5, lineHeight: 15 },
+
+  // FOOTER (mesma estrutura do Catálogo mas com 2 botões)
+  footer: {
+    position: "absolute", left: 0, right: 0, bottom: 0,
+    flexDirection: "row", gap: 8,
+    paddingHorizontal: 12, paddingVertical: 8,
+    backgroundColor: "#050505",
+    borderTopWidth: 1, borderTopColor: "rgba(127,215,229,0.18)",
+  },
+  iconBtn: {
+    width: 46, height: 46, borderRadius: 10,
+    backgroundColor: "#121212",
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.25)",
+    alignItems: "center", justifyContent: "center",
+  },
+  buyBtn: { flex: 1, borderRadius: 12, overflow: "hidden" },
+  buyBtnInner: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 14,
+  },
+  buyBtnTxt: { color: "#0A0A0A", fontWeight: "900", fontSize: 12.5, letterSpacing: 1.2 },
 });
