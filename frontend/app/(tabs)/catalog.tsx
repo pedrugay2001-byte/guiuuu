@@ -1,498 +1,395 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import React from "react";
 import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity,
-  Image, ActivityIndicator, ScrollView, FlatList,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { api, Category, Product, Ad, formatBRL } from "../../src/api";
-import { formatBLX } from "../../src/blx";
+import { LinearGradient } from "expo-linear-gradient";
 import { useGate } from "../../src/gate";
-import { theme } from "../../src/theme";
 
-const GOLD = "#D4AF37";
-const DIAMOND_BLUE = "#7FD7E5"; // ciano premium usado para destacar seção Diamond
+const BG = "#050505";
 
-const CAT_META: Record<string, { label: string; icon: string; color: string }> = {
-  // Públicas
-  tecnologia:   { label: "Tecnologia",  icon: "hardware-chip",      color: "#B794F4" },
-  bem_estar:    { label: "Bem-estar",   icon: "leaf",               color: "#95D5B2" },
-  beleza:       { label: "Beleza",      icon: "sparkles",           color: "#F58FC3" },
-  suplementos:  { label: "Suplementos", icon: "nutrition",          color: "#2ECC71" },
-  eletronicos:  { label: "Eletrônicos", icon: "phone-portrait",     color: "#7FD7E5" },
-  outros:       { label: "Outros",      icon: "cube",               color: "#999" },
-  // Umbrella Saúde (Diamond) — AZUL premium para destacar exclusividade
-  saude_diamante: { label: "Saúde Diamante", icon: "shield-checkmark", color: "#7FD7E5" },
-  // Legados (mantidos para retrocompatibilidade interna)
-  hormonios:    { label: "Hormônios",   icon: "pulse",              color: "#E8C96B" },
-  emagrecedores:{ label: "Emagrecedores", icon: "flame",            color: "#FF6B35" },
-  peptideos:    { label: "Peptídeos",     icon: "flask",            color: "#7FD7E5" },
-  landerlan:    { label: "Landerlan",     icon: "shield-checkmark", color: "#D4AF37" },
+type TierId = "diamond" | "gold" | "silver";
+
+type TierCard = {
+  id: TierId;
+  title: string;
+  kicker: string;
+  access: string;
+  image: string;
+  gradient: readonly [string, string, string];
+  bgGradient: readonly [string, string, string];
+  borderColor: string;
+  accentColor: string;
+  icon: string;
 };
 
-// Cache em memória simples (dura enquanto a app está aberta) para
-// dados que quase não mudam — evita refetch a cada troca de tela.
-const _catCache: { data?: Category[]; ts?: number } = {};
-const _CACHE_MS = 5 * 60 * 1000; // 5 min
+// Paleta e imagens premium de cada nível.
+// As imagens foram selecionadas para compor sobre fundo preto (dark mode).
+const TIERS: TierCard[] = [
+  {
+    id: "diamond",
+    title: "Diamante",
+    kicker: "Acesso Total",
+    access: "Marketplace completo · Todos os produtos",
+    image:
+      "https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=900&q=80&auto=format&fit=crop",
+    gradient: ["#EAF1F6", "#C5D1DA", "#4A5F74"],
+    bgGradient: ["#0E1820", "#0A1016", "#05080B"],
+    borderColor: "rgba(197,209,218,0.35)",
+    accentColor: "#EAF1F6",
+    icon: "diamond",
+  },
+  {
+    id: "gold",
+    title: "Gold",
+    kicker: "Acesso Premium",
+    access: "Catálogo selecionado · Ofertas exclusivas",
+    image:
+      "https://images.unsplash.com/photo-1610375461369-d613b564f4c4?w=900&q=80&auto=format&fit=crop",
+    gradient: ["#F4D47A", "#D4AF37", "#8C6F1E"],
+    bgGradient: ["#1A1308", "#0B0906", "#050301"],
+    borderColor: "rgba(212,175,55,0.35)",
+    accentColor: "#F4D47A",
+    icon: "star",
+  },
+  {
+    id: "silver",
+    title: "Silver",
+    kicker: "Acesso Inicial",
+    access: "Linha essencial · Produtos básicos",
+    image:
+      "https://images.unsplash.com/photo-1610375461246-83df859d849d?w=900&q=80&auto=format&fit=crop",
+    gradient: ["#E8E8E8", "#B8B8B8", "#6F6F6F"],
+    bgGradient: ["#141416", "#0A0A0A", "#050505"],
+    borderColor: "rgba(184,184,184,0.35)",
+    accentColor: "#E8E8E8",
+    icon: "medal",
+  },
+];
 
-export default function Marketplace() {
+/**
+ * Tela Marketplace — menu principal com os 3 níveis de acesso.
+ *
+ * Regra rígida: cada membro só pode entrar no marketplace do seu próprio tier.
+ * Se tentar acessar outro tier, vê uma mensagem de exclusividade com direcionamento
+ * ao suporte para upgrade.
+ */
+export default function CatalogMenu() {
   const router = useRouter();
   const { member } = useGate();
-  const tier = (member?.tier || "black").toLowerCase();
-  const isDiamond = tier === "diamond";
-  const hasMarketplaceAccess = ["silver", "gold", "diamond"].includes(tier);
+  const myTier = (member?.tier || "black").toLowerCase() as TierId | "black";
 
-  const [q, setQ] = useState("");
-  const [cat, setCat] = useState<string>("all");
-  const [categories, setCategories] = useState<Category[]>(_catCache.data || []);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [ads, setAds] = useState<Ad[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    if (!hasMarketplaceAccess || !member) { setLoading(false); return; }
-    try {
-      // Usa cache de categorias se recente (<5min)
-      const catsFresh = _catCache.data && _catCache.ts && (Date.now() - _catCache.ts) < _CACHE_MS;
-      const catsPromise = catsFresh
-        ? Promise.resolve(_catCache.data as Category[])
-        : api.categories(member.member_id).catch(() => [] as Category[]);
-      const [cats, prods, aa] = await Promise.all([
-        catsPromise,
-        api.listProducts({ category: cat, q, member_id: member.member_id }).catch(() => []),
-        api.listAds().catch(() => []),
-      ]);
-      if (!catsFresh) { _catCache.data = cats as Category[]; _catCache.ts = Date.now(); }
-      setCategories(cats as Category[]);
-      setProducts(prods);
-      setAds(aa.slice(0, 8));
-    } finally { setLoading(false); }
-  }, [cat, q, member, hasMarketplaceAccess]);
-
-  // Carrega no foco E debounce quando muda categoria/busca — sem duplicar
-  useFocusEffect(useCallback(() => { load(); }, [hasMarketplaceAccess, member?.member_id]));
-  useEffect(() => {
-    // Debounce apenas quando usuário digita/troca categoria
-    const t = setTimeout(load, 300);
-    return () => clearTimeout(t);
-  }, [cat, q]);
-
-  // Descontos por tier (Silver 0%, Gold 15%, Diamond 30%)
-  const tierDisc = useMemo(() => {
-    if (tier === "diamond") return 0.30;
-    if (tier === "gold") return 0.15;
-    return 0;
-  }, [tier]);
-  const priceFor = (base: number) => Math.round(base * (1 - tierDisc));
-
-  // Black comum não acessa
-  if (!hasMarketplaceAccess) {
-    return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-        <View style={st.lockWrap}>
-          <View style={st.lockIcon}>
-            <Ionicons name="lock-closed" size={36} color={GOLD} />
-          </View>
-          <Text style={st.lockTitle}>ÁREA EXCLUSIVA</Text>
-          <Text style={st.lockMsg}>
-            Esta função é exclusiva para membros{"\n"}
-            <Text style={{ color: GOLD, fontWeight: "900" }}>Black Silver, Gold e Diamante</Text>.
-          </Text>
-          <Text style={st.lockSub}>
-            Converse com o suporte para saber como fazer upgrade do seu plano.
-          </Text>
-          <TouchableOpacity
-            style={st.lockBtn}
-            onPress={() => router.push("/chat" as any)}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="headset" size={16} color="#000" />
-            <Text style={st.lockBtnTxt}>FALAR COM SUPORTE</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // Separa categorias públicas das de saúde
-  const publicCats = categories.filter(c => (c as any).group !== "saude");
-  const healthCats = categories.filter(c => (c as any).group === "saude");
+  const handlePress = (card: TierCard) => {
+    // Black sem marketplace — mensagem geral
+    if (myTier === "black") {
+      Alert.alert(
+        "Acesso Exclusivo",
+        `O Marketplace ${card.title} é reservado para membros ${card.id.toUpperCase()}.\n\nFaça upgrade do seu plano para liberar o acesso.`,
+        [
+          { text: "OK", style: "cancel" },
+          { text: "Falar com suporte", onPress: () => router.push("/chat" as any) },
+        ],
+      );
+      return;
+    }
+    // Navega sempre — a tela do tier valida e mostra o bloqueio se não for o próprio tier
+    router.push(`/catalog/${card.id}` as any);
+  };
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="marketplace-screen">
-      {/* Search + ações (carrinho e favoritos) */}
-      <View style={st.searchRow}>
-        <Ionicons name="search" size={16} color="#777" />
-        <TextInput
-          style={st.searchInput}
-          value={q} onChangeText={setQ}
-          placeholder="Buscar produto..."
-          placeholderTextColor="#666"
-          autoCapitalize="none"
-          testID="marketplace-search"
-        />
-        {q.length > 0 && (
-          <TouchableOpacity onPress={() => setQ("")} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-            <Ionicons name="close-circle" size={16} color="#666" />
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          style={st.headerIconBtn}
-          onPress={() => router.push("/cart" as any)}
-          testID="marketplace-cart"
-        >
-          <Ionicons name="bag-handle-outline" size={18} color="#EEE" />
-        </TouchableOpacity>
-      </View>
+    <View style={{ flex: 1, backgroundColor: BG }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+        {/* HEADER elegante */}
+        <View style={st.header}>
+          <Text style={st.kicker}>BLACKSCLUB · MARKETPLACE</Text>
+          <Text style={st.title}>Escolha seu nível de acesso</Text>
+          <Text style={st.sub}>
+            Cada tier desbloqueia um marketplace exclusivo, com produtos, descontos e benefícios específicos do seu plano.
+          </Text>
+        </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Categorias públicas */}
-        <Text style={st.sectionTitle}>CATEGORIAS</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.catRow}>
-          <CatChip active={cat === "all"} onPress={() => setCat("all")} label="Todos" icon="apps" color="#EEE" />
-          {publicCats.map((c) => {
-            const meta = CAT_META[c.id] || { label: c.name, icon: c.icon || "cube", color: "#888" };
+        {/* 3 CARDS PREMIUM */}
+        <View style={st.cards}>
+          {TIERS.map((card) => {
+            const isMine = myTier === card.id;
             return (
-              <CatChip
-                key={c.id}
-                active={cat === c.id}
-                onPress={() => setCat(c.id)}
-                label={meta.label}
-                icon={meta.icon}
-                color={meta.color}
-              />
+              <TouchableOpacity
+                key={card.id}
+                style={[st.card, { borderColor: card.borderColor }]}
+                activeOpacity={0.88}
+                onPress={() => handlePress(card)}
+                testID={`tier-card-${card.id}`}
+              >
+                <LinearGradient
+                  colors={card.bgGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={st.cardInner}
+                >
+                  {/* Imagem à esquerda */}
+                  <View style={st.cardImgWrap}>
+                    <Image
+                      source={{ uri: card.image }}
+                      style={st.cardImg}
+                      resizeMode="cover"
+                    />
+                    <LinearGradient
+                      colors={["transparent", card.bgGradient[1] + "88", card.bgGradient[1]]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                  </View>
+
+                  {/* Conteúdo à direita */}
+                  <View style={st.cardContent}>
+                    <View style={st.cardTop}>
+                      <View
+                        style={[
+                          st.cardIconBadge,
+                          { borderColor: card.accentColor + "66", backgroundColor: card.accentColor + "14" },
+                        ]}
+                      >
+                        <MaterialCommunityIcons name={card.icon as any} size={11} color={card.accentColor} />
+                        <Text style={[st.cardIconTxt, { color: card.accentColor }]}>{card.kicker.toUpperCase()}</Text>
+                      </View>
+                      {isMine && (
+                        <View style={[st.myBadge, { borderColor: card.accentColor, backgroundColor: card.accentColor + "22" }]}>
+                          <Ionicons name="checkmark-circle" size={10} color={card.accentColor} />
+                          <Text style={[st.myBadgeTxt, { color: card.accentColor }]}>SEU PLANO</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <Text style={st.cardTitle}>Marketplace</Text>
+                    <LinearGradient
+                      colors={card.gradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={st.cardGradientTextWrap}
+                    >
+                      <Text style={[st.cardTierTitle, { color: "#0A0A0A" }]}>
+                        {card.title.toUpperCase()}
+                      </Text>
+                    </LinearGradient>
+
+                    <Text style={st.cardAccess} numberOfLines={2}>
+                      {card.access}
+                    </Text>
+
+                    <View style={st.ctaRow}>
+                      {isMine ? (
+                        <LinearGradient
+                          colors={card.gradient}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={st.cta}
+                        >
+                          <Text style={st.ctaTxt}>ACESSAR</Text>
+                          <Ionicons name="arrow-forward" size={13} color="#0A0A0A" />
+                        </LinearGradient>
+                      ) : (
+                        <View style={st.ctaLocked}>
+                          <Ionicons name="lock-closed" size={11} color="#666" />
+                          <Text style={st.ctaLockedTxt}>BLOQUEADO</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
             );
           })}
-        </ScrollView>
-
-        {/* MEMBROS BLACK DIAMOND — apresentação leve e elegante */}
-        {isDiamond && (
-          <View style={st.diamondSection}>
-            {/* Divisor elegante com título embutido */}
-            <View style={st.diamondDivider}>
-              <View style={st.diamondDividerLine} />
-              <View style={st.diamondDividerBadge}>
-                <Ionicons name="diamond" size={10} color={DIAMOND_BLUE} />
-                <Text style={st.diamondDividerTxt}>CÍRCULO DIAMANTE</Text>
-                <Ionicons name="diamond" size={10} color={DIAMOND_BLUE} />
-              </View>
-              <View style={st.diamondDividerLine} />
-            </View>
-
-            {/* Subheader simples */}
-            <View style={st.diamondSubheadRow}>
-              <Text style={st.diamondSubheadTxt}>Transações privadas entre membros</Text>
-              <TouchableOpacity
-                onPress={() => router.push("/ads")}
-                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                style={st.diamondSeeAllBtn}
-              >
-                <Text style={st.diamondSeeAllTxt}>VER TUDO</Text>
-                <Ionicons name="arrow-forward" size={11} color={DIAMOND_BLUE} />
-              </TouchableOpacity>
-            </View>
-
-            {ads.length > 0 ? (
-              <FlatList
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                data={ads}
-                keyExtractor={(a) => a.ad_id}
-                contentContainerStyle={{ paddingHorizontal: 14, gap: 10 }}
-                renderItem={({ item }) => <AdCard ad={item} onPress={() => router.push({ pathname: "/ads/[id]", params: { id: item.ad_id } })} />}
-              />
-            ) : (
-              <TouchableOpacity
-                style={st.diamondEmptyCta}
-                onPress={() => router.push("/ads")}
-                activeOpacity={0.88}
-              >
-                <Ionicons name="diamond-outline" size={14} color={DIAMOND_BLUE} />
-                <Text style={st.diamondEmptyCtaTxt}>EXPLORAR MARKETPLACE DIAMOND</Text>
-                <Ionicons name="chevron-forward" size={14} color={DIAMOND_BLUE} />
-              </TouchableOpacity>
-            )}
-
-            {/* Fechamento do círculo com divider */}
-            <View style={st.diamondCloseLine} />
-          </View>
-        )}
-
-        {/* CATÁLOGO OFICIAL — divisor elegante em DOURADO (sem símbolo de diamante) */}
-        <View style={st.catalogDivider}>
-          <View style={st.catalogDividerLine} />
-          <View style={st.catalogDividerBadge}>
-            <Ionicons name="ribbon" size={10} color={GOLD} />
-            <Text style={st.catalogDividerTxt}>CATÁLOGO</Text>
-            <Ionicons name="ribbon" size={10} color={GOLD} />
-          </View>
-          <View style={st.catalogDividerLine} />
-        </View>
-        <View style={st.catalogSubRow}>
-          <Text style={st.catalogSubTxt}>Selecionados pela curadoria do clube</Text>
-          {!loading && <Text style={st.catalogCount}>{products.length} itens</Text>}
         </View>
 
-        {loading ? (
-          <View style={{ padding: 32, alignItems: "center" }}>
-            <ActivityIndicator color={GOLD} />
-          </View>
-        ) : products.length === 0 ? (
-          <View style={st.emptyBox}>
-            <Ionicons name="search" size={32} color="#444" />
-            <Text style={st.emptyTitle}>Nada encontrado</Text>
-            <Text style={st.emptySub}>Tente outra categoria ou palavra.</Text>
-          </View>
-        ) : (
-          <View style={st.grid}>
-            {products.map((p) => (
-              <TouchableOpacity
-                key={p.product_id}
-                style={st.productCard}
-                onPress={() => router.push({ pathname: "/product/[id]", params: { id: p.product_id } })}
-                activeOpacity={0.88}
-              >
-                <View style={st.prodImgWrap}>
-                  {p.image_url ? (
-                    <Image source={{ uri: p.image_url }} style={st.prodImg} resizeMode="cover" />
-                  ) : (
-                    <View style={[st.prodImg, { backgroundColor: "#141414", alignItems: "center", justifyContent: "center" }]}>
-                      <Ionicons name="cube" size={26} color="#444" />
-                    </View>
-                  )}
-                  {/* Faixa sutil dourada no topo da imagem — toque elitizado */}
-                  <View style={st.prodAccentStripe} />
-                </View>
-                <Text style={st.prodName} numberOfLines={2}>{p.name}</Text>
-                <View style={{ marginTop: 6 }}>
-                  {tierDisc > 0 ? (
-                    <>
-                      <Text style={st.prodPriceOld}>{formatBRL(p.member_price)}</Text>
-                      <Text style={st.prodPrice}>{formatBRL(priceFor(p.member_price))}</Text>
-                    </>
-                  ) : (
-                    <Text style={st.prodPrice}>{formatBRL(p.member_price)}</Text>
-                  )}
-                </View>
-                {tierDisc > 0 && (
-                  <View style={st.discBadge}>
-                    <Text style={st.discBadgeTxt}>-{Math.round(tierDisc * 100)}%</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        {/* FOOTER INFO */}
+        <View style={st.footer}>
+          <Ionicons name="information-circle-outline" size={13} color="#888" />
+          <Text style={st.footerTxt}>
+            Seu plano atual é <Text style={{ color: "#FFF", fontWeight: "900" }}>BLACK {myTier.toUpperCase()}</Text>.
+            Fale com o suporte para fazer upgrade.
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
 }
 
-function CatChip({ active, onPress, label, icon, color }: { active: boolean; onPress: () => void; label: string; icon: string; color: string }) {
-  return (
-    <TouchableOpacity onPress={onPress} style={[st.chip, active && { backgroundColor: "#1A1A1A", borderColor: color }]} activeOpacity={0.85}>
-      <Ionicons name={icon as any} size={14} color={active ? color : "#888"} />
-      <Text style={[st.chipTxt, active && { color: "#FFF" }]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function AdCard({ ad, onPress }: { ad: Ad; onPress: () => void }) {
-  const img = ad.images?.[0];
-  return (
-    <TouchableOpacity onPress={onPress} style={st.adCard} activeOpacity={0.88}>
-      <View style={st.adImgWrap}>
-        {img ? <Image source={{ uri: img }} style={st.adImg} /> : (
-          <View style={[st.adImg, { backgroundColor: "#141414", alignItems: "center", justifyContent: "center" }]}>
-            <Ionicons name="diamond" size={22} color="#7FD7E5" />
-          </View>
-        )}
-      </View>
-      <Text style={st.adName} numberOfLines={2}>{ad.title}</Text>
-      <Text style={st.adPrice}>{formatBLX(Math.round(ad.price_full * 100))} BLX</Text>
-    </TouchableOpacity>
-  );
-}
-
 const st = StyleSheet.create({
-  searchRow: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    marginHorizontal: 14, marginTop: 10, marginBottom: 6,
-    paddingHorizontal: 12, paddingVertical: 9,
-    backgroundColor: "#101010", borderRadius: 10, borderWidth: 1, borderColor: "#1C1C1C",
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 22,
+    alignItems: "flex-start",
   },
-  searchInput: { flex: 1, color: "#EEE", fontSize: 13.5, padding: 0 },
-  headerIconBtn: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: "#1A1A1A", borderWidth: 1, borderColor: "#2A2A2A",
-    alignItems: "center", justifyContent: "center",
-    marginLeft: 4,
+  kicker: {
+    color: "#D4AF37",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 2.8,
+  },
+  title: {
+    color: "#FFF",
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+    marginTop: 6,
+  },
+  sub: {
+    color: "#888",
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 8,
+    fontWeight: "500",
   },
 
-  // Área Saúde (Diamond) — alinhada à esquerda, compacta
-  saudeSection: { marginTop: 12, marginBottom: 4, paddingLeft: 14 },
-  saudeHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
-  saudeHeadTxt: { color: DIAMOND_BLUE, fontSize: 10, fontWeight: "900", letterSpacing: 2 },
-  saudeRow: { paddingRight: 14, gap: 6 },
-  saudeChip: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 10, paddingVertical: 6,
+  cards: {
+    paddingHorizontal: 14,
+    gap: 14,
+  },
+
+  card: {
     borderRadius: 16,
-    borderWidth: 1, borderColor: "#252525", backgroundColor: "#0D0D0D",
+    overflow: "hidden",
+    borderWidth: 1,
   },
-  saudeChipTxt: { color: "#CCC", fontSize: 11, fontWeight: "700", maxWidth: 90 },
-
-  sectionTitle: { color: "#888", fontSize: 10, fontWeight: "900", letterSpacing: 2.5, marginLeft: 18, marginTop: 16, marginBottom: 10 },
-  sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 18 },
-  sectionLink: { color: GOLD, fontSize: 11, fontWeight: "800" },
-
-  // === MEMBROS BLACK DIAMOND — apresentação leve e minimalista ===
-  diamondSection: {
-    marginTop: 26, marginBottom: 8,
+  cardInner: {
+    flexDirection: "row",
+    minHeight: 140,
   },
-  // Divisor elegante com título embutido estilo "─── CÍRCULO DIAMANTE ───"
-  diamondDivider: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 24, marginBottom: 14,
+  cardImgWrap: {
+    width: "42%",
+    position: "relative",
+    overflow: "hidden",
   },
-  diamondDividerLine: {
-    flex: 1, height: 1,
-    backgroundColor: "rgba(127,215,229,0.25)",
+  cardImg: {
+    width: "100%",
+    height: "100%",
   },
-  diamondDividerBadge: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 12, paddingVertical: 5,
-    marginHorizontal: 10,
-    borderRadius: 20, borderWidth: 1,
-    borderColor: "rgba(127,215,229,0.35)",
-    backgroundColor: "rgba(127,215,229,0.06)",
-  },
-  diamondDividerTxt: {
-    color: DIAMOND_BLUE, fontSize: 9.5,
-    fontWeight: "900", letterSpacing: 2,
-  },
-  diamondSubheadRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 18, marginBottom: 12,
-  },
-  diamondSubheadTxt: {
-    color: "#AAA", fontSize: 12, fontWeight: "600", letterSpacing: 0.2,
-    flex: 1, marginRight: 10,
-  },
-  diamondSeeAllBtn: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingVertical: 4, paddingHorizontal: 2,
-  },
-  diamondSeeAllTxt: {
-    color: DIAMOND_BLUE, fontSize: 10, fontWeight: "900", letterSpacing: 1.5,
-  },
-  diamondEmptyCta: {
-    marginHorizontal: 18, marginTop: 4,
-    paddingVertical: 14, paddingHorizontal: 14,
-    borderWidth: 1, borderColor: "rgba(127,215,229,0.25)",
-    borderRadius: 12,
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8,
-    backgroundColor: "rgba(127,215,229,0.04)",
-  },
-  diamondEmptyCtaTxt: {
-    color: DIAMOND_BLUE, fontSize: 11, fontWeight: "900", letterSpacing: 1.8,
-  },
-  diamondCloseLine: {
-    height: 1, marginTop: 16, marginHorizontal: 24,
-    backgroundColor: "rgba(127,215,229,0.12)",
+  cardContent: {
+    flex: 1,
+    padding: 14,
+    justifyContent: "space-between",
+    gap: 6,
   },
 
-  // === CATÁLOGO — divisor DOURADO elegante (sem símbolo de diamante) ===
-  catalogDivider: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 24, marginTop: 24, marginBottom: 10,
-  },
-  catalogDividerLine: {
-    flex: 1, height: 1,
-    backgroundColor: "rgba(212,175,55,0.28)",
-  },
-  catalogDividerBadge: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 14, paddingVertical: 5,
-    marginHorizontal: 10,
-    borderRadius: 20, borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.4)",
-    backgroundColor: "rgba(212,175,55,0.06)",
-  },
-  catalogDividerTxt: {
-    color: GOLD, fontSize: 9.5,
-    fontWeight: "900", letterSpacing: 2.5,
-  },
-  catalogSubRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 18, marginBottom: 14,
-  },
-  catalogSubTxt: {
-    color: "#AAA", fontSize: 12, fontWeight: "600", fontStyle: "italic",
-  },
-  catalogCount: { color: "#666", fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
-
-  // Faixa dourada sutil no topo da imagem do produto (toque elitizado)
-  prodAccentStripe: {
-    position: "absolute", top: 0, left: 0, right: 0, height: 2,
-    backgroundColor: GOLD, opacity: 0.65,
+  cardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
 
-  sectionCount: { color: "#666", fontSize: 11 },
-
-  catRow: { paddingHorizontal: 14, gap: 8 },
-  chip: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 18, borderWidth: 1, borderColor: "#222", backgroundColor: "#0A0A0A",
+  cardIconBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
   },
-  chipTxt: { color: "#999", fontSize: 11.5, fontWeight: "700" },
-
-  emptyBox: { alignItems: "center", padding: 30, gap: 8 },
-  emptyTitle: { color: "#888", fontSize: 14, fontWeight: "800" },
-  emptySub: { color: "#555", fontSize: 11 },
-
-  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 8, marginTop: 8 },
-  productCard: {
-    width: "48.5%", backgroundColor: "#0E0E0E",
-    borderWidth: 1, borderColor: "#1A1A1A",
-    borderRadius: 12, padding: 10, position: "relative",
+  cardIconTxt: {
+    fontSize: 8.5,
+    fontWeight: "900",
+    letterSpacing: 1.2,
   },
-  prodImgWrap: { width: "100%", aspectRatio: 1, borderRadius: 8, overflow: "hidden", backgroundColor: "#141414" },
-  prodImg: { width: "100%", height: "100%" },
-  prodName: { color: "#EEE", fontSize: 12.5, fontWeight: "700", marginTop: 8, minHeight: 32 },
-  prodPrice: { color: GOLD, fontSize: 14, fontWeight: "900" },
-  prodPriceOld: { color: "#666", fontSize: 11, textDecorationLine: "line-through" },
-  discBadge: {
-    position: "absolute", top: 10, right: 10,
-    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8,
-    backgroundColor: "#FF4757",
-  },
-  discBadgeTxt: { color: "#FFF", fontSize: 9, fontWeight: "900" },
 
-  adCard: { width: 150, backgroundColor: "#0E0E0E", borderWidth: 1, borderColor: "#1A1A1A", borderRadius: 12, padding: 8 },
-  adImgWrap: { width: "100%", aspectRatio: 1.1, borderRadius: 8, overflow: "hidden" },
-  adImg: { width: "100%", height: "100%", backgroundColor: "#141414" },
-  adName: { color: "#EEE", fontSize: 11.5, fontWeight: "700", marginTop: 6, minHeight: 30 },
-  adPrice: { color: "#7FD7E5", fontSize: 12.5, fontWeight: "900", marginTop: 2 },
+  myBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  myBadgeTxt: {
+    fontSize: 8.5,
+    fontWeight: "900",
+    letterSpacing: 1.1,
+  },
 
-  // Lock screen
-  lockWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 30, gap: 12 },
-  lockIcon: {
-    width: 84, height: 84, borderRadius: 42,
-    backgroundColor: "rgba(212,175,55,0.08)",
-    borderWidth: 1.5, borderColor: GOLD,
-    alignItems: "center", justifyContent: "center",
+  cardTitle: {
+    color: "#DDD",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    marginTop: 4,
   },
-  lockTitle: { color: GOLD, fontSize: 12, fontWeight: "900", letterSpacing: 3, marginTop: 8 },
-  lockMsg: { color: "#EEE", fontSize: 15, fontWeight: "600", textAlign: "center", lineHeight: 22, marginTop: 4 },
-  lockSub: { color: "#888", fontSize: 12, textAlign: "center", lineHeight: 17, marginTop: 6 },
-  lockBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    paddingHorizontal: 22, paddingVertical: 13, borderRadius: 12,
-    backgroundColor: GOLD, marginTop: 16,
+  cardGradientTextWrap: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    marginTop: 1,
   },
-  lockBtnTxt: { color: "#000", fontSize: 12, fontWeight: "900", letterSpacing: 1.2 },
+  cardTierTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  cardAccess: {
+    color: "#999",
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 2,
+  },
+
+  ctaRow: {
+    marginTop: 6,
+    flexDirection: "row",
+  },
+  cta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  ctaTxt: {
+    color: "#0A0A0A",
+    fontSize: 10.5,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+  },
+  ctaLocked: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#111",
+    borderWidth: 1,
+    borderColor: "#222",
+  },
+  ctaLockedTxt: {
+    color: "#666",
+    fontSize: 10.5,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+  },
+
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginHorizontal: 14,
+    marginTop: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#0B0B0B",
+    borderWidth: 1,
+    borderColor: "#1A1A1A",
+  },
+  footerTxt: {
+    flex: 1,
+    color: "#AAA",
+    fontSize: 11,
+    lineHeight: 15,
+  },
 });
