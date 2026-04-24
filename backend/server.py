@@ -4458,42 +4458,122 @@ app.include_router(api_router)
 # - Favicon, images, JS, CSS all served correctly
 # - React Router client-side routes work (any unknown path → index.html)
 
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 FRONTEND_DIST = "/app/frontend/dist"
+FRONTEND_ROOT = "/app/frontend"
+
+# State flag: set to True when a background build is in progress
+_build_in_progress = {"running": False, "done": False, "error": None}
+
+
+async def _run_frontend_build_bg():
+    """Run `yarn build` as background task if dist is missing (production fallback)."""
+    if _build_in_progress["running"] or os.path.isdir(FRONTEND_DIST):
+        return
+    _build_in_progress["running"] = True
+    try:
+        logger.info("Starting frontend build: yarn build (background)")
+        proc = await asyncio.create_subprocess_exec(
+            "yarn", "build",
+            cwd=FRONTEND_ROOT,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        stdout, _ = await proc.communicate()
+        if proc.returncode == 0:
+            _build_in_progress["done"] = True
+            logger.info(f"Frontend build SUCCESS — dist created at {FRONTEND_DIST}")
+        else:
+            _build_in_progress["error"] = f"exit {proc.returncode}"
+            logger.error(f"Frontend build FAILED: exit {proc.returncode}")
+            logger.error(stdout.decode("utf-8", errors="ignore")[-1500:])
+    except Exception as e:  # noqa: BLE001
+        _build_in_progress["error"] = str(e)
+        logger.error(f"Frontend build error: {e}")
+    finally:
+        _build_in_progress["running"] = False
+
+
+# Kick off background build on startup if dist is missing
+@app.on_event("startup")
+async def ensure_frontend_build_on_startup():
+    if not os.path.isdir(FRONTEND_DIST):
+        logger.warning(f"{FRONTEND_DIST} missing — scheduling background yarn build")
+        asyncio.create_task(_run_frontend_build_bg())
+    else:
+        logger.info(f"Frontend dist already present at {FRONTEND_DIST}")
 
 
 @app.get("/favicon.ico", include_in_schema=False)
+@app.head("/favicon.ico", include_in_schema=False)
 async def favicon():
     """Serve favicon from frontend dist if present, otherwise return empty 200."""
     fav = os.path.join(FRONTEND_DIST, "favicon.ico")
     if os.path.exists(fav):
         return FileResponse(fav, media_type="image/x-icon")
-    # Return empty favicon to avoid 404 noise in logs / probe failures
     return Response(content=b"", media_type="image/x-icon", status_code=200)
 
 
-if os.path.isdir(FRONTEND_DIST):
-    # Mount static assets directory (Expo/Metro outputs to _expo/static)
-    _expo_static = os.path.join(FRONTEND_DIST, "_expo")
-    if os.path.isdir(_expo_static):
-        app.mount("/_expo", StaticFiles(directory=_expo_static), name="expo-static")
-    _assets_dir = os.path.join(FRONTEND_DIST, "assets")
-    if os.path.isdir(_assets_dir):
-        app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")
+# Always mount static subdirs if present (safe if dir doesn't exist — wrapped)
+def _safe_mount_static():
+    if os.path.isdir(FRONTEND_DIST):
+        _expo_static = os.path.join(FRONTEND_DIST, "_expo")
+        if os.path.isdir(_expo_static):
+            try:
+                app.mount("/_expo", StaticFiles(directory=_expo_static), name="expo-static")
+            except Exception as e:
+                logger.warning(f"Could not mount /_expo: {e}")
+        _assets_dir = os.path.join(FRONTEND_DIST, "assets")
+        if os.path.isdir(_assets_dir):
+            try:
+                app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")
+            except Exception as e:
+                logger.warning(f"Could not mount /assets: {e}")
 
-    @app.get("/{full_path:path}", include_in_schema=False)
-    async def spa_fallback(full_path: str):
-        """
-        Serve any non-API path from the frontend build.
-        - Existing file in dist → serve it
-        - Unknown path → serve index.html (for client-side routing)
-        """
-        # Never catch API routes (double safety)
-        if full_path.startswith("api/"):
-            return Response(status_code=404)
 
+_safe_mount_static()
+
+
+# Minimal loading page shown while build is in progress (production cold start)
+_LOADING_HTML = """<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BLACKSCLUB · Carregando</title>
+<style>
+  body{margin:0;background:#050505;color:#EEE;font-family:-apple-system,sans-serif;
+       display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column}
+  .logo{color:#D4AF37;font-weight:900;letter-spacing:3px;font-size:22px;margin-bottom:14px}
+  .sub{color:#888;font-size:13px;margin-bottom:24px}
+  .spinner{width:32px;height:32px;border:3px solid #222;border-top-color:#D4AF37;
+           border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style></head>
+<body>
+  <div class="logo">BLACKSCLUB</div>
+  <div class="sub">Preparando seu clube privado...</div>
+  <div class="spinner"></div>
+  <script>setTimeout(()=>location.reload(),8000)</script>
+</body></html>"""
+
+
+# ALWAYS register SPA catch-all — so probe and frontend routes never 404
+@app.get("/{full_path:path}", include_in_schema=False)
+async def spa_fallback(full_path: str):
+    """
+    Serve any non-API path from the frontend build.
+    - API routes → never caught here (double safety)
+    - Existing file in dist → serve it
+    - Unknown path → index.html (for client-side routing)
+    - No dist yet → friendly loading page (keeps probes happy)
+    """
+    # Never catch API routes
+    if full_path.startswith("api/"):
+        return Response(status_code=404)
+
+    if os.path.isdir(FRONTEND_DIST):
+        # Serve exact file if exists
         candidate = os.path.join(FRONTEND_DIST, full_path)
         if os.path.isfile(candidate):
             return FileResponse(candidate)
@@ -4505,9 +4585,16 @@ if os.path.isdir(FRONTEND_DIST):
         index = os.path.join(FRONTEND_DIST, "index.html")
         if os.path.isfile(index):
             return FileResponse(index)
-        return Response(status_code=404)
 
+    # No dist yet — serve loading page so probe sees 200 and user sees friendly UI
+    return HTMLResponse(content=_LOADING_HTML, status_code=200)
+
+
+if os.path.isdir(FRONTEND_DIST):
     logger.info(f"Frontend dist mounted from {FRONTEND_DIST}")
 else:
-    logger.warning(f"Frontend dist directory NOT found at {FRONTEND_DIST} — API-only mode")
+    logger.warning(
+        f"Frontend dist directory NOT found at {FRONTEND_DIST} — "
+        f"serving loading page until background build completes"
+    )
 

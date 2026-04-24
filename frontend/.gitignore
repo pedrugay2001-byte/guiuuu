@@ -5,7 +5,7 @@ node_modules/
 
 # Expo
 .expo/
-dist/
+# dist/  ← must NOT be ignored so production deploy includes frontend build
 web-build/
 expo-env.d.ts
 
