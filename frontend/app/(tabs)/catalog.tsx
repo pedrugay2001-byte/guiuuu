@@ -26,15 +26,16 @@ type TierCard = {
 };
 
 // Paleta e imagens premium de cada nível.
-// As imagens foram selecionadas para compor sobre fundo preto (dark mode).
+// Fotos cinematográficas de academia — todas com homens de braços cruzados,
+// variando apenas cor da camisa e porte físico para representar cada tier.
 const TIERS: TierCard[] = [
   {
     id: "diamond",
     title: "Diamante",
     kicker: "Acesso Total",
-    access: "Marketplace completo · Todos os produtos",
+    access: "Marketplace completo · Todas as categorias",
     image:
-      "https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=900&q=80&auto=format&fit=crop",
+      "https://images.pexels.com/photos/31918891/pexels-photo-31918891.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
     gradient: ["#EAF1F6", "#C5D1DA", "#4A5F74"],
     bgGradient: ["#0E1820", "#0A1016", "#05080B"],
     borderColor: "rgba(197,209,218,0.35)",
@@ -47,7 +48,7 @@ const TIERS: TierCard[] = [
     kicker: "Acesso Premium",
     access: "Catálogo selecionado · Ofertas exclusivas",
     image:
-      "https://images.unsplash.com/photo-1610375461369-d613b564f4c4?w=900&q=80&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1701481080490-cb2e7f4fd5f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHw0fHxjaW5lbWF0aWMlMjBneW0lMjBtYW4lMjBjcm9zc2VkJTIwYXJtc3xlbnwwfHx8YmxhY2t8MTc3NzA2Mjk4M3ww&ixlib=rb-4.1.0&q=85",
     gradient: ["#F4D47A", "#D4AF37", "#8C6F1E"],
     bgGradient: ["#1A1308", "#0B0906", "#050301"],
     borderColor: "rgba(212,175,55,0.35)",
@@ -60,7 +61,7 @@ const TIERS: TierCard[] = [
     kicker: "Acesso Inicial",
     access: "Linha essencial · Produtos básicos",
     image:
-      "https://images.unsplash.com/photo-1610375461246-83df859d849d?w=900&q=80&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1577744168855-0391d2ed2b3a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwxfHxjaW5lbWF0aWMlMjBneW0lMjBtYW4lMjBjcm9zc2VkJTIwYXJtc3xlbnwwfHx8YmxhY2t8MTc3NzA2Mjk4M3ww&ixlib=rb-4.1.0&q=85",
     gradient: ["#E8E8E8", "#B8B8B8", "#6F6F6F"],
     bgGradient: ["#141416", "#0A0A0A", "#050505"],
     borderColor: "rgba(184,184,184,0.35)",
@@ -68,6 +69,12 @@ const TIERS: TierCard[] = [
     icon: "medal",
   },
 ];
+
+// Hierarquia de acesso: Diamante > Gold > Silver
+const TIER_RANK: Record<string, number> = { silver: 1, gold: 2, diamond: 3, black: 0 };
+const canAccessTier = (userTier: string, targetTier: string): boolean => {
+  return (TIER_RANK[userTier] ?? 0) >= (TIER_RANK[targetTier] ?? 99);
+};
 
 /**
  * Tela Marketplace — menu principal com os 3 níveis de acesso.
@@ -82,11 +89,11 @@ export default function CatalogMenu() {
   const myTier = (member?.tier || "black").toLowerCase() as TierId | "black";
 
   const handlePress = (card: TierCard) => {
-    // Black sem marketplace — mensagem geral
+    // Black sem marketplace
     if (myTier === "black") {
       Alert.alert(
         "Acesso Exclusivo",
-        `O Marketplace ${card.title} é reservado para membros ${card.id.toUpperCase()}.\n\nFaça upgrade do seu plano para liberar o acesso.`,
+        `O Marketplace ${card.title} é reservado para membros Silver, Gold e Diamante.\n\nFaça upgrade do seu plano para liberar o acesso.`,
         [
           { text: "OK", style: "cancel" },
           { text: "Falar com suporte", onPress: () => router.push("/chat" as any) },
@@ -94,7 +101,18 @@ export default function CatalogMenu() {
       );
       return;
     }
-    // Navega sempre — a tela do tier valida e mostra o bloqueio se não for o próprio tier
+    // Hierarquia: Diamante acessa tudo, Gold acessa Gold+Silver, Silver só Silver
+    if (!canAccessTier(myTier as string, card.id)) {
+      Alert.alert(
+        "Acesso Bloqueado",
+        `O Marketplace ${card.title} é exclusivo para membros ${card.id.toUpperCase()} ou superior.\n\nSeu plano atual é BLACK ${myTier.toUpperCase()}.`,
+        [
+          { text: "OK", style: "cancel" },
+          { text: "Falar com suporte", onPress: () => router.push("/chat" as any) },
+        ],
+      );
+      return;
+    }
     router.push(`/catalog/${card.id}` as any);
   };
 
@@ -114,6 +132,7 @@ export default function CatalogMenu() {
         <View style={st.cards}>
           {TIERS.map((card) => {
             const isMine = myTier === card.id;
+            const hasAccess = canAccessTier(myTier as string, card.id);
             return (
               <TouchableOpacity
                 key={card.id}
@@ -180,7 +199,7 @@ export default function CatalogMenu() {
                     </Text>
 
                     <View style={st.ctaRow}>
-                      {isMine ? (
+                      {hasAccess ? (
                         <LinearGradient
                           colors={card.gradient}
                           start={{ x: 0, y: 0 }}

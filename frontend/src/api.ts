@@ -129,12 +129,13 @@ export const api = {
     request<{ ok: boolean; nickname: string }>(`/members/${member_id}/nickname`, {
       method: "PUT", body: JSON.stringify({ nickname }),
     }),
-  listProducts: (params?: { category?: string; subcategory?: string; q?: string; member_id?: string }) => {
+  listProducts: (params?: { category?: string; subcategory?: string; q?: string; member_id?: string; tier?: string }) => {
     const qs = new URLSearchParams();
     if (params?.category && params.category !== "all") qs.set("category", params.category);
     if (params?.subcategory && params.subcategory !== "all") qs.set("subcategory", params.subcategory);
     if (params?.q) qs.set("q", params.q);
     if (params?.member_id) qs.set("member_id", params.member_id);
+    if (params?.tier) qs.set("tier", params.tier);
     const s = qs.toString();
     return request<Product[]>(`/products${s ? "?" + s : ""}`);
   },
@@ -291,10 +292,11 @@ export const api = {
     request<{ ok: boolean; plan: string }>(`/admin/members/${member_id}/plan`, {
       method: "PUT", body: JSON.stringify({ plan }),
     }),
-  listAds: (params?: { category?: string; q?: string }) => {
+  listAds: (params?: { category?: string; q?: string; tier?: string }) => {
     const qs = new URLSearchParams();
     if (params?.category && params.category !== "all") qs.set("category", params.category);
     if (params?.q) qs.set("q", params.q);
+    if (params?.tier) qs.set("tier", params.tier);
     const s = qs.toString();
     return request<Ad[]>(`/ads${s ? "?" + s : ""}`);
   },
@@ -475,6 +477,7 @@ export type Ad = {
   description: string;
   price_full: number;
   category: string;
+  ad_tier?: "silver" | "gold" | "diamond";
   images: string[];
   stock: number;
   active: boolean;
@@ -488,6 +491,7 @@ export type AdCreatePayload = {
   category: string;
   images: string[];
   stock: number;
+  ad_tier?: "silver" | "gold" | "diamond";
 };
 export type Wallet = {
   member_id: string;

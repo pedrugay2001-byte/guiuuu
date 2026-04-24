@@ -535,6 +535,67 @@ test_plan:
 agent_communication:
     -agent: "testing"
     -message: |
+        RODADA MARKETPLACE_TIER — Validação do novo recurso "Marketplace Hierárquico"
+        em /app/backend_test_tier_marketplace.py contra URL pública.
+        **27/27 PASS, 0 FAIL.**
+
+        ## Setup
+        • Admin token via admin@farmaclube.com/admin123 (JWT 203 chars).
+        • Diamond user: mem_e5bb9b5878dd (demo).
+        • Gold user: mem_0bfdc078112d (Piu Luis, já era gold no banco).
+        • Silver user: mem_4f1c23b894d2 (Mateus, demotado de diamond→silver via
+          PUT /api/admin/members/{id}/plan, restaurado no teardown).
+        • 5 ads de teste criados e deletados ao final.
+
+        ## 1) GET /api/products?tier=... — RBAC hierárquico ✅
+        • Silver asking tier=gold → 403 ✅
+        • Silver asking tier=diamond → 403 ✅
+        • Silver asking tier=silver → 200 ✅
+        • Gold asking tier=silver → 200 ✅
+        • Gold asking tier=gold → 200 ✅
+        • Gold asking tier=diamond → 403 ✅
+        • Diamond asking tier=silver/gold/diamond → 200 ✅ (todos)
+
+        ## 1x) Filtro ESTRITO por tier + HEALTH_CATEGORIES ✅
+        • tier=diamond → 13 produtos; TODOS com tier=='diamond' OU category∈HEALTH
+          (emagrecedores 5 + peptideos 4 + hormonios 2 + landerlan 2) ✅
+        • tier=gold → 0 produtos (nenhum produto ainda com tier=='gold') ✅
+        • tier=silver → 9 produtos (tecnologia 4 + suplementos 3 + bem_estar 1
+          + outros); todos (tier in [None,'silver']) AND category∉HEALTH ✅
+        • Sem query tier → regressão OK (21 produtos devolvidos) ✅
+
+        ## 2) GET /api/ads?tier=... ✅
+        Estado inicial: 96 ads, todos legacy (ad_tier=None).
+        • Sem tier → 96 ads (todos) ✅
+        • tier=diamond → 96 ads, todos com ad_tier∈(None,'diamond') — legacy incluído ✅
+        • tier=gold (antes de seed) → 0 ads ✅
+        • tier=silver (antes de seed) → 0 ads ✅
+        Pós-seed (criei 1 silver + 1 gold + 1 diamond via Diamond member):
+        • tier=gold → 1 ad (o recém criado), nenhum non-gold vazou ✅
+        • tier=silver → 1 ad, nenhum non-silver vazou ✅
+        • tier=diamond → 99 ads (96 legacy + 1 explicitly diamond + 2 dos testes que
+          ainda não viraram off-line), ZERO ads gold/silver vazaram ✅
+
+        ## 3) POST /api/ads com ad_tier ✅
+        • Diamond + ad_tier='silver'   → 200, doc.ad_tier=='silver' ✅
+        • Diamond + ad_tier='gold'     → 200, doc.ad_tier=='gold' ✅
+        • Diamond + ad_tier='diamond'  → 200, doc.ad_tier=='diamond' ✅
+        • Diamond sem ad_tier          → 200, doc.ad_tier=='diamond' (fallback p/ seller tier) ✅
+        • Diamond + ad_tier='bronze'   → 200, doc.ad_tier=='diamond' (fallback por ser inválido) ✅
+        • Gold member (can_sell=False) → 403 ✅ (bloqueado pelo _can_sell, sem falar de ad_tier)
+        • Silver member (can_sell=False) → 403 ✅ (idem)
+
+        ## Observações
+        • Nenhum bug. A implementação segue exatamente a spec do review (RANK silver<gold<diamond,
+          HEALTH_CATEGORIES=[emagrecedores,peptideos,landerlan,hormonios], estruturas
+          $or corretas para diamond e silver legacy).
+        • Não houve necessidade de criar novos membros — usei a infra existente + demote
+          temporário de Mateus (restaurado ao final).
+        • Regressão em /api/products sem tier e /api/ads sem tier permanece intacta
+          (comportamento antigo preservado).
+
+    -agent: "testing"
+    -message: |
         RODADA ORDER_DETAIL — Validação do NOVO endpoint GET /api/orders/detail/{order_id}
         + sanity checks de regressão. 43/43 PASS em /app/backend_test_order_detail.py
         contra a URL pública (https://member-shop-2.preview.emergentagent.com/api).
@@ -1259,8 +1320,9 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Partial Payment — entry-only debit + reserved_centavos lock (products/ads/cart)"
-    - "Order lifecycle — deliver/cancel + sales/purchases listings"
+    - "Marketplace Hierarchical Access — /api/products?tier=X strict filtering"
+    - "Marketplace Hierarchical Access — /api/ads?tier=X strict filtering"
+    - "POST /api/ads with ad_tier — Diamond can post in any tier, validation"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -2250,3 +2312,44 @@ agent_communication:
         📋 Testes backend pendentes (por delegar):
         - Tier-lock em grupos: GET com member_id filtrando locked correctly; POST 403 TIER_LOCKED
           quando member tier difere do group.tier_lock; POST passando quando tiers combinam.
+
+    - agent: "main"
+      message: |
+        MARKETPLACE HIERÁRQUICO — Novo recurso para testar no backend.
+        
+        ## Endpoints modificados / a validar:
+        
+        ### 1. GET /api/products?tier=<silver|gold|diamond>&member_id=<id>
+        Novo query param `tier`. Regras a validar:
+        - **Acesso hierárquico**: membros SILVER só podem listar tier=silver.
+          Membros GOLD podem listar tier=silver e tier=gold.
+          Membros DIAMOND podem listar todos os tiers.
+          Qualquer tentativa de acessar um tier acima do próprio → HTTP 403.
+        - **Filtro estrito de produtos**: quando `tier=gold`, SÓ produtos com campo `tier=="gold"` devem retornar.
+          Quando `tier=silver`, produtos com `tier=="silver"` OU sem campo `tier` (legado) — exceto categorias de saúde.
+          Quando `tier=diamond`, produtos com `tier=="diamond"` OU categorias de saúde (HEALTH_CATEGORIES).
+        - **Semelhança**: sem query `tier`, comportamento antigo mantido.
+        
+        ### 2. GET /api/ads?tier=<silver|gold|diamond>
+        Novo query param `tier`. Regras:
+        - `tier=diamond` → retorna ads com `ad_tier=="diamond"` OU legado (campo ausente).
+        - `tier=gold` → retorna APENAS ads com `ad_tier=="gold"`.
+        - `tier=silver` → retorna APENAS ads com `ad_tier=="silver"`.
+        - Sem `tier` → comportamento antigo (todos os ads ativos).
+        
+        ### 3. POST /api/ads com novo campo `ad_tier` (Optional[str])
+        - Membros DIAMOND podem publicar em qualquer tier (silver/gold/diamond).
+        - Se vendedor não é diamond e tenta publicar em tier diferente do próprio → HTTP 403.
+        - Se `ad_tier` for omitido → salva como tier do vendedor.
+        - Valores inválidos (ex: "bronze") → fallback para tier do vendedor.
+        - Ad criado deve conter o campo `ad_tier` no documento salvo.
+        
+        ## Credenciais de teste:
+        - Demo Diamond: `demo@blacksclub.com` / `novasenha123`
+        - Admin Master: `guilherme925145000@gmail.com` / `blacks2026`
+        
+        ## Arquivos alterados:
+        - `/app/backend/server.py` — funções `list_products` (~linha 1526), `list_ads` (~linha 2617), `create_ad` (~linha 2770), modelo `AdCreate` (novo campo `ad_tier`).
+        
+        Foque apenas nestes 3 cenários. Os outros endpoints não devem ser afetados (regressão improvável).
+

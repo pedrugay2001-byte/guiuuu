@@ -1524,23 +1524,39 @@ HEALTH_CATEGORIES = ["emagrecedores", "peptideos", "landerlan", "hormonios"]
 HEALTH_UMBRELLA_ID = "saude_diamante"
 
 @api_router.get("/products", response_model=List[Product])
-async def list_products(category: Optional[str] = None, subcategory: Optional[str] = None, q: Optional[str] = None, member_id: Optional[str] = None):
-    tier = "black"
+async def list_products(
+    category: Optional[str] = None,
+    subcategory: Optional[str] = None,
+    q: Optional[str] = None,
+    member_id: Optional[str] = None,
+    tier: Optional[str] = None,  # NEW: strict tier filter (silver|gold|diamond)
+):
+    member_tier = "black"
     if member_id:
         m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "tier": 1})
         if m:
-            tier = (m.get("tier") or "black").lower()
+            member_tier = (m.get("tier") or "black").lower()
+
+    # Regra hierárquica de acesso: quem pode ENTRAR em cada marketplace
+    # diamond  → todos; gold → gold+silver; silver → silver; black → nenhum
+    if tier and tier.lower() in ("silver", "gold", "diamond"):
+        tier_lc = tier.lower()
+        RANK = {"silver": 1, "gold": 2, "diamond": 3, "black": 0}
+        if RANK.get(member_tier, 0) < RANK[tier_lc]:
+            raise HTTPException(status_code=403, detail=f"Marketplace {tier_lc.upper()} exclusivo para membros {tier_lc.upper()} ou superior")
+    else:
+        tier_lc = None
 
     # Saúde Diamante = umbrella que inclui todas as categorias sensíveis (só Diamond)
     is_saude_umbrella = category == HEALTH_UMBRELLA_ID
 
     if category and category != "all":
         if is_saude_umbrella or category in HEALTH_CATEGORIES:
-            if tier != "diamond":
+            if member_tier != "diamond":
                 raise HTTPException(status_code=403, detail="Área exclusiva para membros Black Diamante")
         elif category not in PUBLIC_CATEGORIES:
             return []
-        if tier == "black":
+        if member_tier == "black":
             raise HTTPException(status_code=403, detail="Marketplace exclusivo para membros Silver, Gold e Diamante")
 
     query: dict = {}
@@ -1549,19 +1565,42 @@ async def list_products(category: Optional[str] = None, subcategory: Optional[st
     elif category and category != "all":
         query["category"] = category
     else:
-        if tier == "black":
+        if member_tier == "black":
             raise HTTPException(status_code=403, detail="Marketplace exclusivo para membros Silver, Gold e Diamante")
-        if tier == "diamond":
+        if member_tier == "diamond":
             query["category"] = {"$in": PUBLIC_CATEGORIES + HEALTH_CATEGORIES}
         else:
             query["category"] = {"$in": PUBLIC_CATEGORIES}
+
+    # FILTRO ESTRITO POR TIER — quando a URL é /catalog/gold, SÓ mostra produtos gold
+    # Produtos sem campo `tier` são considerados "silver" (fallback seguro),
+    # exceto categorias de saúde, que já são exclusivas Diamond.
+    if tier_lc:
+        if tier_lc == "diamond":
+            query["$or"] = [
+                {"tier": "diamond"},
+                {"category": {"$in": HEALTH_CATEGORIES}},
+            ]
+        elif tier_lc == "gold":
+            query["tier"] = "gold"
+            query["category"] = {"$nin": HEALTH_CATEGORIES}
+        elif tier_lc == "silver":
+            query["category"] = {"$nin": HEALTH_CATEGORIES}
+            query["$or"] = [{"tier": "silver"}, {"tier": {"$exists": False}}, {"tier": None}]
+
     if subcategory and subcategory != "all":
         query["subcategory"] = subcategory
     if q:
-        query["$or"] = [
+        # se já existe $or (tier), combina em $and
+        or_q = [
             {"name": {"$regex": q, "$options": "i"}},
             {"description": {"$regex": q, "$options": "i"}},
         ]
+        if "$or" in query:
+            existing_or = query.pop("$or")
+            query["$and"] = [{"$or": existing_or}, {"$or": or_q}]
+        else:
+            query["$or"] = or_q
     cursor = db.products.find(query, {"_id": 0}).sort("created_at", -1)
     items = await cursor.to_list(length=500)
     return [Product(**item) for item in items]
@@ -2612,18 +2651,32 @@ class AdCreate(BaseModel):
     category: str
     images: List[str] = []  # base64
     stock: int = 1
+    ad_tier: Optional[str] = None  # silver | gold | diamond (Diamond pode publicar em qualquer um)
 
 
 @api_router.get("/ads")
-async def list_ads(category: Optional[str] = None, q: Optional[str] = None):
+async def list_ads(category: Optional[str] = None, q: Optional[str] = None, tier: Optional[str] = None):
     query: Dict[str, Any] = {"active": True}
     if category and category != "all":
         query["category"] = category
+    # FILTRO ESTRITO POR TIER (para marketplaces segmentados)
+    if tier and tier.lower() in ("silver", "gold", "diamond"):
+        tier_lc = tier.lower()
+        if tier_lc == "diamond":
+            # Anúncios Diamond: ad_tier=="diamond" OU legado (sem campo — todos antigos eram Diamond-only)
+            query["$or"] = [{"ad_tier": "diamond"}, {"ad_tier": {"$exists": False}}, {"ad_tier": None}]
+        else:
+            query["ad_tier"] = tier_lc
     if q:
-        query["$or"] = [
+        or_q = [
             {"title": {"$regex": q, "$options": "i"}},
             {"description": {"$regex": q, "$options": "i"}},
         ]
+        if "$or" in query:
+            existing_or = query.pop("$or")
+            query["$and"] = [{"$or": existing_or}, {"$or": or_q}]
+        else:
+            query["$or"] = or_q
     cur = db.ads.find(query, {"_id": 0}).sort("created_at", -1).limit(200)
     ads = await cur.to_list(length=200)
     # enrich with seller nickname + tier
@@ -2772,8 +2825,16 @@ async def create_ad(data: AdCreate):
     m = await db.members.find_one({"member_id": data.seller_id})
     if not m:
         raise HTTPException(status_code=404, detail="Membro não encontrado")
-    if not _can_sell(m.get("tier", "silver")):
+    seller_tier = (m.get("tier") or "silver").lower()
+    if not _can_sell(seller_tier):
         raise HTTPException(status_code=403, detail="Apenas membros BLACK DIAMOND podem anunciar no marketplace.")
+    # Validação de ad_tier: Diamond pode publicar em qualquer marketplace,
+    # vendedores de outros tiers são limitados ao próprio tier.
+    requested_tier = (data.ad_tier or seller_tier).lower()
+    if requested_tier not in ("silver", "gold", "diamond"):
+        requested_tier = seller_tier
+    if seller_tier != "diamond" and requested_tier != seller_tier:
+        raise HTTPException(status_code=403, detail="Apenas membros DIAMOND podem publicar em outras categorias de marketplace.")
     ad = {
         "ad_id": f"ad_{uuid.uuid4().hex[:12]}",
         "seller_id": data.seller_id,
@@ -2781,6 +2842,7 @@ async def create_ad(data: AdCreate):
         "description": data.description[:2000],
         "price_full": float(data.price_full),
         "category": data.category,
+        "ad_tier": requested_tier,
         "images": [img for img in (data.images or []) if isinstance(img, str)][:6],
         "stock": max(int(data.stock or 1), 1),
         "active": True,

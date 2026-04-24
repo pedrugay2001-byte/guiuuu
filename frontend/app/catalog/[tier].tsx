@@ -51,8 +51,10 @@ export default function Marketplace() {
   const tierMeta = TIER_META[paramTier];
   const myTier = (member?.tier || "black").toLowerCase();
   const isDiamond = myTier === "diamond";
-  // Regra rígida: só pode entrar no marketplace do seu próprio tier
-  const hasMarketplaceAccess = myTier === paramTier;
+  // Regra hierárquica: Diamante > Gold > Silver
+  // Diamond acessa todos; Gold acessa Gold+Silver; Silver só Silver; Black nenhum.
+  const TIER_RANK: Record<string, number> = { silver: 1, gold: 2, diamond: 3, black: 0 };
+  const hasMarketplaceAccess = (TIER_RANK[myTier] ?? 0) >= (TIER_RANK[paramTier] ?? 99);
 
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string>("all");
@@ -71,15 +73,17 @@ export default function Marketplace() {
         : api.categories(member.member_id).catch(() => [] as Category[]);
       const [cats, prods, aa] = await Promise.all([
         catsPromise,
-        api.listProducts({ category: cat, q, member_id: member.member_id }).catch(() => []),
-        api.listAds().catch(() => []),
+        // FILTRO ESTRITO POR TIER — ao entrar em /catalog/gold, só produtos Gold
+        api.listProducts({ category: cat, q, member_id: member.member_id, tier: paramTier }).catch(() => []),
+        // Anúncios também filtrados estritamente pelo tier da URL
+        api.listAds({ tier: paramTier }).catch(() => []),
       ]);
       if (!catsFresh) { _catCache.data = cats as Category[]; _catCache.ts = Date.now(); }
       setCategories(cats as Category[]);
       setProducts(prods);
       setAds(aa.slice(0, 8));
     } finally { setLoading(false); }
-  }, [cat, q, member, hasMarketplaceAccess]);
+  }, [cat, q, member, hasMarketplaceAccess, paramTier]);
 
   // Carrega no foco E debounce quando muda categoria/busca — sem duplicar
   useFocusEffect(useCallback(() => { load(); }, [hasMarketplaceAccess, member?.member_id]));
@@ -180,6 +184,27 @@ export default function Marketplace() {
           <Ionicons name="bag-handle-outline" size={18} color="#EEE" />
         </TouchableOpacity>
       </View>
+
+      {/* CTA — Botão de publicar anúncio (apenas Diamond pode publicar em qualquer tier) */}
+      {isDiamond && (
+        <TouchableOpacity
+          style={[st.postCta, { borderColor: tierMeta.color + "55", backgroundColor: tierMeta.color + "10" }]}
+          onPress={() => router.push({ pathname: "/ads/create", params: { tier: paramTier } } as any)}
+          activeOpacity={0.85}
+          testID="marketplace-post-ad"
+        >
+          <View style={[st.postCtaIcon, { backgroundColor: tierMeta.color + "22", borderColor: tierMeta.color + "66" }]}>
+            <Ionicons name="add" size={16} color={tierMeta.accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[st.postCtaTitle, { color: tierMeta.accent }]}>
+              PUBLICAR ANÚNCIO NO {paramTier.toUpperCase()}
+            </Text>
+            <Text style={st.postCtaSub}>Exclusivo membros Diamante · Alcance direto</Text>
+          </View>
+          <Ionicons name="arrow-forward" size={14} color={tierMeta.color} />
+        </TouchableOpacity>
+      )}
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Categorias públicas */}
@@ -535,4 +560,23 @@ const st = StyleSheet.create({
     backgroundColor: GOLD, marginTop: 16,
   },
   lockBtnTxt: { color: "#000", fontSize: 12, fontWeight: "900", letterSpacing: 1.2 },
+
+  // === Botão "Publicar Anúncio" (exclusivo Diamond) — usa tema do tier ===
+  postCta: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    marginHorizontal: 14, marginTop: 4, marginBottom: 8,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: 12, borderWidth: 1,
+  },
+  postCtaIcon: {
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1,
+  },
+  postCtaTitle: {
+    fontSize: 11, fontWeight: "900", letterSpacing: 1.5,
+  },
+  postCtaSub: {
+    color: "#888", fontSize: 10, fontWeight: "600", marginTop: 2,
+  },
 });
