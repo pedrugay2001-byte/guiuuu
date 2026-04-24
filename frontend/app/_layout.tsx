@@ -1,11 +1,14 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider } from "../src/auth";
 import { CartProvider } from "../src/cart";
 import { GateProvider } from "../src/gate";
 import { ErrorBoundary } from "../src/error-boundary";
+import { MessageInboxProvider } from "../src/message-inbox";
+import ChatHeadsOverlay from "../src/chat-heads";
 
 export default function RootLayout() {
   return (
@@ -15,7 +18,9 @@ export default function RootLayout() {
           <GateProvider>
             <AuthProvider>
               <CartProvider>
+                <MessageInboxProvider>
                 <StatusBar style="light" />
+                <View style={{ flex: 1 }}>
           <Stack
             screenOptions={{
               headerStyle: { backgroundColor: "#050505" },
@@ -68,6 +73,9 @@ export default function RootLayout() {
             <Stack.Screen name="wallet" options={{ headerShown: false }} />
             <Stack.Screen name="black-ai" options={{ headerShown: false }} />
           </Stack>
+                </View>
+                <ChatHeadsOverlay />
+                </MessageInboxProvider>
               </CartProvider>
             </AuthProvider>
           </GateProvider>

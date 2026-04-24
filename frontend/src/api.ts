@@ -465,7 +465,18 @@ export const api = {
 
   // ----- Notifications -----
   notifications: (member_id: string) => request<NotificationItem[]>(`/notifications/${member_id}`),
-  notificationsCount: (member_id: string) => request<{ count: number }>(`/notifications/${member_id}/count`),
+  notificationsCount: (member_id: string) => request<{ count: number; messages?: number; notifications?: number }>(`/notifications/${member_id}/count`),
+  recentSenders: (member_id: string) => request<{ senders: Array<{
+    member_id: string;
+    name: string;
+    avatar_base64?: string | null;
+    tier?: string;
+    last_at: string;
+    last_text: string;
+    unread: number;
+  }> }>(`/chat/recent-senders/${member_id}`),
+  dmMarkRead: (me_id: string, other_id: string) =>
+    request<{ ok: boolean; last_read_at: string }>(`/community/dms/${me_id}/${other_id}/read`, { method: "POST" }),
 };
 
 export type NotificationItem = {

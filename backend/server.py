@@ -4523,19 +4523,103 @@ async def get_notifications(member_id: str):
 @api_router.get("/notifications/{member_id}/count")
 async def notifications_count(member_id: str):
     since = datetime.now(timezone.utc) - timedelta(days=7)
-    dm_count = await db.dms.count_documents({"to_id": member_id, "created_at": {"$gte": since}})
-    # Nova venda recente (escrow) OU BLX recebido via transfer (últimos 7 dias)
+    # Mensagens não-lidas: DMs recebidas após o último read_at do membro nessa thread
+    reads = {}
+    async for r in db.dm_reads.find({"member_id": member_id}, {"_id": 0, "thread_id": 1, "last_read_at": 1}):
+        reads[r["thread_id"]] = r["last_read_at"]
+    dm_pipeline = [
+        {"$match": {"to_id": member_id, "created_at": {"$gte": since}}},
+        {"$group": {"_id": "$thread_id", "max_at": {"$max": "$created_at"}, "count": {"$sum": 1}}},
+    ]
+    dm_count = 0
+    async for r in db.dm_messages.aggregate(dm_pipeline):
+        # Conta como unread se a última msg dessa thread é mais recente que o read_at
+        last_read = reads.get(r["_id"])
+        if not last_read or r["max_at"] > last_read:
+            # Conta APENAS as não-lidas, não o total da thread
+            q = {"thread_id": r["_id"], "to_id": member_id, "created_at": {"$gte": since}}
+            if last_read:
+                q["created_at"] = {"$gt": last_read}
+            dm_count += await db.dm_messages.count_documents(q)
     sales_count = await db.wallet_txs.count_documents({
         "to_id": member_id,
         "type": {"$in": ["escrow", "transfer", "topup"]},
         "created_at": {"$gte": since},
     })
-    # Retorna contagem total (compat) + separadas (novo)
     return {
         "count": dm_count + sales_count,
         "messages": dm_count,
         "notifications": sales_count,
     }
+
+
+@api_router.post("/community/dms/{me_id}/{other_id}/read")
+async def dm_mark_read(me_id: str, other_id: str):
+    """Marca a conversa como lida pelo membro até este momento."""
+    tid = _dm_thread(me_id, other_id)
+    now_ts = datetime.now(timezone.utc)
+    await db.dm_reads.update_one(
+        {"member_id": me_id, "thread_id": tid},
+        {"$set": {"last_read_at": now_ts, "thread_id": tid, "member_id": me_id}},
+        upsert=True,
+    )
+    return {"ok": True, "last_read_at": now_ts.isoformat()}
+
+
+@api_router.get("/chat/recent-senders/{member_id}")
+async def chat_recent_senders(member_id: str):
+    """Retorna remetentes únicos com DMs não-lidas (para o overlay de chat heads).
+    Resultado: lista até 5, ordenada pela mensagem mais recente."""
+    since = datetime.now(timezone.utc) - timedelta(days=7)
+    # Lê last_read_at por thread
+    reads = {}
+    async for r in db.dm_reads.find({"member_id": member_id}, {"_id": 0, "thread_id": 1, "last_read_at": 1}):
+        reads[r["thread_id"]] = r["last_read_at"]
+    # Agrega últimas mensagens RECEBIDAS por sender
+    pipeline = [
+        {"$match": {"to_id": member_id, "created_at": {"$gte": since}}},
+        {"$sort": {"created_at": -1}},
+        {"$group": {
+            "_id": "$from_id",
+            "thread_id": {"$first": "$thread_id"},
+            "last_at": {"$first": "$created_at"},
+            "last_text": {"$first": "$text"},
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"last_at": -1}},
+        {"$limit": 10},
+    ]
+    senders = []
+    async for r in db.dm_messages.aggregate(pipeline):
+        last_read = reads.get(r["thread_id"])
+        if last_read and r["last_at"] <= last_read:
+            continue  # tudo já lido
+        # Conta unread real
+        q = {"thread_id": r["thread_id"], "to_id": member_id}
+        if last_read:
+            q["created_at"] = {"$gt": last_read}
+        unread = await db.dm_messages.count_documents(q)
+        if unread <= 0:
+            continue
+        # Pega dados do remetente
+        sender = await db.members.find_one(
+            {"member_id": r["_id"]},
+            {"_id": 0, "member_id": 1, "nickname": 1, "name": 1, "avatar_base64": 1, "tier": 1},
+        )
+        if not sender:
+            continue
+        senders.append({
+            "member_id": r["_id"],
+            "name": sender.get("nickname") or sender.get("name") or "Membro",
+            "avatar_base64": sender.get("avatar_base64"),
+            "tier": sender.get("tier"),
+            "last_at": r["last_at"].isoformat(),
+            "last_text": (r.get("last_text") or "")[:80],
+            "unread": unread,
+        })
+        if len(senders) >= 5:
+            break
+    return {"senders": senders}
 
 
 # ---------- BLX ORDERS (escrow marketplace) ----------

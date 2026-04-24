@@ -1,9 +1,10 @@
 import React from "react";
-import { View, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { BrandLogo } from "./brand";
 import { useGate } from "./gate";
+import { useMessageInbox } from "./message-inbox";
 
 // Paleta por tier
 const ACCENT_GOLD = "#F5C150";
@@ -24,12 +25,19 @@ type Props = {
  * - O botão "Home" é o elemento principal e fica no CENTRO.
  * - Cor de destaque: dourada para tiers regulares; PRATEADA (azul-prateado)
  *   para membros DIAMOND, criando hierarquia visual de prestígio.
+ * - Badges (chat e sino) mostram o NÚMERO de não-lidos em vermelho.
+ *   Os valores vêm direto do MessageInboxProvider quando não passados via props.
  */
-export default function BottomBrandBar({ unread = 0, unreadMessages = 0 }: Props) {
+export default function BottomBrandBar({ unread, unreadMessages }: Props) {
   const router = useRouter();
   const { member } = useGate();
+  const inbox = useMessageInbox();
   const isDiamond = member?.tier === "diamond";
   const GOLD = isDiamond ? ACCENT_PLATINUM : ACCENT_GOLD;
+
+  // Usa props se vierem; senão pega do Provider (vivo entre telas)
+  const msgs = typeof unreadMessages === "number" ? unreadMessages : inbox.unreadMessages;
+  const notifs = typeof unread === "number" ? unread : inbox.unreadNotifications;
 
   return (
     <View style={st.bar}>
@@ -67,7 +75,11 @@ export default function BottomBrandBar({ unread = 0, unreadMessages = 0 }: Props
             testID="bottom-messages"
           >
             <Ionicons name="chatbubble-ellipses-outline" size={22} color="#D8D8D8" />
-            {unreadMessages > 0 && <View style={st.dot} />}
+            {msgs > 0 && (
+              <View style={st.numBadge}>
+                <Text style={st.numBadgeTxt}>{msgs > 9 ? "9+" : msgs}</Text>
+              </View>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -77,7 +89,11 @@ export default function BottomBrandBar({ unread = 0, unreadMessages = 0 }: Props
             testID="bottom-notifications"
           >
             <Ionicons name="notifications-outline" size={22} color="#D8D8D8" />
-            {unread > 0 && <View style={st.dot} />}
+            {notifs > 0 && (
+              <View style={st.numBadge}>
+                <Text style={st.numBadgeTxt}>{notifs > 9 ? "9+" : notifs}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -93,7 +109,6 @@ const st = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: BG,
   },
-  // 3 colunas iguais para garantir centralização perfeita do botão HOME
   side: { flex: 1, flexDirection: "row", alignItems: "center" },
   center: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
   right: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 },
@@ -101,13 +116,18 @@ const st = StyleSheet.create({
   iconBtn: {
     width: 36, height: 36, borderRadius: 18,
     alignItems: "center", justifyContent: "center",
+    position: "relative",
   },
-  dot: {
-    position: "absolute", top: 8, right: 8,
-    width: 8, height: 8, borderRadius: 4,
+  // Badge numérico vermelho (substitui o ponto antigo)
+  numBadge: {
+    position: "absolute", top: 2, right: 0,
+    minWidth: 16, height: 16,
+    paddingHorizontal: 4, borderRadius: 8,
     backgroundColor: "#FF3B30",
-    borderWidth: 1.5, borderColor: BG,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1.2, borderColor: BG,
   },
+  numBadgeTxt: { color: "#FFF", fontSize: 9, fontWeight: "900" },
   // Botão Home central — grande, com glow sutil; cor vem do theme
   homeBtn: {
     width: 44, height: 44, borderRadius: 22,

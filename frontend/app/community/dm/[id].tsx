@@ -30,6 +30,8 @@ export default function DMChat() {
     try {
       const [p, m] = await Promise.all([api.communityMember(id), api.dmList(member.member_id, id)]);
       setPartner(p); setMsgs(m);
+      // Marca a conversa como lida (para sumir do badge e do chat-head)
+      api.dmMarkRead(member.member_id, id).catch(() => {});
     } finally { setLoading(false); }
   }, [member, id]);
 
@@ -39,7 +41,12 @@ export default function DMChat() {
   useEffect(() => {
     if (!member || !id) return;
     const t = setInterval(async () => {
-      try { const m = await api.dmList(member.member_id, id); setMsgs(m); } catch {}
+      try {
+        const m = await api.dmList(member.member_id, id);
+        setMsgs(m);
+        // Re-marca como lida a cada poll (pra que novas msgs recebidas durante a conversa não disparem chat-head)
+        api.dmMarkRead(member.member_id, id).catch(() => {});
+      } catch {}
     }, 10000);
     return () => clearInterval(t);
   }, [member, id]);
