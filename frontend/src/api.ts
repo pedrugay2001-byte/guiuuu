@@ -399,6 +399,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ actor_id }),
     }),
+  orderDetail: (order_id: string, member_id?: string) =>
+    request<{
+      order: MyOrder;
+      tx: any | null;
+      timeline: { event: string; label: string; at: string }[];
+      i_am_buyer: boolean;
+      i_am_seller: boolean;
+    }>(`/orders/detail/${order_id}${member_id ? `?member_id=${member_id}` : ""}`),
   orderCancel: (order_id: string, actor_id: string, reason?: string) =>
     request<{ ok: boolean; order_id: string; status: string }>(`/orders/${order_id}/cancel`, {
       method: "POST",

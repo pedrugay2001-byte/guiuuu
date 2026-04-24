@@ -166,6 +166,7 @@ export default function PerformanceTab() {
               <GoalDetailCard goal={selectedGoal} width={W}
                 onRegister={() => setProgressModal(selectedGoal)}
                 onMenu={() => setMenuGoal(selectedGoal)}
+                onDetail={() => router.push(`/goal/${selectedGoal.goal_id}` as any)}
               />
             )}
 
@@ -543,8 +544,8 @@ function OverviewCard({ goals }: { goals: Goal[] }) {
 
 /* ----------------------- GOAL DETAIL CARD ----------------------- */
 
-function GoalDetailCard({ goal, width, onRegister, onMenu }:
-  { goal: Goal; width: number; onRegister: () => void; onMenu: () => void }) {
+function GoalDetailCard({ goal, width, onRegister, onMenu, onDetail }:
+  { goal: Goal; width: number; onRegister: () => void; onMenu: () => void; onDetail?: () => void }) {
   const meta = TYPE_META[goal.type];
   const color = goal.color || meta.color;
   const stt = statusLabel(goal.rhythm_status);
@@ -648,11 +649,24 @@ function GoalDetailCard({ goal, width, onRegister, onMenu }:
         </View>
       ) : null}
 
-      <TouchableOpacity style={[st.registerBtn, { backgroundColor: color }]}
-        onPress={onRegister} activeOpacity={0.9}>
-        <Ionicons name="add-circle" size={16} color="#000" />
-        <Text style={st.registerTxt}>REGISTRAR PROGRESSO</Text>
-      </TouchableOpacity>
+      <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+        {onDetail && (
+          <TouchableOpacity
+            style={st.detailBtn}
+            onPress={onDetail}
+            activeOpacity={0.85}
+            testID="goal-detail-btn"
+          >
+            <Ionicons name="analytics-outline" size={15} color="#D8D8D8" />
+            <Text style={st.detailTxt}>VER DETALHES</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={[st.registerBtn, { backgroundColor: color, flex: 1.4 }]}
+          onPress={onRegister} activeOpacity={0.9}>
+          <Ionicons name="add-circle" size={16} color="#000" />
+          <Text style={st.registerTxt}>REGISTRAR</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -1252,8 +1266,14 @@ const st = StyleSheet.create({
   photoInit: { width: 80, height: 80, borderRadius: 10, marginTop: 6, borderWidth: 1, borderColor: "#1A1A1A" },
 
   registerBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    paddingVertical: 12, borderRadius: 12, marginTop: 14 },
-  registerTxt: { color: "#000", fontWeight: "900", letterSpacing: 1.5, fontSize: 12 },
+    paddingVertical: 12, borderRadius: 12 },
+  registerTxt: { color: "#000", fontWeight: "900", letterSpacing: 1.5, fontSize: 11.5 },
+  detailBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    borderRadius: 12, paddingVertical: 12,
+    backgroundColor: "#121212", borderWidth: 1, borderColor: "#222",
+  },
+  detailTxt: { color: "#D8D8D8", fontSize: 10.5, fontWeight: "900", letterSpacing: 1.3 },
 
   // Daily message
   dayLbl: { color: "#888", fontSize: 10, fontWeight: "900", letterSpacing: 1.6, marginTop: 6, marginBottom: 8 },

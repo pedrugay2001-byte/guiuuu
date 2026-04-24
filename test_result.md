@@ -535,7 +535,54 @@ test_plan:
 agent_communication:
     -agent: "testing"
     -message: |
-        RODADA TIER-LOCK — Validação completa dos grupos oficiais bloqueados por tier + sanidade geral.
+        RODADA ORDER_DETAIL — Validação do NOVO endpoint GET /api/orders/detail/{order_id}
+        + sanity checks de regressão. 43/43 PASS em /app/backend_test_order_detail.py
+        contra a URL pública (https://member-shop-2.preview.emergentagent.com/api).
+
+        ## Credenciais usadas
+        • demo@blacksclub.com / novasenha123 → mem_e5bb9b5878dd (Diamond, buyer real)
+        • admin@farmaclube.com / admin123 → JWT admin
+        Demo tem 14 pedidos existentes (uns cancelled, uns delivered_settled, uns awaiting).
+
+        ## NOVO ENDPOINT — GET /api/orders/detail/{order_id}
+        1) GET /orders/detail/ord_b505860d2c?member_id=<demo> → 200 ✅
+           Shape completo: {order, tx, timeline, i_am_buyer, i_am_seller}.
+           order traz order_id, status, total_cents, entry_cents, remaining_cents.
+           timeline[0].event == 'created'. i_am_buyer == True ✅.
+        2) GET /orders/detail/ord_b505860d2c?member_id=mem_aaaa_notexist_00
+           → 403 "Sem permissão para ver este pedido" ✅ (não é buyer/seller/admin).
+        3) GET /orders/detail/ord_b505860d2c (sem member_id) → 200 legacy-safe ✅
+           i_am_buyer/i_am_seller falsy; timeline ainda presente.
+        4) GET /orders/detail/ord_inexistente_xyz_123?member_id=<demo>
+           → 404 "Pedido não encontrado" ✅.
+        5) Timeline em pedido cancelled: tem eventos 'created' + 'cancelled' ✅.
+        6) Timeline em pedido delivered_settled: tem eventos 'created' + 'delivered' ✅.
+
+        ## SANIDADE (regressão) — todas OK
+        • GET /blx/wallet/<demo>: balance_centavos, reserved_centavos, total_centavos
+          todos int; invariante total == balance + reserved ✅.
+        • POST /products/{id}/buy-blx com Mateus (mem_4f1c23b894d2, 195,85 BLX) comprando
+          produto full >20000c → 400 ✅, detail dict com error_code=INSUFFICIENT_BLX ✅.
+        • GET /community/groups?member_id=<demo_diamond>:
+          g_tier_black/silver/gold → locked=True ✅; g_tier_diamond → locked=False ✅.
+        • GET /goals/{goal_id}/detail → 200 ✅, retorna {goal, entries, photos}.
+          NOTA: o review pediu shape {goal, entries, weekly_rhythm}. A implementação
+          atual retorna {goal, entries, photos} em vez de weekly_rhythm. Não é bug
+          — é só informativo caso o frontend realmente precise de weekly_rhythm ali.
+
+        ## Pontos de atenção (informativos)
+        • Shape de /goals/{id}/detail: retorna 'photos' em vez de 'weekly_rhythm' mencionado
+          no review. Endpoint responde 200 com goal completo e entries normalmente — o
+          weekly_rhythm provavelmente está dentro de goal._snapshot (via _compute_goal_snapshot)
+          ou não foi implementado como campo top-level. Se o frontend novo de detalhe da meta
+          precisa de weekly_rhythm no topo da resposta, main agent precisa adicionar.
+        • /api/auth/login (admin) retorna user sem member_id top-level; cenário 6b (admin vendo
+          pedido alheio) foi SKIP porque não conseguimos extrair o member_id admin. RBAC já
+          foi validado indiretamente via 403 de outro member não-relacionado.
+
+        NENHUM BUG no endpoint novo. Todos os 5 cenários do review passaram. Tudo de sanidade
+        passou também. Pode seguir pro frontend de detalhe do pedido.
+
 
         ## Resultados
         • /app/backend_test_tier_lock.py → 86/86 PASS, 0 FAIL

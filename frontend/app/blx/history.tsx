@@ -122,7 +122,17 @@ function Row({ tx, me }: { tx: BlxTx; me: string }) {
   const isOut = tx.from_id === me;
   let icon: any = "swap-horizontal";
   let color = "#AAA";
-  let title = tx.note || tx.type.toUpperCase();
+  // Tradução PT-BR dos tipos de transação (amigável p/ usuário final)
+  const TYPE_LABEL: Record<string, string> = {
+    purchase: "Compra",
+    refund: "Reembolso",
+    delivery_settle: "Pagamento na entrega",
+    escrow: "Reserva Diamante",
+    transfer: "Transferência",
+    topup: "Recarga",
+    withdraw: "Saque",
+  };
+  let title = tx.note || TYPE_LABEL[tx.type] || tx.type.toUpperCase();
   let counterpart = "";
   if (tx.type === "transfer") {
     if (isOut) { icon = "arrow-up-circle"; color = "#F87171"; title = "Transferência enviada"; counterpart = tx.to_name ? `Para ${tx.to_name}` : (tx.to_wallet || ""); }
@@ -132,6 +142,12 @@ function Row({ tx, me }: { tx: BlxTx; me: string }) {
   else if (tx.type === "escrow") {
     if (isOut) { icon = "lock-closed"; color = tx.status === "settled" ? "#4EE07F" : tx.status === "refunded" ? "#AAA" : "#F5C150"; title = `Compra: ${tx.ad_title || "Anúncio"}`; }
     else { icon = "cash"; color = tx.status === "settled" ? "#4EE07F" : "#F5C150"; title = `Venda: ${tx.ad_title || "Anúncio"}`; }
+  } else if (tx.type === "purchase") {
+    icon = "bag-handle"; color = "#F87171"; title = tx.note || "Compra"; counterpart = "Catálogo oficial";
+  } else if (tx.type === "refund") {
+    icon = "return-up-back"; color = "#4EE07F"; title = "Reembolso"; counterpart = tx.note || "Pedido cancelado";
+  } else if (tx.type === "delivery_settle") {
+    icon = "checkmark-circle"; color = "#4EE07F"; title = "Entrega confirmada"; counterpart = "Saldo devedor liberado";
   }
   const sign = isOut ? "−" : "+";
   const date = new Date(tx.created_at);

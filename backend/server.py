@@ -3756,6 +3756,39 @@ async def orders_my_purchases(member_id: str, status: Optional[str] = None, limi
     }
 
 
+@api_router.get("/orders/detail/{order_id}")
+async def order_detail(order_id: str, member_id: Optional[str] = None):
+    """Retorna detalhes enriquecidos de um pedido específico."""
+    order = await db.orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    # Só o comprador, vendedor ou admin podem ver detalhes
+    if member_id:
+        is_buyer = order.get("member_id") == member_id
+        is_seller = order.get("seller_id") == member_id
+        is_admin = await _staff_or_admin(member_id)
+        if not (is_buyer or is_seller or is_admin):
+            raise HTTPException(status_code=403, detail="Sem permissão para ver este pedido")
+    enriched = await _enrich_order(order)
+    # Busca a tx associada
+    tx = None
+    if order.get("tx_id"):
+        tx = await db.wallet_txs.find_one({"tx_id": order["tx_id"]}, {"_id": 0})
+    # Timeline de eventos
+    timeline = [{"event": "created", "label": "Pedido criado", "at": order.get("created_at")}]
+    if order.get("delivered_at"):
+        timeline.append({"event": "delivered", "label": "Entrega confirmada", "at": order["delivered_at"]})
+    if order.get("cancelled_at"):
+        timeline.append({"event": "cancelled", "label": f"Cancelado: {order.get('cancel_reason','')}", "at": order["cancelled_at"]})
+    return {
+        "order": enriched,
+        "tx": tx,
+        "timeline": timeline,
+        "i_am_buyer": member_id and order.get("member_id") == member_id,
+        "i_am_seller": member_id and order.get("seller_id") == member_id,
+    }
+
+
 @api_router.get("/orders/my-sales/{member_id}")
 async def orders_my_sales(member_id: str, status: Optional[str] = None, limit: int = 100):
     """Lista vendas do vendedor com total recebido vs pendente."""

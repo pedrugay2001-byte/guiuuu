@@ -140,7 +140,7 @@ export default function Orders() {
             </View>
           )}
 
-          {orders.map((o) => <OrderRow key={o.tx_id} order={o} onConfirm={setConfirmTx} onRate={setRatingTx} onChat={(id) => router.push(`/community/dm/${id}` as any)} />)}
+          {orders.map((o) => <OrderRow key={o.tx_id} order={o} onConfirm={setConfirmTx} onRate={setRatingTx} onChat={(id) => router.push(`/community/dm/${id}` as any)} onOpen={(oid) => router.push(`/order/${oid}` as any)} />)}
         </ScrollView>
       </SafeAreaView>
 
@@ -227,22 +227,31 @@ export default function Orders() {
   );
 }
 
-function OrderRow({ order, onConfirm, onRate, onChat }: {
+function OrderRow({ order, onConfirm, onRate, onChat, onOpen }: {
   order: BlxOrder;
   onConfirm: (o: BlxOrder) => void;
   onRate: (o: BlxOrder) => void;
   onChat: (cpId: string) => void;
+  onOpen: (orderId: string) => void;
 }) {
   const tier = TIERS[order.counterpart?.tier || "black"];
   const isBuyer = order.i_am_buyer;
   let statusColor = "#F5C150";
-  let statusLabel = "EM ESCROW";
+  let statusLabel = "AGUARDANDO ENTREGA";
   let statusIcon: any = "lock-closed";
   if (order.status === "settled") { statusColor = "#4EE07F"; statusLabel = "LIBERADO"; statusIcon = "checkmark-done"; }
   else if (order.status === "refunded") { statusColor = "#AAA"; statusLabel = "REEMBOLSADO"; statusIcon = "return-up-back"; }
+  else if (order.status === "delivered_settled") { statusColor = "#4EE07F"; statusLabel = "ENTREGUE"; statusIcon = "checkmark-circle"; }
+  else if (order.status === "awaiting_delivery_payment") { statusColor = "#F5C150"; statusLabel = "AGUARDANDO ENTREGA"; statusIcon = "cube-outline"; }
+  else if (order.status === "cancelled") { statusColor = "#AAA"; statusLabel = "CANCELADO"; statusIcon = "close-circle"; }
   const date = new Date(order.created_at);
   return (
-    <View style={styles.orderCard}>
+    <TouchableOpacity
+      style={styles.orderCard}
+      onPress={() => onOpen(order.order_id)}
+      activeOpacity={0.85}
+      testID={`order-row-${order.order_id}`}
+    >
       <View style={styles.orderTop}>
         <View style={styles.orderImgBox}>
           {order.ad_image ? (
@@ -323,7 +332,7 @@ function OrderRow({ order, onConfirm, onRate, onChat }: {
           <Text style={styles.doneBadgeTxt}>PAGAMENTO LIBERADO</Text>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
