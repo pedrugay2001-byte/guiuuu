@@ -68,7 +68,7 @@ export default function Negocios() {
           <Ionicons name="storefront-outline" size={18} color={GOLD} />
           <View style={{ flex: 1 }}>
             <Text style={styles.marketTitle}>Marketplace privado</Text>
-            <Text style={styles.marketHint}>Entre membros BLACK DIAMOND</Text>
+            <Text style={styles.marketHint}>Entre membros DIAMOND</Text>
           </View>
           <Ionicons name="chevron-forward" size={16} color={MUTED} />
         </TouchableOpacity>

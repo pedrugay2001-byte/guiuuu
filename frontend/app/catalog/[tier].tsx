@@ -149,7 +149,7 @@ export default function Marketplace() {
               </Text>
             </Text>
             <Text style={st.lockSub}>
-              Seu plano atual é <Text style={{ color: "#CCC", fontWeight: "900" }}>BLACK {myTier.toUpperCase()}</Text>.
+              Seu plano atual é <Text style={{ color: "#CCC", fontWeight: "900" }}>MEMBRO {myTier.toUpperCase()}</Text>.
               Converse com o suporte para saber como fazer upgrade e liberar este marketplace.
             </Text>
             <TouchableOpacity
@@ -183,6 +183,7 @@ export default function Marketplace() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="marketplace-screen">
+      <Stack.Screen options={{ headerShown: false }} />
       {/* HEADER premium — título do tier + carrinho (ícone de sacola à direita) */}
       <SafeAreaView edges={["top"]} style={{ backgroundColor: theme.colors.bg }}>
         <View style={st.topHeader}>
@@ -196,7 +197,7 @@ export default function Marketplace() {
           <View style={st.topTitleWrap}>
             <View style={[st.topDot, { backgroundColor: tierMeta.color }]} />
             <Text style={st.topTitle}>
-              MARKETPLACE <Text style={{ color: tierMeta.accent, fontWeight: "900" }}>{paramTier.toUpperCase()}</Text>
+              MEMBRO <Text style={{ color: tierMeta.accent, fontWeight: "900" }}>{paramTier.toUpperCase()}</Text>
             </Text>
           </View>
           <TouchableOpacity

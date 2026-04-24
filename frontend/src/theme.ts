@@ -45,10 +45,10 @@ export const theme = {
 export type TierId = "black" | "silver" | "gold" | "diamond";
 
 export const TIERS: Record<TierId, { label: string; color: string; icon: string }> = {
-  black: { label: "Black", color: theme.colors.silver, icon: "ellipse" },
-  silver: { label: "Black Silver", color: theme.colors.tierSilver, icon: "ellipse" },
-  gold: { label: "Black Gold", color: theme.colors.tierGold, icon: "star" },
-  diamond: { label: "Black Diamond", color: theme.colors.tierDiamond, icon: "diamond" },
+  black: { label: "Membro", color: theme.colors.silver, icon: "ellipse" },
+  silver: { label: "Membro Silver", color: theme.colors.tierSilver, icon: "ellipse" },
+  gold: { label: "Membro Gold", color: theme.colors.tierGold, icon: "star" },
+  diamond: { label: "Membro Diamond", color: theme.colors.tierDiamond, icon: "diamond" },
 };
 
 export const BR_STATES = [

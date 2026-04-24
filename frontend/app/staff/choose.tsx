@@ -23,7 +23,7 @@ const AREAS = [
     id: "admin",
     title: "ADMINISTRAÇÃO",
     subtitle: "Gestão completa do clube",
-    description: "Catálogo, pré-autorizações, gestão de membros, tiers, equipe e configurações gerais.",
+    description: "Catálogo, pré-autorizações, gestão de membros, planos, equipe e configurações gerais.",
     icon: "shield-checkmark" as const,
     color: "#F5C150",
     route: "/staff/login?area=admin",

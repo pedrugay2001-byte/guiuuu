@@ -64,7 +64,7 @@ export default function AdsIndex() {
           columnWrapperStyle={{ gap: 10, paddingHorizontal: 14 }}
           contentContainerStyle={{ gap: 10, paddingVertical: 10, paddingBottom: 40 }}
           refreshControl={<RefreshControl tintColor="#FFF" refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
-          ListEmptyComponent={<View style={styles.empty}><Ionicons name="storefront-outline" size={40} color="#555" /><Text style={styles.emptyTxt}>Sem anúncios ainda.</Text>{canSell && <Text style={styles.emptyHint}>Você é BLACK DIAMOND — toque em + para criar o primeiro.</Text>}</View>}
+          ListEmptyComponent={<View style={styles.empty}><Ionicons name="storefront-outline" size={40} color="#555" /><Text style={styles.emptyTxt}>Sem anúncios ainda.</Text>{canSell && <Text style={styles.emptyHint}>Você é MEMBRO DIAMOND — toque em + para criar o primeiro.</Text>}</View>}
           renderItem={({ item }) => {
             const final = item.price_full * (100 - myDisc) / 100;
             const tier = TIERS[item.seller_tier || "diamond"];

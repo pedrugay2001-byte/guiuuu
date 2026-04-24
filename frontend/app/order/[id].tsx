@@ -285,7 +285,7 @@ function Party({ name, tier, avatar }: { name: string; tier?: string; avatar: st
         <Text style={s.partyName} numberOfLines={1}>{name}</Text>
         {tier && (
           <View style={[s.tierBadge, { borderColor: col + "55", backgroundColor: col + "14" }]}>
-            <Text style={[s.tierTxt, { color: col }]}>BLACK {tier.toUpperCase()}</Text>
+            <Text style={[s.tierTxt, { color: col }]}>MEMBRO {tier.toUpperCase()}</Text>
           </View>
         )}
       </View>

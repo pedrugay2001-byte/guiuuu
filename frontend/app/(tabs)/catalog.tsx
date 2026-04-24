@@ -105,7 +105,7 @@ export default function CatalogMenu() {
     if (!canAccessTier(myTier as string, card.id)) {
       Alert.alert(
         "Acesso Bloqueado",
-        `O Marketplace ${card.title} é exclusivo para membros ${card.id.toUpperCase()} ou superior.\n\nSeu plano atual é BLACK ${myTier.toUpperCase()}.`,
+        `O Marketplace ${card.title} é exclusivo para membros ${card.id.toUpperCase()} ou superior.\n\nSeu plano atual é MEMBRO ${myTier.toUpperCase()}.`,
         [
           { text: "OK", style: "cancel" },
           { text: "Falar com suporte", onPress: () => router.push("/chat" as any) },
@@ -227,7 +227,7 @@ export default function CatalogMenu() {
         <View style={st.footer}>
           <Ionicons name="information-circle-outline" size={13} color="#888" />
           <Text style={st.footerTxt}>
-            Seu plano atual é <Text style={{ color: "#FFF", fontWeight: "900" }}>BLACK {myTier.toUpperCase()}</Text>.
+            Seu plano atual é <Text style={{ color: "#FFF", fontWeight: "900" }}>MEMBRO {myTier.toUpperCase()}</Text>.
             Fale com o suporte para fazer upgrade.
           </Text>
         </View>
