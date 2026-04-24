@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView,
   KeyboardAvoidingView, Platform, Image, Alert, ActivityIndicator,
@@ -32,7 +32,8 @@ export default function CreateAd() {
   const router = useRouter();
   const { member } = useGate();
   const { user } = useAuth();
-  const { tier: tierParam } = useLocalSearchParams<{ tier?: string }>();
+  const { tier: tierParam, id: editId } = useLocalSearchParams<{ tier?: string; id?: string }>();
+  const isEdit = !!editId;
 
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
@@ -41,6 +42,7 @@ export default function CreateAd() {
   const [stock, setStock] = useState("1");
   const [images, setImages] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [loadingAd, setLoadingAd] = useState(isEdit);
   // Tier do anúncio — Staff pode escolher; default vem da URL (?tier=) ou "diamond"
   const initialTier = (String(tierParam || "diamond").toLowerCase()) as AdTier;
   const [adTier, setAdTier] = useState<AdTier>(
@@ -51,6 +53,33 @@ export default function CreateAd() {
 
   // Apenas staff (admin/support/financeiro) pode publicar — marketplace curado BlacksClub
   const canPost = !!user && ["admin", "support", "financeiro"].includes((user.role || "") as string);
+
+  // Modo EDIÇÃO — carrega dados do anúncio existente
+  useEffect(() => {
+    if (!isEdit || !editId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const ad = await api.getAd(String(editId));
+        if (cancelled) return;
+        setTitle(ad.title || "");
+        setDesc(ad.description || "");
+        setPrice(String(ad.price_full ?? ""));
+        setCat(ad.category || "metabolicos");
+        setStock(String(ad.stock ?? 1));
+        setImages(ad.images || []);
+        if (ad.ad_tier && ["silver", "gold", "diamond"].includes(ad.ad_tier)) {
+          setAdTier(ad.ad_tier as AdTier);
+        }
+      } catch (e: any) {
+        Alert.alert("Erro", "Não foi possível carregar o anúncio.");
+        router.back();
+      } finally {
+        if (!cancelled) setLoadingAd(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isEdit, editId]);
 
   if (!canPost) {
     return (
@@ -71,6 +100,15 @@ export default function CreateAd() {
     );
   }
 
+  if (loadingAd) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#050505", alignItems: "center", justifyContent: "center" }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ActivityIndicator color="#7FD7E5" />
+      </View>
+    );
+  }
+
   const addImage = async () => {
     if (images.length >= 6) { Alert.alert("Limite", "Máximo 6 fotos."); return; }
     const uri = await pickCompressedImage({ quality: 0.4 });
@@ -83,18 +121,30 @@ export default function CreateAd() {
     if (!p || p <= 0) { Alert.alert("Preço inválido"); return; }
     setSaving(true);
     try {
-      await api.createAd({
-        seller_id: member!.member_id,
-        title: title.trim(), description: desc.trim(),
-        price_full: p, category: cat, stock: parseInt(stock || "1", 10) || 1,
-        images,
-        ad_tier: adTier,
-      });
-      Alert.alert(
-        "Anúncio publicado!",
-        `Seu anúncio já está visível no ${theme.label}.`,
-        [{ text: "OK", onPress: () => router.replace(`/catalog/${adTier}` as any) }],
-      );
+      if (isEdit && editId) {
+        await api.updateAd(String(editId), {
+          seller_id: member!.member_id,
+          title: title.trim(), description: desc.trim(),
+          price_full: p, category: cat, stock: parseInt(stock || "1", 10) || 1,
+          images, ad_tier: adTier,
+        });
+        Alert.alert("Anúncio atualizado!", "As alterações foram salvas.", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
+      } else {
+        await api.createAd({
+          seller_id: member!.member_id,
+          title: title.trim(), description: desc.trim(),
+          price_full: p, category: cat, stock: parseInt(stock || "1", 10) || 1,
+          images,
+          ad_tier: adTier,
+        });
+        Alert.alert(
+          "Anúncio publicado!",
+          `Seu anúncio já está visível no ${theme.label}.`,
+          [{ text: "OK", onPress: () => router.replace(`/catalog/${adTier}` as any) }],
+        );
+      }
     } catch (e: any) { Alert.alert("Erro", e.message || "Falha"); }
     finally { setSaving(false); }
   };

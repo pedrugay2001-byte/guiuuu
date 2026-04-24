@@ -305,7 +305,19 @@ export const api = {
     request<Ad>("/ads", { method: "POST", body: JSON.stringify(body) }),
   deleteAd: (ad_id: string, seller_id: string) =>
     request<{ ok: boolean }>(`/ads/${ad_id}?seller_id=${seller_id}`, { method: "DELETE" }),
-  myAds: (member_id: string) => request<Ad[]>(`/ads/member/${member_id}`),
+  updateAd: (ad_id: string, body: Partial<AdCreatePayload> & { seller_id: string; active?: boolean }) =>
+    request<Ad>(`/ads/${ad_id}`, { method: "PUT", body: JSON.stringify(body) }),
+  myAds: (member_id: string, includeInactive = false) =>
+    request<Ad[]>(`/ads/member/${member_id}${includeInactive ? "?include_inactive=true" : ""}`),
+
+  // Galeria pessoal (até 10 fotos por membro)
+  memberPhotos: (member_id: string) =>
+    request<{ photos: string[] }>(`/members/${member_id}/photos`),
+  updateMemberPhotos: (member_id: string, photos: string[]) =>
+    request<{ ok: boolean; count: number }>(
+      `/members/${member_id}/photos`,
+      { method: "PUT", body: JSON.stringify({ photos }) },
+    ),
 
   // ----- Wallet (BLACK Coins) -----
   getWallet: (member_id: string) => request<Wallet>(`/wallet/${member_id}`),

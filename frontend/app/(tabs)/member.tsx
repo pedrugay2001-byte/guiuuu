@@ -25,6 +25,8 @@ export default function Member() {
   }, [refreshUser, refreshMember]));
   const isStaff = ["admin", "support", "financeiro"].includes(authUser?.role || "");
   const [adminProducts, setAdminProducts] = useState<Product[]>([]);
+  const [myAds, setMyAds] = useState<any[]>([]);
+  const [myPhotos, setMyPhotos] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalMembers, setTotalMembers] = useState<number | null>(null);
   const [editingNick, setEditingNick] = useState(false);
@@ -34,18 +36,53 @@ export default function Member() {
     if (!member) return;
     setLoading(true);
     try {
-      const [products, stats] = await Promise.all([
+      const [products, stats, ads, photos] = await Promise.all([
         api.listProducts({ member_id: member.member_id }).catch(() => []),
         api.memberStats().catch(() => ({ total_members: 0 })),
+        api.myAds(member.member_id, true).catch(() => []),
+        api.memberPhotos(member.member_id).catch(() => ({ photos: [] })),
       ]);
       setAdminProducts(products);
       setTotalMembers(stats.total_members);
+      setMyAds(ads as any[]);
+      setMyPhotos((photos as any).photos || []);
     } finally {
       setLoading(false);
     }
   }, [member]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Excluir anúncio (soft delete via API)
+  const handleDeleteAd = (ad: any) => {
+    if (!member) return;
+    Alert.alert(
+      "Excluir anúncio",
+      `Remover "${ad.title}"? Essa ação desativa o anúncio e ele não aparece mais no marketplace.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.deleteAd(ad.ad_id, member.member_id);
+              await load();
+            } catch (e: any) { Alert.alert("Erro", e.message); }
+          },
+        },
+      ],
+    );
+  };
+
+  // Reativar anúncio inativo
+  const handleReactivateAd = async (ad: any) => {
+    if (!member) return;
+    try {
+      await api.updateAd(ad.ad_id, { seller_id: member.member_id, active: true });
+      await load();
+    } catch (e: any) { Alert.alert("Erro", e.message); }
+  };
 
   const lockClub = async () => {
     // Direct logout — more reliable across web and mobile
@@ -188,6 +225,130 @@ export default function Member() {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* === MINHAS FOTOS === Galeria publicada do membro */}
+        <View style={styles.section}>
+          <View style={styles.sectionHead}>
+            <Text style={styles.sectionTitle}>MINHAS FOTOS</Text>
+            <TouchableOpacity onPress={() => router.push("/community/edit-profile")} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+              <Text style={[styles.sectionAction, { color: accent.accent }]}>{myPhotos.length > 0 ? "EDITAR" : "ADICIONAR"}</Text>
+            </TouchableOpacity>
+          </View>
+          {myPhotos.length === 0 ? (
+            <TouchableOpacity
+              style={[styles.photosEmpty, { borderColor: accent.accent + "40" }]}
+              onPress={() => router.push("/community/edit-profile")}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="images-outline" size={26} color={accent.accent} />
+              <Text style={styles.photosEmptyTxt}>
+                Toque aqui para publicar suas fotos no perfil (até 10).
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photosRow}>
+              {myPhotos.map((p, i) => (
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => router.push(`/community/story/${member!.member_id}` as any)}
+                  activeOpacity={0.88}
+                >
+                  <Image source={{ uri: p }} style={[styles.photoThumb, { borderColor: accent.accent + "55" }]} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+          <Text style={styles.photosHint}>{myPhotos.length}/10 fotos publicadas no seu perfil público</Text>
+        </View>
+
+        {/* === MEUS ANÚNCIOS === Apenas para membros que podem publicar (staff) */}
+        {isStaff && (
+          <View style={styles.section}>
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>MEUS ANÚNCIOS</Text>
+              <TouchableOpacity onPress={() => router.push("/ads/create")} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                <Text style={[styles.sectionAction, { color: accent.accent }]}>+ NOVO</Text>
+              </TouchableOpacity>
+            </View>
+            {myAds.length === 0 ? (
+              <View style={styles.adsEmpty}>
+                <Ionicons name="megaphone-outline" size={22} color="#666" />
+                <Text style={styles.adsEmptyTxt}>Você ainda não publicou nenhum anúncio.</Text>
+                <TouchableOpacity
+                  style={[styles.adsCreateBtn, { backgroundColor: accent.accent }]}
+                  onPress={() => router.push("/ads/create")}
+                >
+                  <Ionicons name="add" size={14} color="#000" />
+                  <Text style={styles.adsCreateTxt}>PUBLICAR PRIMEIRO ANÚNCIO</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ gap: 10 }}>
+                {myAds.map((ad) => {
+                  const tierColor = ad.ad_tier === "gold" ? "#D4AF37" : ad.ad_tier === "silver" ? "#B8B8B8" : "#7FD7E5";
+                  const isInactive = ad.active === false;
+                  return (
+                    <View key={ad.ad_id} style={[styles.adRow, !ad.active && { opacity: 0.55 }]}>
+                      <TouchableOpacity
+                        style={{ flexDirection: "row", flex: 1, alignItems: "center", gap: 10 }}
+                        onPress={() => router.push({ pathname: "/ads/[id]", params: { id: ad.ad_id } })}
+                        activeOpacity={0.85}
+                      >
+                        {ad.images?.[0] ? (
+                          <Image source={{ uri: ad.images[0] }} style={styles.adThumb} />
+                        ) : (
+                          <View style={[styles.adThumb, { backgroundColor: "#0E0E0E", alignItems: "center", justifyContent: "center" }]}>
+                            <Ionicons name="image-outline" size={18} color="#444" />
+                          </View>
+                        )}
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <View style={[styles.adTierPill, { borderColor: tierColor, backgroundColor: tierColor + "20" }]}>
+                              <Text style={[styles.adTierTxt, { color: tierColor }]}>{(ad.ad_tier || "diamond").toUpperCase()}</Text>
+                            </View>
+                            {isInactive && (
+                              <View style={styles.adInactivePill}>
+                                <Text style={styles.adInactiveTxt}>INATIVO</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={styles.adRowTitle} numberOfLines={1}>{ad.title}</Text>
+                          <Text style={styles.adRowPrice}>R$ {Number(ad.price_full).toFixed(2)} · estoque {ad.stock}</Text>
+                        </View>
+                      </TouchableOpacity>
+                      <View style={{ flexDirection: "row", gap: 6 }}>
+                        <TouchableOpacity
+                          style={styles.adActionBtn}
+                          onPress={() => router.push({ pathname: "/ads/create", params: { id: ad.ad_id } } as any)}
+                          hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                        >
+                          <Ionicons name="create-outline" size={15} color="#EEE" />
+                        </TouchableOpacity>
+                        {isInactive ? (
+                          <TouchableOpacity
+                            style={[styles.adActionBtn, { backgroundColor: "#1E3A1E" }]}
+                            onPress={() => handleReactivateAd(ad)}
+                            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                          >
+                            <Ionicons name="refresh" size={15} color="#4EE07F" />
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity
+                            style={[styles.adActionBtn, { backgroundColor: "#3A1E1E" }]}
+                            onPress={() => handleDeleteAd(ad)}
+                            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                          >
+                            <Ionicons name="trash-outline" size={15} color="#FF6B6B" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.planCard} testID="member-plan-card">
           <View style={styles.planHeader}>
@@ -428,6 +589,72 @@ const styles = StyleSheet.create({
   nickSave: {
     width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center",
     backgroundColor: theme.colors.white,
+  },
+
+  // === Seções "MINHAS FOTOS" e "MEUS ANÚNCIOS" ===
+  section: {
+    marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
+    padding: 14, backgroundColor: theme.colors.surface,
+    borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10,
+  },
+  sectionHead: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    marginBottom: 12,
+  },
+  sectionTitle: { color: theme.colors.silver, fontSize: 10, fontWeight: "900", letterSpacing: 2 },
+  sectionAction: { fontSize: 10, fontWeight: "900", letterSpacing: 1.5 },
+
+  // Galeria de fotos
+  photosRow: { gap: 8, paddingVertical: 2 },
+  photoThumb: {
+    width: 78, height: 78, borderRadius: 8,
+    backgroundColor: "#0E0E0E", borderWidth: 1,
+  },
+  photosEmpty: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 14, borderRadius: 10,
+    borderWidth: 1, borderStyle: "dashed",
+    backgroundColor: "#0A0A0A",
+  },
+  photosEmptyTxt: { color: "#999", fontSize: 12, flex: 1, lineHeight: 17 },
+  photosHint: { color: theme.colors.textMuted, fontSize: 10.5, marginTop: 8 },
+
+  // Lista de anúncios
+  adsEmpty: {
+    alignItems: "center", padding: 20, gap: 10,
+    borderRadius: 10, borderWidth: 1, borderColor: "#1F1F1F",
+    backgroundColor: "#0A0A0A",
+  },
+  adsEmptyTxt: { color: "#888", fontSize: 12, textAlign: "center" },
+  adsCreateBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8,
+  },
+  adsCreateTxt: { color: "#000", fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
+  adRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: "#0E0E0E",
+    borderRadius: 10, padding: 10,
+    borderWidth: 1, borderColor: "#1B1B1B",
+  },
+  adThumb: { width: 52, height: 52, borderRadius: 8 },
+  adRowTitle: { color: "#EEE", fontSize: 13, fontWeight: "700", marginTop: 4 },
+  adRowPrice: { color: "#999", fontSize: 11, marginTop: 2 },
+  adTierPill: {
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+    borderWidth: 0.8,
+  },
+  adTierTxt: { fontSize: 8.5, fontWeight: "900", letterSpacing: 1.2 },
+  adInactivePill: {
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+    backgroundColor: "#2A1A1A", borderWidth: 0.8, borderColor: "#5A2A2A",
+  },
+  adInactiveTxt: { color: "#FF8A8A", fontSize: 8.5, fontWeight: "900", letterSpacing: 1.2 },
+  adActionBtn: {
+    width: 32, height: 32, borderRadius: 8,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#1A1A1A",
+    borderWidth: 1, borderColor: "#252525",
   },
   planCard: {
     marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,

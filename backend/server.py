@@ -2894,9 +2894,53 @@ async def delete_ad(ad_id: str, seller_id: str):
     return {"ok": True}
 
 
+class AdUpdate(BaseModel):
+    seller_id: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    price_full: Optional[float] = None
+    category: Optional[str] = None
+    images: Optional[List[str]] = None
+    stock: Optional[int] = None
+    ad_tier: Optional[str] = None
+    active: Optional[bool] = None
+
+
+@api_router.put("/ads/{ad_id}")
+async def update_ad(ad_id: str, data: AdUpdate):
+    """Atualiza um anúncio. Apenas o vendedor original pode editar."""
+    ad = await db.ads.find_one({"ad_id": ad_id, "seller_id": data.seller_id})
+    if not ad:
+        raise HTTPException(status_code=404, detail="Anúncio não encontrado ou você não é o dono")
+    updates: Dict[str, Any] = {}
+    if data.title is not None:
+        updates["title"] = data.title.strip()[:120]
+    if data.description is not None:
+        updates["description"] = data.description.strip()[:2000]
+    if data.price_full is not None:
+        updates["price_full"] = float(data.price_full)
+    if data.category is not None:
+        updates["category"] = data.category
+    if data.images is not None:
+        updates["images"] = [img for img in data.images if isinstance(img, str)][:6]
+    if data.stock is not None:
+        updates["stock"] = max(int(data.stock), 0)
+    if data.ad_tier is not None and data.ad_tier in ("silver", "gold", "diamond"):
+        updates["ad_tier"] = data.ad_tier
+    if data.active is not None:
+        updates["active"] = bool(data.active)
+    if updates:
+        await db.ads.update_one({"ad_id": ad_id}, {"$set": updates})
+    fresh = await db.ads.find_one({"ad_id": ad_id}, {"_id": 0})
+    return fresh
+
+
 @api_router.get("/ads/member/{member_id}")
-async def ads_by_member(member_id: str):
-    cur = db.ads.find({"seller_id": member_id, "active": True}, {"_id": 0}).sort("created_at", -1)
+async def ads_by_member(member_id: str, include_inactive: bool = False):
+    query: Dict[str, Any] = {"seller_id": member_id}
+    if not include_inactive:
+        query["active"] = True
+    cur = db.ads.find(query, {"_id": 0}).sort("created_at", -1)
     return await cur.to_list(length=100)
 
 

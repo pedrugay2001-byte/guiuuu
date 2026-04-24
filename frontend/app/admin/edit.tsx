@@ -6,16 +6,18 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { api, Category } from "../../src/api";
+import { useGate } from "../../src/gate";
 import { theme } from "../../src/theme";
 
 export default function AdminEdit() {
   const router = useRouter();
+  const { member } = useGate();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEdit = Boolean(id);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("emagrecedores");
+  const [category, setCategory] = useState("metabolicos");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [memberPrice, setMemberPrice] = useState("");
@@ -26,8 +28,11 @@ export default function AdminEdit() {
   const [initLoading, setInitLoading] = useState(isEdit);
 
   useEffect(() => {
-    api.categories().then(setCategories);
-  }, []);
+    // Passa member_id para que /categories valide acesso (sem isso retornaria 403 → tier black default)
+    if (member?.member_id) {
+      api.categories(member.member_id).then(setCategories).catch(() => setCategories([]));
+    }
+  }, [member]);
 
   useEffect(() => {
     if (!id) return;
