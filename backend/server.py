@@ -1639,6 +1639,127 @@ async def delete_product(product_id: str, admin: dict = Depends(require_staff)):
     return {"ok": True}
 
 
+class ProductBLXPurchase(BaseModel):
+    member_id: str
+    quantity: int = 1
+
+
+@api_router.post("/products/{product_id}/buy-blx")
+async def buy_product_with_blx(product_id: str, data: ProductBLXPurchase):
+    """
+    Compra um item do catálogo oficial descontando BLX diretamente do wallet.
+    - Valida saldo em balance_centavos
+    - Debita o valor
+    - Cria registro em wallet_txs (type=purchase, status=settled)
+    - Cria registro em orders (catalog order)
+    - Aplica tier discount automaticamente
+    """
+    if data.quantity < 1:
+        raise HTTPException(status_code=400, detail="Quantidade inválida")
+
+    # Load product
+    prod = await db.products.find_one({"product_id": product_id}, {"_id": 0})
+    if not prod:
+        raise HTTPException(status_code=404, detail="Produto não encontrado")
+    if int(prod.get("stock") or 0) < data.quantity:
+        raise HTTPException(status_code=400, detail="Estoque insuficiente")
+
+    # Load member + tier
+    m = await db.members.find_one({"member_id": data.member_id}, {"_id": 0, "tier": 1, "name": 1, "nickname": 1})
+    if not m:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    tier = (m.get("tier") or "black").lower()
+
+    # Tier discount (apenas silver/gold/diamond podem comprar catálogo)
+    if tier not in ("silver", "gold", "diamond"):
+        raise HTTPException(
+            status_code=403,
+            detail="Catálogo disponível apenas para membros Silver, Gold ou Diamante",
+        )
+    TIER_DISCOUNT = {"silver": 0.05, "gold": 0.10, "diamond": 0.15}
+    disc = TIER_DISCOUNT.get(tier, 0.0)
+    unit_price_brl = float(prod.get("member_price") or prod.get("price") or 0)
+    discounted_brl = round(unit_price_brl * (1 - disc), 2)
+    # 1 BLX == 1 BRL (convenção interna) → centavos = centavos
+    unit_cents = int(round(discounted_brl * 100))
+    total_cents = unit_cents * data.quantity
+
+    if total_cents <= 0:
+        raise HTTPException(status_code=400, detail="Valor do produto inválido")
+
+    # Load/ensure wallet
+    wallet = await db.wallets.find_one({"member_id": data.member_id}, {"_id": 0})
+    if not wallet:
+        raise HTTPException(status_code=400, detail="Carteira BLX não encontrada")
+
+    current_cents = int(wallet.get("balance_centavos") or 0)
+    if current_cents < total_cents:
+        faltante = (total_cents - current_cents) / 100.0
+        raise HTTPException(
+            status_code=400,
+            detail=f"Saldo BLX insuficiente. Faltam {faltante:.2f} BLX.",
+        )
+
+    # Debit wallet (integer math for balance_centavos)
+    amt_float = total_cents / 100.0
+    await db.wallets.update_one(
+        {"member_id": data.member_id},
+        {"$inc": {"balance": -amt_float, "balance_centavos": -total_cents}},
+    )
+
+    # Create tx ledger entry
+    tx_id = f"tx_{uuid.uuid4().hex[:10]}"
+    now = datetime.now(timezone.utc)
+    tx_doc = {
+        "tx_id": tx_id,
+        "from_id": data.member_id,
+        "to_id": "catalog_admin",  # destino: admin do clube
+        "amount": amt_float,
+        "amount_centavos": total_cents,
+        "type": "purchase",
+        "status": "settled",
+        "description": f"Compra catálogo: {prod.get('name')} x{data.quantity}",
+        "product_id": product_id,
+        "created_at": now,
+        "settled_at": now,
+    }
+    await db.wallet_txs.insert_one(tx_doc)
+
+    # Create order record (for tracking / future delivery)
+    order_id = f"ord_{uuid.uuid4().hex[:10]}"
+    await db.orders.insert_one({
+        "order_id": order_id,
+        "member_id": data.member_id,
+        "product_id": product_id,
+        "product_name": prod.get("name"),
+        "quantity": data.quantity,
+        "unit_cents": unit_cents,
+        "total_cents": total_cents,
+        "tier_discount": disc,
+        "status": "awaiting_delivery",
+        "channel": "catalog_blx",
+        "tx_id": tx_id,
+        "created_at": now,
+    })
+
+    # Decrement stock
+    await db.products.update_one(
+        {"product_id": product_id},
+        {"$inc": {"stock": -data.quantity}},
+    )
+
+    new_balance_cents = current_cents - total_cents
+    return {
+        "ok": True,
+        "order_id": order_id,
+        "tx_id": tx_id,
+        "total_cents": total_cents,
+        "quantity": data.quantity,
+        "new_balance_centavos": new_balance_cents,
+        "message": f"Compra realizada! {amt_float:.2f} BLX debitados do seu saldo.",
+    }
+
+
 @api_router.get("/categories")
 async def get_categories(member_id: Optional[str] = None):
     """Retorna categorias do marketplace, com metadata de restrição.

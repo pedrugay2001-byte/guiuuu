@@ -148,6 +148,16 @@ export const api = {
     request<Product>(`/products/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteProduct: (id: string) =>
     request<{ ok: boolean }>(`/products/${id}`, { method: "DELETE" }),
+  buyProductBLX: (product_id: string, body: { member_id: string; quantity: number }) =>
+    request<{
+      ok: boolean;
+      order_id: string;
+      tx_id: string;
+      total_cents: number;
+      quantity: number;
+      new_balance_centavos: number;
+      message: string;
+    }>(`/products/${product_id}/buy-blx`, { method: "POST", body: JSON.stringify(body) }),
   createOrder: (body: { member_id: string; items: any[]; total: number }) =>
     request<{ order_id: string; status: string }>("/orders", {
       method: "POST", body: JSON.stringify(body),

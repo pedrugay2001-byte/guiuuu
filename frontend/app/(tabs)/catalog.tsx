@@ -147,33 +147,6 @@ export default function Marketplace() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* SAÚDE — apenas para Diamond. Alinhado à esquerda, compacto. Cor AZUL diamante. */}
-        {isDiamond && healthCats.length > 0 && (
-          <View style={st.saudeSection}>
-            <View style={st.saudeHead}>
-              <MaterialCommunityIcons name="heart-pulse" size={14} color={DIAMOND_BLUE} />
-              <Text style={[st.saudeHeadTxt, { color: DIAMOND_BLUE }]}>SAÚDE · DIAMANTE</Text>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.saudeRow}>
-              {healthCats.map((c) => {
-                const meta = CAT_META[c.id] || { label: c.name, icon: "cube", color: "#888" };
-                const active = cat === c.id;
-                return (
-                  <TouchableOpacity
-                    key={c.id}
-                    onPress={() => setCat(active ? "all" : c.id)}
-                    style={[st.saudeChip, active && { backgroundColor: "rgba(127,215,229,0.15)", borderColor: DIAMOND_BLUE }]}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name={meta.icon as any} size={13} color={active ? DIAMOND_BLUE : "#999"} />
-                    <Text style={[st.saudeChipTxt, active && { color: "#FFF" }]} numberOfLines={1}>{meta.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
-
         {/* Categorias públicas */}
         <Text style={st.sectionTitle}>CATEGORIAS</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.catRow}>
@@ -246,10 +219,19 @@ export default function Marketplace() {
           </View>
         )}
 
-        {/* Produtos */}
-        <View style={st.sectionHead}>
-          <Text style={st.sectionTitle}>CATÁLOGO OFICIAL</Text>
-          {loading ? <ActivityIndicator color="#888" size="small" /> : <Text style={st.sectionCount}>{products.length} itens</Text>}
+        {/* CATÁLOGO OFICIAL — divisor elegante em DOURADO (sem símbolo de diamante) */}
+        <View style={st.catalogDivider}>
+          <View style={st.catalogDividerLine} />
+          <View style={st.catalogDividerBadge}>
+            <Ionicons name="ribbon" size={10} color={GOLD} />
+            <Text style={st.catalogDividerTxt}>CATÁLOGO</Text>
+            <Ionicons name="ribbon" size={10} color={GOLD} />
+          </View>
+          <View style={st.catalogDividerLine} />
+        </View>
+        <View style={st.catalogSubRow}>
+          <Text style={st.catalogSubTxt}>Selecionados pela curadoria do clube</Text>
+          {!loading && <Text style={st.catalogCount}>{products.length} itens</Text>}
         </View>
 
         {loading ? (
@@ -279,6 +261,8 @@ export default function Marketplace() {
                       <Ionicons name="cube" size={26} color="#444" />
                     </View>
                   )}
+                  {/* Faixa sutil dourada no topo da imagem — toque elitizado */}
+                  <View style={st.prodAccentStripe} />
                 </View>
                 <Text style={st.prodName} numberOfLines={2}>{p.name}</Text>
                 <View style={{ marginTop: 6 }}>
@@ -419,6 +403,43 @@ const st = StyleSheet.create({
     height: 1, marginTop: 16, marginHorizontal: 24,
     backgroundColor: "rgba(127,215,229,0.12)",
   },
+
+  // === CATÁLOGO — divisor DOURADO elegante (sem símbolo de diamante) ===
+  catalogDivider: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 24, marginTop: 24, marginBottom: 10,
+  },
+  catalogDividerLine: {
+    flex: 1, height: 1,
+    backgroundColor: "rgba(212,175,55,0.28)",
+  },
+  catalogDividerBadge: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 14, paddingVertical: 5,
+    marginHorizontal: 10,
+    borderRadius: 20, borderWidth: 1,
+    borderColor: "rgba(212,175,55,0.4)",
+    backgroundColor: "rgba(212,175,55,0.06)",
+  },
+  catalogDividerTxt: {
+    color: GOLD, fontSize: 9.5,
+    fontWeight: "900", letterSpacing: 2.5,
+  },
+  catalogSubRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 18, marginBottom: 14,
+  },
+  catalogSubTxt: {
+    color: "#AAA", fontSize: 12, fontWeight: "600", fontStyle: "italic",
+  },
+  catalogCount: { color: "#666", fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
+
+  // Faixa dourada sutil no topo da imagem do produto (toque elitizado)
+  prodAccentStripe: {
+    position: "absolute", top: 0, left: 0, right: 0, height: 2,
+    backgroundColor: GOLD, opacity: 0.65,
+  },
+
   sectionCount: { color: "#666", fontSize: 11 },
 
   catRow: { paddingHorizontal: 14, gap: 8 },
