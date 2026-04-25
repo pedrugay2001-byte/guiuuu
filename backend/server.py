@@ -143,6 +143,22 @@ async def require_staff(user: dict = Depends(get_current_user)) -> dict:
     return user
 
 
+async def _audit_log(actor: dict, action: str, target_email: Optional[str] = None,
+                    target_user_id: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+    """Grava entrada no log de auditoria de ações da equipe."""
+    await db.staff_audit_log.insert_one({
+        "log_id": f"log_{uuid.uuid4().hex[:14]}",
+        "actor_user_id": actor.get("user_id"),
+        "actor_email": actor.get("email"),
+        "actor_role": actor.get("role"),
+        "action": action,
+        "target_user_id": target_user_id,
+        "target_email": target_email,
+        "details": details or {},
+        "timestamp": datetime.now(timezone.utc),
+    })
+
+
 # -------------- Auth models --------------
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -168,6 +184,9 @@ async def login(data: LoginRequest):
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(data.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Email ou senha inválidos")
+    # Bloqueia conta desativada
+    if user.get("active") is False:
+        raise HTTPException(status_code=403, detail="Conta desativada. Contate o administrador.")
     token = create_access_token(user["user_id"], email)
     return AuthResponse(
         user=UserPublic(
@@ -3279,6 +3298,189 @@ async def pix_order_reject(order_id: str, body: PixOrderActionBody, staff: dict 
         if isinstance(out.get(k), datetime):
             out[k] = out[k].isoformat()
     return {"ok": True, "order": out}
+
+
+# =============================================================================
+# STAFF TEAM MANAGEMENT — gestão das contas da equipe (apenas admin)
+# Permite ao admin master:
+#   - Listar contas da equipe (admin/support/financeiro)
+#   - Criar nova conta de equipe
+#   - Editar nome
+#   - Trocar senha
+#   - Ativar/desativar (login bloqueado quando inativo)
+#   - Excluir conta
+#   - Ver log de auditoria de todas as ações
+# Toda ação grava em `staff_audit_log` para rastreabilidade.
+# =============================================================================
+
+VALID_TEAM_ROLES = ("admin", "support", "financeiro")
+
+
+def _serialize_user(u: Dict[str, Any]) -> Dict[str, Any]:
+    """Remove dados sensíveis e serializa datetimes."""
+    out = {
+        "user_id": u.get("user_id"),
+        "email": u.get("email"),
+        "name": u.get("name"),
+        "role": u.get("role"),
+        "active": u.get("active") is not False,  # default True
+        "created_at": u.get("created_at"),
+        "last_login_at": u.get("last_login_at"),
+        "password_changed_at": u.get("password_changed_at"),
+    }
+    for k in ("created_at", "last_login_at", "password_changed_at"):
+        if isinstance(out.get(k), datetime):
+            out[k] = out[k].isoformat()
+    return out
+
+
+@api_router.get("/staff/team")
+async def staff_team_list(admin: dict = Depends(require_admin)):
+    """Lista todas as contas da equipe (admin/support/financeiro)."""
+    out: List[Dict[str, Any]] = []
+    async for u in db.users.find({"role": {"$in": list(VALID_TEAM_ROLES)}}, {"_id": 0, "password_hash": 0}):
+        out.append(_serialize_user(u))
+    out.sort(key=lambda x: (x.get("role") or "", x.get("created_at") or ""))
+    return {"team": out}
+
+
+class TeamCreate(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    role: str  # "admin" | "support" | "financeiro"
+
+
+@api_router.post("/staff/team")
+async def staff_team_create(data: TeamCreate, admin: dict = Depends(require_admin)):
+    """Cria nova conta de equipe (apenas admin)."""
+    if data.role not in VALID_TEAM_ROLES:
+        raise HTTPException(status_code=400, detail=f"Papel inválido. Use: {', '.join(VALID_TEAM_ROLES)}")
+    if len(data.password) < 8:
+        raise HTTPException(status_code=400, detail="Senha precisa ter pelo menos 8 caracteres")
+    if len(data.name.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Nome muito curto")
+    email = data.email.lower().strip()
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=409, detail="Já existe uma conta com este email")
+    now_ts = datetime.now(timezone.utc)
+    doc = {
+        "user_id": f"user_{uuid.uuid4().hex[:12]}",
+        "email": email,
+        "name": data.name.strip(),
+        "password_hash": hash_password(data.password),
+        "role": data.role,
+        "active": True,
+        "created_at": now_ts,
+        "created_by": admin.get("email"),
+        "password_changed_at": now_ts,
+    }
+    await db.users.insert_one(doc.copy())
+    await _audit_log(admin, "team_create", target_email=email, target_user_id=doc["user_id"],
+                    details={"role": data.role, "name": data.name.strip()})
+    doc.pop("password_hash", None)
+    doc.pop("_id", None)
+    return _serialize_user(doc)
+
+
+class TeamUpdateName(BaseModel):
+    name: str
+
+
+@api_router.put("/staff/team/{user_id}")
+async def staff_team_update_name(user_id: str, data: TeamUpdateName, admin: dict = Depends(require_admin)):
+    """Atualiza o nome de uma conta da equipe."""
+    if len(data.name.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Nome muito curto")
+    target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1, "role": 1})
+    if not target or target.get("role") not in VALID_TEAM_ROLES:
+        raise HTTPException(status_code=404, detail="Conta de equipe não encontrada")
+    new_name = data.name.strip()
+    await db.users.update_one({"user_id": user_id}, {"$set": {"name": new_name}})
+    await _audit_log(admin, "team_update_name", target_email=target.get("email"), target_user_id=user_id,
+                    details={"new_name": new_name})
+    return {"ok": True, "name": new_name}
+
+
+class TeamPasswordChange(BaseModel):
+    new_password: str
+
+
+@api_router.post("/staff/team/{user_id}/password")
+async def staff_team_change_password(user_id: str, data: TeamPasswordChange, admin: dict = Depends(require_admin)):
+    """Troca a senha de uma conta da equipe (admin master)."""
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Senha precisa ter pelo menos 8 caracteres")
+    target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1, "role": 1})
+    if not target or target.get("role") not in VALID_TEAM_ROLES:
+        raise HTTPException(status_code=404, detail="Conta de equipe não encontrada")
+    now_ts = datetime.now(timezone.utc)
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"password_hash": hash_password(data.new_password), "password_changed_at": now_ts}},
+    )
+    await _audit_log(admin, "team_password_change", target_email=target.get("email"), target_user_id=user_id)
+    return {"ok": True, "password_changed_at": now_ts.isoformat()}
+
+
+class TeamSetActiveBody(BaseModel):
+    active: bool
+
+
+@api_router.post("/staff/team/{user_id}/set-active")
+async def staff_team_set_active(user_id: str, body: TeamSetActiveBody, admin: dict = Depends(require_admin)):
+    """Ativa/desativa conta. Conta inativa não consegue logar."""
+    if user_id == admin.get("user_id"):
+        raise HTTPException(status_code=400, detail="Você não pode desativar sua própria conta")
+    target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1, "role": 1, "active": 1})
+    if not target or target.get("role") not in VALID_TEAM_ROLES:
+        raise HTTPException(status_code=404, detail="Conta de equipe não encontrada")
+
+    # Se desativar admin: garantir que pelo menos 1 admin ativo continua existindo
+    if body.active is False and target.get("role") == "admin":
+        active_admins = await db.users.count_documents({"role": "admin", "active": {"$ne": False}})
+        # active_admins inclui o alvo (que está active no momento). Após desativar fica 1 a menos.
+        if active_admins <= 1:
+            raise HTTPException(status_code=400, detail="Mantenha ao menos 1 administrador ativo")
+
+    await db.users.update_one({"user_id": user_id}, {"$set": {"active": bool(body.active)}})
+    action = "team_activate" if body.active else "team_deactivate"
+    await _audit_log(admin, action, target_email=target.get("email"), target_user_id=user_id)
+    return {"ok": True, "active": bool(body.active)}
+
+
+@api_router.delete("/staff/team/{user_id}")
+async def staff_team_delete(user_id: str, admin: dict = Depends(require_admin)):
+    """Exclui permanentemente conta de equipe."""
+    if user_id == admin.get("user_id"):
+        raise HTTPException(status_code=400, detail="Você não pode excluir sua própria conta")
+    target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1, "role": 1})
+    if not target or target.get("role") not in VALID_TEAM_ROLES:
+        raise HTTPException(status_code=404, detail="Conta de equipe não encontrada")
+
+    # Garantir pelo menos 1 admin
+    if target.get("role") == "admin":
+        admin_count = await db.users.count_documents({"role": "admin"})
+        if admin_count <= 1:
+            raise HTTPException(status_code=400, detail="Mantenha ao menos 1 administrador no sistema")
+
+    await db.users.delete_one({"user_id": user_id})
+    await _audit_log(admin, "team_delete", target_email=target.get("email"), target_user_id=user_id,
+                    details={"role": target.get("role")})
+    return {"ok": True, "deleted_user_id": user_id}
+
+
+@api_router.get("/staff/team/audit-log")
+async def staff_team_audit_log(limit: int = 100, admin: dict = Depends(require_admin)):
+    """Retorna log de auditoria de ações da equipe (mais recentes primeiro)."""
+    cur = db.staff_audit_log.find({}, {"_id": 0}).sort("timestamp", -1).limit(int(limit))
+    out: List[Dict[str, Any]] = []
+    async for e in cur:
+        if isinstance(e.get("timestamp"), datetime):
+            e["timestamp"] = e["timestamp"].isoformat()
+        out.append(e)
+    return {"entries": out}
 
 
 # =============================================================================

@@ -203,6 +203,14 @@ export default function StaffDashboard() {
                   </View>
                 )}
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#FF3B30", borderColor: "#FF3B30" }]}
+                onPress={() => router.push("/staff/team" as any)}
+                testID="staff-action-team"
+              >
+                <Ionicons name="shield-checkmark" size={18} color="#FFF" />
+                <Text style={[styles.actionText, { color: "#FFF" }]}>GESTÃO DE EQUIPE (ADMIN)</Text>
+              </TouchableOpacity>
             </>
           )}
         </View>

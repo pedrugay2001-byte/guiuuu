@@ -532,6 +532,188 @@ test_plan:
   test_all: false
   test_priority: "high_first"
 
+
+# ================= STAFF TEAM MANAGEMENT (NEW — 25/04/2026) =================
+# 7 novos endpoints para o admin master gerir contas da equipe.
+# Validação completa em /app/backend_test_staff_team.py (149/149 PASS, 0 FAIL).
+backend_staff_team:
+  - task: "Login regression — admin password changed (admin123 → WE1U-DARN-OIKP-OH07!94)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. POST /api/auth/login com admin@farmaclube.com:
+            • admin123 (senha antiga) → 401 ✅
+            • WE1U-DARN-OIKP-OH07!94 (nova) → 200 + JWT token ✅
+            Password rotation bem-sucedida.
+
+  - task: "STAFF TEAM — GET /api/staff/team"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS.
+            • Sem JWT → 401 ✅
+            • JWT de support → 403 "Admin access required" ✅
+            • JWT admin → 200 {team:[...]} com 5 contas (admin, guilherme925145000, suporte×2, financeiro) ✅
+            • Cada item tem user_id, email, name, role, active=true, created_at ✅
+            • password_hash NUNCA exposto ✅
+
+  - task: "STAFF TEAM — POST /api/staff/team"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. Criação de conta teste (support) bem-sucedida, user_id gerado,
+            sem password_hash na resposta. Validações:
+            • password 5 chars → 400 ✅
+            • role='invalido' → 400 ✅
+            • name 1 char → 400 ✅
+            • email duplicado → 409 ✅
+            • Após criar, GET /staff/team lista 6 contas (era 5) ✅
+            • Login com a conta criada → 200 ✅
+
+  - task: "STAFF TEAM — PUT /api/staff/team/{user_id} (update name)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. {name:"Nome Atualizado"} → 200 {ok:true, name:"Nome Atualizado"}.
+            • Nome 1 char → 400 ✅
+            • user_id inexistente → 404 ✅
+
+  - task: "STAFF TEAM — POST /api/staff/team/{user_id}/password"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. {new_password:"NovaSenha2026!"} → 200 {ok:true, password_changed_at:ISO}.
+            • Login com nova senha → 200 ✅
+            • Login com antiga → 401 ✅
+            • new_password 5 chars → 400 ✅
+
+  - task: "STAFF TEAM — POST /api/staff/team/{user_id}/set-active"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. {active:false} → 200 {ok:true, active:false}.
+            • Após desativar: login → 403 "Conta desativada. Contate o administrador." ✅
+            • Reativar {active:true} → login volta a funcionar ✅
+            • Admin tentar desativar si mesmo → 400 "Você não pode desativar sua própria conta" ✅
+            • Regra "último admin": criado temp_admin 2º admin; admin@farmaclube desativado
+              via temp → 200 OK (porque ainda restava 1 admin ativo). Reativado em seguida.
+              A regra "Mantenha ao menos 1 administrador ativo" está codificada em
+              server.py:3442-3445 e dispara quando active_admins<=1. Em cenário black-box
+              não é possível testar com 1 único admin ativo sem outro login, mas o path
+              existe e a lógica foi inspecionada.
+
+  - task: "STAFF TEAM — DELETE /api/staff/team/{user_id}"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. Delete da conta teste → 200 {ok:true, deleted_user_id}.
+            • Self-delete → 400 "Você não pode excluir sua própria conta" ✅
+            • Delete temp_admin → 200 ✅
+            • Login com a conta excluída → 401 ✅
+            • Regra "último admin" (admin_count<=1) codificada em server.py:3463-3466;
+              self-check vem antes, então com único admin a tentativa cai em 400 "própria".
+
+  - task: "STAFF TEAM — GET /api/staff/team/audit-log"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS.
+            • Sem JWT → 401 ✅
+            • JWT support → 403 ✅
+            • JWT admin → 200 {entries:[...]} com 12 entradas, ordenadas desc por timestamp ✅
+            • Ações presentes: team_create, team_update_name, team_password_change,
+              team_deactivate, team_activate, team_delete (todas as 6 esperadas) ✅
+            • Cada entry com actor_email="admin@farmaclube.com", action, target_email (quando aplicável),
+              timestamp ✅
+            • ?limit=3 retorna no máximo 3 entradas ✅
+
+agent_communication_staff_team:
+    -agent: "testing"
+    -message: |
+        RODADA STAFF_TEAM_MANAGEMENT — 149/149 assertions PASS, 0 FAIL em
+        /app/backend_test_staff_team.py contra a URL pública.
+
+        Todos os 7 novos endpoints de gestão da equipe funcionam conforme spec:
+        1) GET /staff/team — RBAC (401/403/200), 5 contas listadas, sem password_hash ✅
+        2) POST /staff/team — criação + validações (password<8, role inválido, name<2,
+           email duplicado 409) ✅
+        3) PUT /staff/team/{id} — update name + 400 nome curto + 404 inexistente ✅
+        4) POST /staff/team/{id}/password — troca de senha, login novo/antigo verificado ✅
+        5) POST /staff/team/{id}/set-active — desativar/reativar, login 403 "desativada",
+           self-check 400, regra último admin via multi-admin cenário ✅
+        6) DELETE /staff/team/{id} — delete + self-check + login 401 após delete ✅
+        7) GET /staff/team/audit-log — todas as 6 actions registradas, ordenação desc,
+           RBAC, ?limit funcional ✅
+
+        REGRESSÃO LOGIN: admin123 → 401 ✅; WE1U-DARN-OIKP-OH07!94 → 200 ✅.
+
+        Observações informativas:
+        • A regra "Mantenha ao menos 1 administrador ativo" (set-active) e
+          "Mantenha ao menos 1 administrador no sistema" (delete) é black-box hard
+          de isolar quando só há 1 admin, porque o self-check dispara primeiro.
+          Código inspecionado: server.py:3442-3445 e 3463-3466 implementam a lógica
+          corretamente (count_documents com role=admin filtro active).
+        • Cleanup 100% executado: test account teste_team@blacksclub.com e
+          temp_admin@blacksclub.com ambas deletadas. Sem ruído.
+
+        Nenhum bug. Feature pronta para integração frontend (admin UI).
+
 # === Dismiss de Notificações (rodada nova) ===
 backend_dismiss_notifications:
   - task: "Dismiss de Notificações — POST /api/community/dms-mark-all-read/{member_id}"
@@ -1619,16 +1801,58 @@ metadata:
 
 test_plan:
   current_focus:
-    - "GET /api/blx/pix-info — returns PIX data (recipient, masked CNPJ, code, fee_pct, etc.)"
-    - "POST /api/blx/pix-orders — creates pending order with 1% fee applied"
-    - "GET /api/blx/pix-orders/me/{member_id} — lists user's own orders"
-    - "GET /api/blx/pix-orders (staff JWT) — lists all/filtered by status"
-    - "GET /api/blx/pix-orders/stats (staff JWT) — counts pending/approved/rejected"
-    - "POST /api/blx/pix-orders/{id}/approve (staff JWT) — credits BLX with 1% fee"
-    - "POST /api/blx/pix-orders/{id}/reject (staff JWT) — rejection with reason"
+    - "POST /api/auth/login — rejeita conta com active=False (403)"
+    - "GET /api/staff/team (require_admin) — lista equipe (admin/support/financeiro)"
+    - "POST /api/staff/team — cria conta nova de equipe"
+    - "PUT /api/staff/team/{user_id} — atualiza nome"
+    - "POST /api/staff/team/{user_id}/password — troca senha"
+    - "POST /api/staff/team/{user_id}/set-active — ativa/desativa"
+    - "DELETE /api/staff/team/{user_id} — exclui (com proteção último admin)"
+    - "GET /api/staff/team/audit-log — histórico de ações"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+
+    - agent: "main"
+      message: |
+        STAFF TEAM MANAGEMENT — Central de gestão de equipe (apenas admin):
+
+        BACKEND:
+          - GET /api/staff/team (require_admin) — lista contas com role in {admin, support, financeiro}
+          - POST /api/staff/team — cria conta {name, email, password, role}
+            * Email duplicado → 409. Senha < 8 chars → 400. Role inválido → 400.
+          - PUT /api/staff/team/{user_id} {name} — atualiza nome
+          - POST /api/staff/team/{user_id}/password {new_password} — troca senha (>= 8 chars)
+            * Após troca, login com nova senha funciona; com a antiga retorna 401.
+          - POST /api/staff/team/{user_id}/set-active {active: bool} — ativa/desativa
+            * Conta inativa: login retorna 403 "Conta desativada"
+            * Não pode desativar a si mesmo (400)
+            * Não pode desativar o último admin (400)
+          - DELETE /api/staff/team/{user_id} — exclui permanentemente
+            * Não pode excluir a si mesmo (400)
+            * Não pode excluir último admin (400)
+          - GET /api/staff/team/audit-log — entradas mais recentes primeiro
+            * Cada ação acima cria uma entrada com {actor_email, action, target_email, timestamp, details}.
+
+        SEGURANÇA:
+          - Todos endpoints exigem JWT com role=admin (require_admin)
+          - support/financeiro tentando acessar → 403
+
+        TESTAR:
+          1. Login admin@farmaclube.com / WE1U-DARN-OIKP-OH07!94 → JWT
+          2. GET /staff/team → deve retornar 3 contas (admin, support, financeiro)
+          3. POST /staff/team criar "teste@blacksclub.com" / "teste@123abc" / role "support"
+          4. PUT atualizar nome da conta criada
+          5. POST password mudar para "NovaSenha123" → login com nova OK, com antiga 401
+          6. POST set-active false → login retorna 403
+          7. POST set-active true → login volta a funcionar
+          8. Tentar desativar admin@farmaclube.com (último admin) → 400
+          9. DELETE da conta de teste → 200
+          10. GET audit-log → mostra todas as ações registradas
+
+          REGRESSÃO PIX:
+          - GET /api/blx/pix-info, POST /api/blx/pix-orders devem continuar funcionando inalterados.
 
 
     - agent: "main"

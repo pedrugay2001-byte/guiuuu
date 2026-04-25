@@ -513,6 +513,50 @@ export const api = {
     request<{ ok: boolean; threads_marked: number; last_read_at: string }>(`/community/dms-mark-all-read/${member_id}`, { method: "POST" }),
   notificationsMarkRead: (member_id: string) =>
     request<{ ok: boolean; notif_read_at: string }>(`/notifications/${member_id}/mark-read`, { method: "POST" }),
+
+  // ----- Staff Team Management (admin master only) -----
+  staffTeamList: () => request<{ team: StaffTeamMember[] }>("/staff/team"),
+  staffTeamCreate: (body: { name: string; email: string; password: string; role: "admin" | "support" | "financeiro" }) =>
+    request<StaffTeamMember>("/staff/team", { method: "POST", body: JSON.stringify(body) }),
+  staffTeamUpdateName: (user_id: string, name: string) =>
+    request<{ ok: boolean; name: string }>(`/staff/team/${user_id}`, { method: "PUT", body: JSON.stringify({ name }) }),
+  staffTeamChangePassword: (user_id: string, new_password: string) =>
+    request<{ ok: boolean; password_changed_at: string }>(`/staff/team/${user_id}/password`, {
+      method: "POST",
+      body: JSON.stringify({ new_password }),
+    }),
+  staffTeamSetActive: (user_id: string, active: boolean) =>
+    request<{ ok: boolean; active: boolean }>(`/staff/team/${user_id}/set-active`, {
+      method: "POST",
+      body: JSON.stringify({ active }),
+    }),
+  staffTeamDelete: (user_id: string) =>
+    request<{ ok: boolean }>(`/staff/team/${user_id}`, { method: "DELETE" }),
+  staffTeamAuditLog: (limit = 100) =>
+    request<{ entries: StaffAuditEntry[] }>(`/staff/team/audit-log?limit=${limit}`),
+};
+
+export type StaffTeamMember = {
+  user_id: string;
+  email: string;
+  name: string;
+  role: "admin" | "support" | "financeiro";
+  active: boolean;
+  created_at: string;
+  last_login_at?: string;
+  password_changed_at?: string;
+};
+
+export type StaffAuditEntry = {
+  log_id: string;
+  actor_user_id?: string;
+  actor_email?: string;
+  actor_role?: string;
+  action: string;
+  target_user_id?: string | null;
+  target_email?: string | null;
+  details?: Record<string, any>;
+  timestamp: string;
 };
 
 export type NotificationItem = {
