@@ -37,16 +37,19 @@ export default function Topup() {
   const [info, setInfo] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
+  // Estado de sucesso após criar pedido — botão vira verde com confirmação
+  const [success, setSuccess] = useState<{ blx: number; brl: number } | null>(null);
 
-  // Carrega dados do PIX + pedidos do usuário
+  // PIX info é pública — carrega independente de login
+  useEffect(() => {
+    api.pixInfo().then(setInfo).catch(() => {});
+  }, []);
+
+  // Carrega pedidos do usuário (requer login)
   const loadAll = useCallback(async () => {
     if (!member) return;
     try {
-      const [pi, mine] = await Promise.all([
-        api.pixInfo(),
-        api.pixOrdersMine(member.member_id),
-      ]);
-      setInfo(pi);
+      const mine = await api.pixOrdersMine(member.member_id);
       setOrders(mine.orders || []);
     } catch {}
   }, [member]);
@@ -79,11 +82,15 @@ export default function Topup() {
         amount_brl: v,
         note: note.trim() || undefined,
       });
-      Alert.alert(
-        "Pedido enviado!",
-        `Seu pedido de ${formatBRL(v)} foi registrado e está aguardando aprovação do suporte.\n\nApós aprovado, ${formatBLX(order.blx_centavos)} BLX serão creditados.\n\nTempo estimado: ~${info?.estimated_minutes ?? 10} min.`,
-        [{ text: "OK", onPress: () => { setAmount(""); setNote(""); loadAll(); } }],
-      );
+      // Estado de sucesso — botão fica VERDE com mensagem de confirmação
+      setSuccess({ blx: order.blx_centavos / 100, brl: v });
+      // Limpa form para próximo pedido
+      setAmount("");
+      setNote("");
+      // Recarrega lista de pedidos
+      loadAll();
+      // Auto-reset do estado verde após 8 segundos (volta ao botão padrão)
+      setTimeout(() => setSuccess(null), 8000);
     } catch (e: any) {
       Alert.alert("Erro ao criar pedido", e.message || "Tente novamente");
     } finally {
@@ -207,29 +214,54 @@ export default function Topup() {
           maxLength={300}
         />
 
-        {/* PASSO 3 — Botão de envio */}
-        <TouchableOpacity
-          style={[st.submit, (!validAmount || loading) && { opacity: 0.45 }]}
-          onPress={submit}
-          disabled={!validAmount || loading}
-          activeOpacity={0.85}
-          testID="topup-submit"
-        >
-          <LinearGradient
-            colors={accent.gradient}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={st.submitInner}
+        {/* PASSO 3 — Botão de envio (ou estado de sucesso verde) */}
+        {success ? (
+          <View style={st.successCard} testID="topup-success">
+            <View style={st.successIconWrap}>
+              <Ionicons name="checkmark-circle" size={42} color="#0A0A0A" />
+            </View>
+            <Text style={st.successTitle}>PEDIDO ENVIADO!</Text>
+            <Text style={st.successSub}>
+              Recebemos seu pedido de <Text style={st.successStrong}>{formatBRL(success.brl)}</Text>.{"\n"}
+              Em breve <Text style={st.successStrong}>{success.blx.toFixed(2)} BLX</Text> cairão em sua carteira após análise do suporte.
+            </Text>
+            <View style={st.successFooter}>
+              <Ionicons name="time-outline" size={14} color="#0A0A0A" />
+              <Text style={st.successFooterTxt}>Tempo estimado: ~{info?.estimated_minutes ?? 10} min</Text>
+            </View>
+            <TouchableOpacity
+              style={st.successDismiss}
+              onPress={() => setSuccess(null)}
+              activeOpacity={0.7}
+              testID="topup-success-dismiss"
+            >
+              <Text style={st.successDismissTxt}>FAZER OUTRO PEDIDO</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[st.submit, (!validAmount || loading) && { opacity: 0.45 }]}
+            onPress={submit}
+            disabled={!validAmount || loading}
+            activeOpacity={0.85}
+            testID="topup-submit"
           >
-            {loading ? (
-              <ActivityIndicator color="#000" />
-            ) : (
-              <>
-                <Ionicons name="checkmark-done-circle" size={20} color="#000" />
-                <Text style={st.submitTxt}>JÁ FIZ O PIX → ABRIR PEDIDO</Text>
-              </>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+            <LinearGradient
+              colors={accent.gradient}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={st.submitInner}
+            >
+              {loading ? (
+                <ActivityIndicator color="#000" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-done-circle" size={20} color="#000" />
+                  <Text style={st.submitTxt}>JÁ FIZ O PIX → ABRIR PEDIDO</Text>
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
 
         {/* Como funciona */}
         <View style={st.howCard}>
@@ -386,6 +418,57 @@ const st = StyleSheet.create({
     paddingVertical: 16,
   },
   submitTxt: { color: "#000", fontSize: 12, fontWeight: "900", letterSpacing: 1.2 },
+
+  // Estado de sucesso — botão "vira" um card verde de confirmação
+  successCard: {
+    marginTop: 20,
+    backgroundColor: "#4EE07F",
+    borderRadius: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+    alignItems: "center",
+    shadowColor: "#4EE07F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  successIconWrap: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 12,
+  },
+  successTitle: {
+    color: "#0A0A0A",
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  successSub: {
+    color: "#0A0A0A",
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: "center",
+    opacity: 0.92,
+  },
+  successStrong: { fontWeight: "900" },
+  successFooter: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    marginTop: 14,
+    paddingHorizontal: 12, paddingVertical: 6,
+    backgroundColor: "rgba(0,0,0,0.10)",
+    borderRadius: 20,
+  },
+  successFooterTxt: { color: "#0A0A0A", fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
+  successDismiss: {
+    marginTop: 14,
+    paddingHorizontal: 18, paddingVertical: 9,
+    borderWidth: 1.5, borderColor: "#0A0A0A",
+    borderRadius: 22,
+  },
+  successDismissTxt: { color: "#0A0A0A", fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
 
   howCard: {
     marginTop: 22, padding: 14,
