@@ -20,6 +20,10 @@ type Ctx = {
   visibleHeadIds: string[];
   dismissHead: (id: string) => void;
   refresh: () => Promise<void>;
+  // Ações de "marcar tudo como lido"
+  markAllMessagesRead: () => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+  markEverythingRead: () => Promise<void>;
 };
 
 const C = createContext<Ctx | null>(null);
@@ -33,6 +37,9 @@ export function MessageInboxProvider({ children }: { children: React.ReactNode }
   const [senders, setSenders] = useState<RecentSender[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const knownAtRef = useRef<Map<string, string>>(new Map()); // member_id -> last_at já visto
+  // Quando o usuário "marca tudo como lido", suprimimos qualquer chat-head novo
+  // até a próxima mensagem realmente nova chegar. Guardamos o timestamp do clique.
+  const suppressUntilRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!member?.member_id) return;
@@ -79,6 +86,33 @@ export function MessageInboxProvider({ children }: { children: React.ReactNode }
     setDismissedIds((s) => new Set([...s, id]));
   }, []);
 
+  const markAllMessagesRead = useCallback(async () => {
+    if (!member?.member_id) return;
+    // Atualização otimista — UI responde instantaneamente
+    setUnreadMessages(0);
+    const allIds = senders.map((s) => s.member_id);
+    setDismissedIds((prev) => new Set([...prev, ...allIds]));
+    suppressUntilRef.current = new Date().toISOString();
+    try {
+      await api.dmMarkAllRead(member.member_id);
+    } catch {}
+    // Re-sincroniza após pequeno atraso para refletir backend
+    setTimeout(() => { refresh(); }, 400);
+  }, [member, senders, refresh]);
+
+  const markAllNotificationsRead = useCallback(async () => {
+    if (!member?.member_id) return;
+    setUnreadNotifications(0);
+    try {
+      await api.notificationsMarkRead(member.member_id);
+    } catch {}
+    setTimeout(() => { refresh(); }, 400);
+  }, [member, refresh]);
+
+  const markEverythingRead = useCallback(async () => {
+    await Promise.all([markAllMessagesRead(), markAllNotificationsRead()]);
+  }, [markAllMessagesRead, markAllNotificationsRead]);
+
   const visibleHeadIds = senders
     .filter((s) => !dismissedIds.has(s.member_id))
     .slice(0, 3)
@@ -93,6 +127,9 @@ export function MessageInboxProvider({ children }: { children: React.ReactNode }
         visibleHeadIds,
         dismissHead,
         refresh,
+        markAllMessagesRead,
+        markAllNotificationsRead,
+        markEverythingRead,
       }}
     >
       {children}
@@ -111,6 +148,9 @@ export function useMessageInbox(): Ctx {
       visibleHeadIds: [],
       dismissHead: () => {},
       refresh: async () => {},
+      markAllMessagesRead: async () => {},
+      markAllNotificationsRead: async () => {},
+      markEverythingRead: async () => {},
     };
   }
   return ctx;

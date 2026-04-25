@@ -4541,11 +4541,20 @@ async def notifications_count(member_id: str):
             if last_read:
                 q["created_at"] = {"$gt": last_read}
             dm_count += await db.dm_messages.count_documents(q)
-    sales_count = await db.wallet_txs.count_documents({
+
+    # Notificações (vendas, transferências, recargas): considera "lidas" tudo que
+    # for anterior ao timestamp `notif_read_at` salvo no membro.
+    member_doc = await db.members.find_one({"member_id": member_id}, {"_id": 0, "notif_read_at": 1})
+    notif_read_at = (member_doc or {}).get("notif_read_at")
+    sales_q: Dict[str, Any] = {
         "to_id": member_id,
         "type": {"$in": ["escrow", "transfer", "topup"]},
         "created_at": {"$gte": since},
-    })
+    }
+    if notif_read_at:
+        # `created_at` precisa ser MAIS RECENTE que o último "lido"
+        sales_q["created_at"] = {"$gt": notif_read_at}
+    sales_count = await db.wallet_txs.count_documents(sales_q)
     return {
         "count": dm_count + sales_count,
         "messages": dm_count,
@@ -4564,6 +4573,38 @@ async def dm_mark_read(me_id: str, other_id: str):
         upsert=True,
     )
     return {"ok": True, "last_read_at": now_ts.isoformat()}
+
+
+@api_router.post("/community/dms/{member_id}/mark-all-read")
+async def dm_mark_all_read(member_id: str):
+    """Marca TODAS as conversas (DMs) do membro como lidas — usado quando ele
+    abre a aba de mensagens / o sino de chat ou o perfil. Limpa chat heads."""
+    now_ts = datetime.now(timezone.utc)
+    threads: set = set()
+    # Threads onde foi destinatário (são as que geram não-lidas)
+    async for r in db.dm_messages.find({"to_id": member_id}, {"_id": 0, "thread_id": 1}):
+        if r.get("thread_id"):
+            threads.add(r["thread_id"])
+    bulk_count = 0
+    for tid in threads:
+        await db.dm_reads.update_one(
+            {"member_id": member_id, "thread_id": tid},
+            {"$set": {"last_read_at": now_ts, "thread_id": tid, "member_id": member_id}},
+            upsert=True,
+        )
+        bulk_count += 1
+    return {"ok": True, "threads_marked": bulk_count, "last_read_at": now_ts.isoformat()}
+
+
+@api_router.post("/notifications/{member_id}/mark-read")
+async def notifications_mark_read(member_id: str):
+    """Marca todas as notificações (sino) como lidas — atualiza `notif_read_at` no membro."""
+    now_ts = datetime.now(timezone.utc)
+    await db.members.update_one(
+        {"member_id": member_id},
+        {"$set": {"notif_read_at": now_ts}},
+    )
+    return {"ok": True, "notif_read_at": now_ts.isoformat()}
 
 
 @api_router.get("/chat/recent-senders/{member_id}")

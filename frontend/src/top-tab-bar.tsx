@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useGate } from "./gate";
+import { useMessageInbox } from "./message-inbox";
 
 // Paleta ativa por tier:
 // - diamond → azul-prateado (platinum) #C5D1DA / highlight #EAF1F6
@@ -34,6 +35,7 @@ const ICONS: Record<string, { label: string; active: IconCfg; inactive: IconCfg;
  */
 export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
   const { member } = useGate();
+  const inbox = useMessageInbox();
   const avatar = member?.avatar_base64;
   const isDiamond = member?.tier === "diamond";
   const GOLD = isDiamond ? ACCENT_PLATINUM : ACCENT_GOLD;
@@ -52,6 +54,10 @@ export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
         const cfg = ICONS[route.name];
         const col = focused ? GOLD : INACTIVE;
         const onPress = () => {
+          // Ao tocar em PERFIL, limpa todas as notificações (DMs + sino + chat heads).
+          if (route.name === "member") {
+            inbox.markEverythingRead?.().catch(() => {});
+          }
           const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
           if (!focused && !event.defaultPrevented) navigation.navigate(route.name as never);
         };

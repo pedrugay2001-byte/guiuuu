@@ -70,7 +70,11 @@ export default function BottomBrandBar({ unread, unreadMessages }: Props) {
         <View style={st.right}>
           <TouchableOpacity
             style={st.iconBtn}
-            onPress={() => router.push("/community/messages" as any)}
+            onPress={async () => {
+              // Limpa todas as notificações de mensagens (badge + chat heads) ao tocar
+              try { await inbox.markAllMessagesRead(); } catch {}
+              router.push("/community/messages" as any);
+            }}
             activeOpacity={0.75}
             testID="bottom-messages"
           >
@@ -84,7 +88,11 @@ export default function BottomBrandBar({ unread, unreadMessages }: Props) {
 
           <TouchableOpacity
             style={st.iconBtn}
-            onPress={() => router.push("/notifications" as any)}
+            onPress={async () => {
+              // Limpa todas as notificações do sino ao tocar
+              try { await inbox.markAllNotificationsRead(); } catch {}
+              router.push("/notifications" as any);
+            }}
             activeOpacity={0.75}
             testID="bottom-notifications"
           >

@@ -527,10 +527,97 @@ metadata:
             consistente entre os 3 caminhos bloqueados (join, GET msgs, POST msgs).
 
 test_plan:
-  current_focus: []
-  stuck_tasks: []
+  current_focus:
+    - "Dismiss de Notificações — POST /api/community/dms/{member_id}/mark-all-read"
+  stuck_tasks:
+    - "Dismiss de Notificações — POST /api/community/dms/{member_id}/mark-all-read"
   test_all: false
   test_priority: "high_first"
+
+# === Dismiss de Notificações (rodada nova) ===
+backend_dismiss_notifications:
+  - task: "Dismiss de Notificações — POST /api/community/dms/{member_id}/mark-all-read"
+    implemented: true
+    working: false
+    file: "backend/server.py"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: false
+        -agent: "testing"
+        -comment: |
+            BUG CRÍTICO — ROUTE SHADOWING. O endpoint
+              POST /api/community/dms/{member_id}/mark-all-read   (definido em server.py:4578)
+            NUNCA é alcançado porque uma rota POST anterior
+              POST /api/community/dms/{me_id}/{other_id}   (server.py:2318, dm_send)
+            casa primeiro. FastAPI prioriza ordem de registro: o segmento literal
+            "mark-all-read" é interpretado como o path param {other_id}, e o request
+            é despachado para `dm_send`, que exige body DMSend → resposta HTTP 422
+            "Field required" para body=null.
+
+            Repro (curl): POST {API}/community/dms/mem_7a9d652945e7/mark-all-read
+            → 422 {"detail":[{"type":"missing","loc":["body"],"msg":"Field required",...}]}
+
+            Consequências:
+            • Frontend que chama mark-all-read recebe 422 e não limpa chat heads.
+            • count.messages permanece > 0 indefinidamente (testei: messages=6 antes
+              e depois da chamada, sem mudança).
+            • Idempotência também impossível de validar (sempre 422).
+
+            FIX SUGERIDO (1 linha): mover a definição da rota mark-all-read para ANTES
+            da rota {me_id}/{other_id} no arquivo, OU renomear o path para algo que
+            não colida (por ex.: POST /community/dm-read-all/{member_id}).
+            FastAPI não tem prioridade de rotas estáticas vs. dinâmicas — ordem de
+            registro define o match.
+
+            Resultado dos demais asserts deste endpoint: TODOS falham em cascata
+            porque o status code é 422 e o body não é o esperado.
+
+  - task: "Dismiss de Notificações — POST /api/notifications/{member_id}/mark-read"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            VALIDADO em /app/backend_test_dismiss_notifications.py. Todos os asserts deste
+            endpoint passaram (8/8):
+            • POST /notifications/mem_7a9d652945e7/mark-read → 200 ✅
+            • body {ok:true, notif_read_at:"<ISO>"} ✅ (e.g. "2026-04-25T00:08:42.xxx+00:00")
+            • Após chamada, GET /notifications/mem_7a9d652945e7/count.notifications == 0 ✅
+              (caiu de 13 → 0; messages permanece 6 conforme esperado)
+            • count.notifications é int (não bool) ✅
+            • Idempotência: 2ª chamada → 200, mesmo shape, notifications continua 0 ✅
+            Não há side effects negativos. notif_read_at é gravado em members.notif_read_at
+            e a query do count_documents respeita o filtro $gt corretamente.
+
+  - task: "GET /api/notifications/{member_id}/count — regressão pós-dismiss"
+    implemented: true
+    working: false
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: false
+        -agent: "testing"
+        -comment: |
+            Endpoint em si funciona (200 + struct {count, messages, notifications}
+            todos int, count == messages+notifications validado).
+            Mas a regressão completa do review FALHA por causa do bug em mark-all-read:
+            • Após POST mark-all-read + POST mark-read, esperava-se messages==0 e
+              notifications==0. Resultado real: messages=6 (não zerou porque
+              mark-all-read retorna 422), notifications=0 ✅.
+            • Cenário "nova DM eleva messages >=1" funciona ✅ (mensagens passou de 6 → 7
+              após DM enviada de demo→admin) — sinal de que a contagem básica está OK.
+            Conclusão: O endpoint /count está correto. A falha aqui é COLATERAL ao bug
+            de route shadowing em mark-all-read. Quando aquele endpoint for corrigido,
+            esta regressão volta a passar.
 
 # ================= NEW FEATURES (ROD NEW FEATURES) =================
 # backend tasks validated in /app/backend_test_rod_new_features.py (52/52 PASS)
@@ -1329,12 +1416,38 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Marketplace Hierarchical Access — /api/products?tier=X strict filtering"
-    - "Marketplace Hierarchical Access — /api/ads?tier=X strict filtering"
-    - "POST /api/ads with ad_tier — Diamond can post in any tier, validation"
+    - "POST /api/community/dms/{member_id}/mark-all-read — Mark all DM threads as read"
+    - "POST /api/notifications/{member_id}/mark-read — Mark notifications as read (notif_read_at)"
+    - "GET /api/notifications/{member_id}/count — respects notif_read_at to zero notifications"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+
+    - agent: "main"
+      message: |
+        DISMISS DE NOTIFICAÇÕES AO TOCAR ÍCONES — Implementado:
+          1. Backend (server.py):
+             • Novo POST /api/community/dms/{member_id}/mark-all-read — marca TODAS as threads de DM
+               desse membro como lidas (upsert dm_reads.last_read_at = now). Retorna threads_marked.
+             • Novo POST /api/notifications/{member_id}/mark-read — atualiza members.notif_read_at = now.
+             • GET /api/notifications/{member_id}/count agora respeita notif_read_at para zerar `notifications`.
+          2. Frontend:
+             • src/api.ts: novos métodos dmMarkAllRead(member_id) e notificationsMarkRead(member_id).
+             • src/message-inbox.tsx: novos métodos no Provider:
+                - markAllMessagesRead() → atualização otimista (zera badge, dispensa todos os chat heads)
+                  + chama dmMarkAllRead + refresh.
+                - markAllNotificationsRead() → zera badge sino + chama notificationsMarkRead.
+                - markEverythingRead() → ambos juntos.
+             • src/bottom-brand-bar.tsx: ícone 💬 chama markAllMessagesRead, ícone 🔔 chama markAllNotificationsRead.
+             • src/top-tab-bar.tsx: tocar em "Perfil" chama markEverythingRead (importou useMessageInbox).
+          
+          TESTAR APENAS BACKEND:
+            - POST /api/community/dms/{member_id}/mark-all-read — verifica threads_marked > 0 quando há DMs;
+              após chamada, GET /api/notifications/{member_id}/count deve retornar messages: 0.
+            - POST /api/notifications/{member_id}/mark-read — após chamada, GET /count retorna notifications: 0.
+            - Verificar idempotência (chamar 2x não causa erro).
+            - Verificar com membros sem nenhuma DM/notificação (resposta válida com threads_marked: 0).
 
 
     - agent: "main"
