@@ -4575,7 +4575,7 @@ async def dm_mark_read(me_id: str, other_id: str):
     return {"ok": True, "last_read_at": now_ts.isoformat()}
 
 
-@api_router.post("/community/dms/{member_id}/mark-all-read")
+@api_router.post("/community/dms-mark-all-read/{member_id}")
 async def dm_mark_all_read(member_id: str):
     """Marca TODAS as conversas (DMs) do membro como lidas — usado quando ele
     abre a aba de mensagens / o sino de chat ou o perfil. Limpa chat heads."""

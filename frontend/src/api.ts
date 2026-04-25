@@ -478,7 +478,7 @@ export const api = {
   dmMarkRead: (me_id: string, other_id: string) =>
     request<{ ok: boolean; last_read_at: string }>(`/community/dms/${me_id}/${other_id}/read`, { method: "POST" }),
   dmMarkAllRead: (member_id: string) =>
-    request<{ ok: boolean; threads_marked: number; last_read_at: string }>(`/community/dms/${member_id}/mark-all-read`, { method: "POST" }),
+    request<{ ok: boolean; threads_marked: number; last_read_at: string }>(`/community/dms-mark-all-read/${member_id}`, { method: "POST" }),
   notificationsMarkRead: (member_id: string) =>
     request<{ ok: boolean; notif_read_at: string }>(`/notifications/${member_id}/mark-read`, { method: "POST" }),
 };

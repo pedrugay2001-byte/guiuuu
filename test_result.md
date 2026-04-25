@@ -527,23 +527,35 @@ metadata:
             consistente entre os 3 caminhos bloqueados (join, GET msgs, POST msgs).
 
 test_plan:
-  current_focus:
-    - "Dismiss de Notificações — POST /api/community/dms/{member_id}/mark-all-read"
-  stuck_tasks:
-    - "Dismiss de Notificações — POST /api/community/dms/{member_id}/mark-all-read"
+  current_focus: []
+  stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 # === Dismiss de Notificações (rodada nova) ===
 backend_dismiss_notifications:
-  - task: "Dismiss de Notificações — POST /api/community/dms/{member_id}/mark-all-read"
+  - task: "Dismiss de Notificações — POST /api/community/dms-mark-all-read/{member_id}"
     implemented: true
-    working: false
+    working: true
     file: "backend/server.py"
-    stuck_count: 1
+    stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            RE-TEST PASS — Route shadowing FIX VALIDADO. Endpoint renomeado para
+            POST /api/community/dms-mark-all-read/{member_id} (com hífen) NÃO colide
+            mais com POST /api/community/dms/{me_id}/{other_id}. Todos os 28 asserts
+            passaram em /app/backend_test_dismiss_notifications.py:
+            • POST /community/dms-mark-all-read/mem_7a9d652945e7 → 200 ✅
+            • body {ok:true, threads_marked:int>=0, last_read_at:ISO} ✅
+              (initial messages=7 → 0 após chamada)
+            • Idempotência: 2ª chamada → 200, mesmo shape, messages permanece 0 ✅
+            • Após nova DM enviada (demo→admin): count.messages volta para 1 ✅
+            • Após nova chamada mark-all-read: messages volta para 0 ✅
+            Bug original (HTTP 422 por route shadowing) totalmente resolvido.
         -working: false
         -agent: "testing"
         -comment: |
@@ -598,12 +610,22 @@ backend_dismiss_notifications:
 
   - task: "GET /api/notifications/{member_id}/count — regressão pós-dismiss"
     implemented: true
-    working: false
+    working: true
     file: "backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            RE-TEST PASS. Após fix do route shadowing (rename para
+            /community/dms-mark-all-read/{id}), a regressão completa funciona:
+            • Após mark-all-read + mark-read: messages==0 E notifications==0 ✅
+            • count == messages + notifications ✅
+            • Nova DM eleva messages para >=1 ✅
+            • Nova chamada mark-all-read zera novamente ✅
+            Endpoint /count está 100% correto.
         -working: false
         -agent: "testing"
         -comment: |
@@ -629,6 +651,37 @@ backend_dismiss_notifications:
 #   - POST /api/blx/transfer — enforces monthly cap per tier; staff unlimited; black 403 "plano"
 
 agent_communication:
+    -agent: "testing"
+    -message: |
+        RE-TEST DISMISS NOTIFICATIONS (route shadowing fix) — **28/28 PASS, 0 FAIL**
+        em /app/backend_test_dismiss_notifications.py (URL atualizada para o novo path
+        /community/dms-mark-all-read/{id}).
+
+        ## Resumo
+        Bug crítico anterior (route shadowing) foi RESOLVIDO renomeando o endpoint para
+        POST /api/community/dms-mark-all-read/{member_id} (com hífen, fora do prefixo
+        /community/dms/{me_id}/{other_id}). Não há mais colisão de rotas no FastAPI.
+
+        ## 1) POST /community/dms-mark-all-read/mem_7a9d652945e7 ✅
+        • HTTP 200; body {ok:true, threads_marked:int>=0, last_read_at:ISO} ✅
+        • Initial messages=7 → 0 após chamada ✅
+        • Idempotência: 2ª chamada → 200, mesmo shape, messages=0 ✅
+        • last_read_at ISO em ambas chamadas ✅
+
+        ## 2) POST /notifications/mem_7a9d652945e7/mark-read ✅ (revalidado)
+        • HTTP 200; body {ok:true, notif_read_at:ISO} ✅
+        • count.notifications == 0 após chamada ✅
+        • Idempotência ✅
+
+        ## 3) Regressão completa ✅
+        • Após ambos mark-reads: count={count:0, messages:0, notifications:0} ✅
+        • Nova DM (POST /community/dms/{from}/{to}): retornou dm_id ✅
+        • count.messages volta para 1 após nova DM ✅
+        • Nova chamada mark-all-read: messages volta para 0 ✅
+        • Cleanup OK (sem ruído residual)
+
+        Nenhum bug. Pode prosseguir para integração frontend / próximo recurso.
+
     -agent: "testing"
     -message: |
         RODADA MARKETPLACE_TIER — Validação do novo recurso "Marketplace Hierárquico"

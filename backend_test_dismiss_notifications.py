@@ -131,7 +131,7 @@ print(f"[INFO] initial count = {initial}")
 print("\n=== 1) POST /community/dms/{member_id}/mark-all-read ===")
 
 r1 = requests.post(
-    f"{API}/community/dms/{ADMIN_MEMBER_ID}/mark-all-read",
+    f"{API}/community/dms-mark-all-read/{ADMIN_MEMBER_ID}",
     timeout=15,
 )
 _check("HTTP 200", r1.status_code == 200, f"got {r1.status_code} body={r1.text[:200]}")
@@ -171,7 +171,7 @@ _check(
 
 # Idempotency: 2nd call must not error and threads_marked >= 0
 r1b = requests.post(
-    f"{API}/community/dms/{ADMIN_MEMBER_ID}/mark-all-read",
+    f"{API}/community/dms-mark-all-read/{ADMIN_MEMBER_ID}",
     timeout=15,
 )
 _check("idempotent 2nd call HTTP 200", r1b.status_code == 200, f"got {r1b.status_code}")
@@ -311,7 +311,7 @@ _check(
 
 # Cleanup: mark all read again so we don't leave noise
 requests.post(
-    f"{API}/community/dms/{ADMIN_MEMBER_ID}/mark-all-read",
+    f"{API}/community/dms-mark-all-read/{ADMIN_MEMBER_ID}",
     timeout=15,
 )
 count_final = get_count(ADMIN_MEMBER_ID)
