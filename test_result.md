@@ -650,6 +650,156 @@ backend_dismiss_notifications:
 #   - GET /api/blx/transfer/limits/{id} — per tier limits (admin unlimited, diamond 5M, gold 1M, silver 200k, black 0)
 #   - POST /api/blx/transfer — enforces monthly cap per tier; staff unlimited; black 403 "plano"
 
+# ================= PIX MANUAL ORDERS (NEW) =================
+# 7 new endpoints validated in /app/backend_test_pix_orders.py (96/96 PASS, 0 FAIL)
+backend_pix_orders:
+  - task: "PIX Manual Orders — GET /api/blx/pix-info"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. Sem auth. Resposta com beneficiario='BRLA Digital Ltda',
+            cnpj_masked='50.***.***/0001-7*', instituicao='STARK BANK S.A. - IP',
+            pix_code (171 chars começando com '00020126870014br.gov.bcb.pix'),
+            fee_pct=1.0, rate_brl_to_blx=1.0, min_brl=10.0, estimated_minutes=10,
+            instructions array com 4 itens.
+
+  - task: "PIX Manual Orders — POST /api/blx/pix-orders"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. Sem auth. Validação matemática (taxa 1%) confere em todos:
+            R$100→9900c, R$50→4950c, R$1000→99000c, R$99,99→9899c (round).
+            Order retorna status='pending', order_id='pix_<hex>', fee_pct=1.0,
+            amount_brl_centavos correto.
+            Erros: amount_brl=5 → 400 (mínimo 10), member_id='naoexiste' → 404,
+            sem amount → 400.
+
+  - task: "PIX Manual Orders — GET /api/blx/pix-orders/me/{member_id}"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. Sem auth. Retorna {orders:[...]} ordenados por created_at desc.
+            Confirmado: NENHUM order traz receipt_base64 (excluído por projeção
+            Mongo). 4 orders criados nesta rodada listados corretamente.
+
+  - task: "PIX Manual Orders — GET /api/blx/pix-orders (staff)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. Sem token → 401. Com JWT admin → 200 com {orders:[...]}.
+            Filtro ?status=pending retorna apenas itens pending (4/4 OK).
+
+  - task: "PIX Manual Orders — GET /api/blx/pix-orders/stats"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. Sem token → 401. Com admin → 200, retorna
+            {pending:int, approved:int, rejected:int}. pending >= 4 (criados
+            na rodada). Todos os campos são int.
+
+  - task: "PIX Manual Orders — POST /api/blx/pix-orders/{id}/approve"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. Sem token → 401. Com admin: order.status='approved',
+            approved_at ISO, approved_by_email='admin@farmaclube.com',
+            tx_id ('tx_<hex>') gravado.
+            Crédito BLX validado:
+            • R$200 (20000c) → blx=19800c
+            • balance_centavos do membro aumentou exatamente em 19800c
+              (8551877 → 8571677)
+            • wallet_tx criada: type='topup', status='settled', amount_centavos=19800,
+              ref_pix_order_id casando com order_id, tx_id=tx_28a90c3f74fc
+            Idempotência: 2ª chamada → 200, {ok:true, already:'approved'},
+            saldo NÃO muda (8571677 → 8571677), ainda apenas 1 wallet_tx
+            para o pedido (não credita 2x).
+
+  - task: "PIX Manual Orders — POST /api/blx/pix-orders/{id}/reject"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            PASS. Sem token → 401. Com admin: order.status='rejected',
+            rejection_reason='PIX não identificado',
+            rejected_by_email='admin@farmaclube.com'.
+            Confirmado: NENHUM wallet_tx criado, saldo NÃO muda
+            (8571677 → 8571677). Idempotência: 2ª chamada → 200,
+            {already:'rejected'}.
+
+agent_communication_pix_orders:
+    -agent: "testing"
+    -message: |
+        RODADA PIX_MANUAL_ORDERS — 96/96 assertions PASS, 0 FAIL em
+        /app/backend_test_pix_orders.py (URL pública).
+
+        Todos os 7 novos endpoints funcionam exatamente conforme spec:
+        1) GET /blx/pix-info — payload completo ✅
+        2) POST /blx/pix-orders — taxa 1% calculada corretamente em todos os
+           4 valores testados; validações 400/404 OK ✅
+        3) GET /blx/pix-orders/me/{id} — sem receipt_base64, ordenação desc ✅
+        4) GET /blx/pix-orders (staff) — RBAC + filtro status ✅
+        5) GET /blx/pix-orders/stats (staff) — counts int ✅
+        6) POST /approve — credita BLX (saldo +19800c verificado), cria
+           wallet_tx topup com ref_pix_order_id, idempotente ✅
+        7) POST /reject — sem wallet_tx, sem mudança de saldo, idempotente ✅
+
+        OBSERVAÇÃO: Não foi possível testar JWT de role!=admin/staff/support
+        retornando 403, porque /members/login só retorna staff_token quando
+        existe usuário em `users` collection com mesmo email — demo não tem.
+        Validamos apenas o caminho 401 (sem token) e 200 (admin). require_staff
+        é o mesmo dependency usado em outros endpoints já validados (admin/metrics
+        etc.), então a regra de role está coberta indiretamente.
+
+        Pode seguir para integração frontend / próxima feature.
+
 agent_communication:
     -agent: "testing"
     -message: |
@@ -1469,12 +1619,52 @@ metadata:
 
 test_plan:
   current_focus:
-    - "POST /api/community/dms/{member_id}/mark-all-read — Mark all DM threads as read"
-    - "POST /api/notifications/{member_id}/mark-read — Mark notifications as read (notif_read_at)"
-    - "GET /api/notifications/{member_id}/count — respects notif_read_at to zero notifications"
+    - "GET /api/blx/pix-info — returns PIX data (recipient, masked CNPJ, code, fee_pct, etc.)"
+    - "POST /api/blx/pix-orders — creates pending order with 1% fee applied"
+    - "GET /api/blx/pix-orders/me/{member_id} — lists user's own orders"
+    - "GET /api/blx/pix-orders (staff JWT) — lists all/filtered by status"
+    - "GET /api/blx/pix-orders/stats (staff JWT) — counts pending/approved/rejected"
+    - "POST /api/blx/pix-orders/{id}/approve (staff JWT) — credits BLX with 1% fee"
+    - "POST /api/blx/pix-orders/{id}/reject (staff JWT) — rejection with reason"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+
+    - agent: "main"
+      message: |
+        PIX MANUAL ORDERS — Recarga de BLX via PIX com aprovação manual do suporte:
+          
+          BACKEND (server.py — bloco PIX MANUAL ORDERS após wallet_topup):
+            1. GET /api/blx/pix-info — devolve dados fixos do PIX (beneficiário "BRLA Digital Ltda",
+               CNPJ mascarado "50.***.***/0001-7*", instituição "STARK BANK S.A. - IP",
+               pix_code completo, fee_pct=1.0, rate=1.0, min_brl=10, estimated_minutes=10, instructions[])
+            2. POST /api/blx/pix-orders {member_id, amount_brl OR amount_brl_centavos, note?, receipt_base64?}
+               → cria pedido `pending`. Aplica fórmula: blx_centavos = round(brl_centavos * 0.99)
+               → R$ 100,00 (10000) deve gerar blx_centavos=9900 (99,00 BLX).
+               → R$ 1.000,00 (100000) deve gerar blx_centavos=99000 (990,00 BLX).
+               → Validação: amount_brl < min_brl → 400. Membro inexistente → 404.
+            3. GET /api/blx/pix-orders/me/{member_id} → lista do membro (mais recentes primeiro)
+            4. GET /api/blx/pix-orders?status=pending (REQUER JWT staff/admin via require_staff)
+            5. GET /api/blx/pix-orders/stats (REQUER JWT staff/admin) → {pending,approved,rejected}
+            6. POST /api/blx/pix-orders/{id}/approve {note?} (JWT staff)
+               → credita BLX na carteira do membro (+balance_centavos), cria wallet_tx tipo "topup",
+                  marca pedido como approved + approved_at + approved_by_id + approved_by_email + tx_id.
+               → Idempotente: chamar 2x retorna "already": "approved", não credita duas vezes.
+            7. POST /api/blx/pix-orders/{id}/reject {note} (JWT staff)
+               → marca rejected + rejected_by_email + rejection_reason.
+               → Idempotente.
+
+          REGRESSÃO:
+            - Validar 1% fee correto para casos: 10, 50, 100, 250, 500, 1000, 9999 (ímpar)
+            - Aprovação cria wallet_tx visível em GET /wallet/{member_id}/transactions
+            - Rejeição NÃO credita BLX
+
+          CREDENCIAIS PARA STAFF JWT:
+            - admin@farmaclube.com / admin123 (admin)
+            - Use POST /api/auth/login → token → Authorization: Bearer <token>
+
+          Para testar o membro, use: demo@blacksclub.com / novasenha123 (member_id encontrado via login).
 
 
     - agent: "main"

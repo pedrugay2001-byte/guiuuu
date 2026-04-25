@@ -335,6 +335,38 @@ export const api = {
   walletRefund: (tx_id: string) =>
     request<{ ok: boolean }>(`/wallet/refund/${tx_id}`, { method: "POST", body: JSON.stringify({ admin: true }) }),
 
+  // ----- PIX Manual Orders (recarga BLX com aprovação manual do suporte) -----
+  pixInfo: () =>
+    request<{
+      beneficiario: string;
+      cnpj_masked: string;
+      instituicao: string;
+      pix_code: string;
+      fee_pct: number;
+      rate_brl_to_blx: number;
+      min_brl: number;
+      estimated_minutes: number;
+      instructions: string[];
+    }>("/blx/pix-info"),
+  pixOrderCreate: (body: { member_id: string; amount_brl: number; note?: string; receipt_base64?: string }) =>
+    request<PixOrder>("/blx/pix-orders", { method: "POST", body: JSON.stringify(body) }),
+  pixOrdersMine: (member_id: string) =>
+    request<{ orders: PixOrder[] }>(`/blx/pix-orders/me/${member_id}`),
+  pixOrdersList: (status?: "pending" | "approved" | "rejected") =>
+    request<{ orders: PixOrder[] }>(`/blx/pix-orders${status ? `?status=${status}` : ""}`),
+  pixOrdersStats: () =>
+    request<{ pending: number; approved: number; rejected: number }>("/blx/pix-orders/stats"),
+  pixOrderApprove: (order_id: string, note?: string) =>
+    request<{ ok: boolean; order: PixOrder }>(`/blx/pix-orders/${order_id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
+  pixOrderReject: (order_id: string, note?: string) =>
+    request<{ ok: boolean; order: PixOrder }>(`/blx/pix-orders/${order_id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
+
   // ----- BLEX TOKEN (BLX) — Banco Profissional -----
   blxWallet: (member_id: string) =>
     request<BlxWallet>(`/blx/wallet/${member_id}`),
@@ -493,6 +525,28 @@ export type NotificationItem = {
   icon: string;
   color: string;
   created_at: string;
+};
+
+export type PixOrder = {
+  order_id: string;
+  member_id: string;
+  member_name?: string;
+  member_tier?: TierId | null;
+  amount_brl_centavos: number;
+  blx_centavos: number;
+  fee_pct: number;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  note?: string | null;
+  receipt_base64?: string | null;
+  created_at: string;
+  updated_at?: string;
+  approved_at?: string;
+  approved_by_id?: string;
+  approval_note?: string | null;
+  rejected_at?: string;
+  rejected_by_id?: string;
+  rejection_reason?: string | null;
+  tx_id?: string;
 };
 
 export type Plan = {

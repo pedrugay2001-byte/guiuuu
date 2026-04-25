@@ -17,6 +17,7 @@ export default function StaffDashboard() {
     total_quotes: 0, open_orders: 0, unread_messages: 0,
   });
   const [members, setMembers] = useState<any[]>([]);
+  const [pixPending, setPixPending] = useState(0);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -35,6 +36,11 @@ export default function StaffDashboard() {
       try {
         const m = await api.adminMembers();
         setMembers(m);
+      } catch {}
+      // Pedidos PIX pendentes (badge)
+      try {
+        const ps = await api.pixOrdersStats();
+        setPixPending(ps?.pending || 0);
       } catch {}
     } catch (e: any) {
       if (String(e.message).toLowerCase().includes("auth")) {
@@ -183,6 +189,19 @@ export default function StaffDashboard() {
               >
                 <Ionicons name="wallet" size={18} color="#000" />
                 <Text style={[styles.actionText, { color: "#000" }]}>CREDITAR BLACK COINS</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#F5C150", borderColor: "#F5C150" }]}
+                onPress={() => router.push("/staff/pix-orders" as any)}
+                testID="staff-action-pix-orders"
+              >
+                <Ionicons name="qr-code" size={18} color="#000" />
+                <Text style={[styles.actionText, { color: "#000" }]}>PEDIDOS PIX (BLX)</Text>
+                {pixPending > 0 && (
+                  <View style={styles.pixBadge}>
+                    <Text style={styles.pixBadgeTxt}>{pixPending > 9 ? "9+" : pixPending}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             </>
           )}
@@ -448,6 +467,14 @@ const styles = StyleSheet.create({
   },
   actionGhost: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
   actionText: { color: theme.colors.bg, fontSize: 12, fontWeight: "900", letterSpacing: 1 },
+  pixBadge: {
+    position: "absolute", top: -8, right: -8,
+    minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11,
+    backgroundColor: "#FF3B30",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "#050505",
+  },
+  pixBadgeTxt: { color: "#FFF", fontSize: 11, fontWeight: "900" },
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 24, marginBottom: 10 },
   linkTxt: { color: theme.colors.white, fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
   memberCard: {

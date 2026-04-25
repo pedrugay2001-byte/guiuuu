@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView,
   KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
@@ -6,146 +6,410 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Clipboard from "expo-clipboard";
 import { api } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { useTierAccent } from "../../src/use-tier-accent";
 
-const PRESETS = [99, 499, 999, 2000];
+const PRESETS = [50, 100, 250, 500, 1000];
 
 /**
- * Recarga BLX — visual premium, paleta dinâmica por tier (platinum p/ Diamond).
- * MOCKED: Pix está em modo simulado, crédito imediato após confirmação.
+ * Tela de Recarga BLX — fluxo PIX MANUAL com aprovação do suporte.
+ *
+ * UX:
+ *  1. Mostra instruções claras (3 passos).
+ *  2. Caixa "Dados do PIX" com beneficiário, CNPJ mascarado, instituição.
+ *  3. Botão grande "Copiar código PIX" (copia o copia-e-cola).
+ *  4. Campo VALOR R$ + presets → cliente informa quanto pagou.
+ *  5. Botão "Já fiz o PIX → Abrir pedido" cria a ordem (status: pending).
+ *  6. Lista de pedidos recentes do membro (status, valor, data).
+ *
+ * Conversão: R$ paga × 0,99 = BLX creditado (taxa de 1%).
+ * Aprovação manual feita em /staff/pix-orders pelo suporte.
  */
 export default function Topup() {
   const router = useRouter();
-  const { member, refreshMember } = useGate();
+  const { member } = useGate();
   const accent = useTierAccent();
   const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
+  const [info, setInfo] = useState<any>(null);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [copied, setCopied] = useState(false);
+
+  // Carrega dados do PIX + pedidos do usuário
+  const loadAll = useCallback(async () => {
+    if (!member) return;
+    try {
+      const [pi, mine] = await Promise.all([
+        api.pixInfo(),
+        api.pixOrdersMine(member.member_id),
+      ]);
+      setInfo(pi);
+      setOrders(mine.orders || []);
+    } catch {}
+  }, [member]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  // Cálculo do BLX a receber (com taxa de 1%)
+  const v = parseFloat((amount || "").replace(",", "."));
+  const validAmount = Number.isFinite(v) && v >= (info?.min_brl ?? 10);
+  const fee_pct = info?.fee_pct ?? 1;
+  const blxOut = validAmount ? v * (1 - fee_pct / 100) : 0;
+
+  const copyPix = async () => {
+    if (!info?.pix_code) return;
+    await Clipboard.setStringAsync(info.pix_code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2200);
+  };
 
   const submit = async () => {
     if (!member) return;
-    const v = parseFloat(amount.replace(",", "."));
-    if (!v || v < 10) { Alert.alert("Valor mínimo R$ 10"); return; }
+    if (!validAmount) {
+      Alert.alert("Valor inválido", `Informe o valor mínimo de R$ ${(info?.min_brl ?? 10).toFixed(2)} pago no PIX.`);
+      return;
+    }
     setLoading(true);
     try {
-      await api.walletTopup(member.member_id, v);
-      await refreshMember();
-      Alert.alert("Recarga concluída!", `${v.toFixed(2)} BLX adicionadas à sua carteira.`, [
-        { text: "OK", onPress: () => router.back() },
-      ]);
-    } catch (e: any) { Alert.alert("Erro", e.message); } finally { setLoading(false); }
+      const order = await api.pixOrderCreate({
+        member_id: member.member_id,
+        amount_brl: v,
+        note: note.trim() || undefined,
+      });
+      Alert.alert(
+        "Pedido enviado!",
+        `Seu pedido de ${formatBRL(v)} foi registrado e está aguardando aprovação do suporte.\n\nApós aprovado, ${formatBLX(order.blx_centavos)} BLX serão creditados.\n\nTempo estimado: ~${info?.estimated_minutes ?? 10} min.`,
+        [{ text: "OK", onPress: () => { setAmount(""); setNote(""); loadAll(); } }],
+      );
+    } catch (e: any) {
+      Alert.alert("Erro ao criar pedido", e.message || "Tente novamente");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: "#050505" }}>
       <Stack.Screen options={{ title: "Adicionar BLX", headerStyle: { backgroundColor: "#050505" }, headerTintColor: "#FFF" }} />
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
 
-        {/* Hero card premium */}
-        <View style={[styles.card, { borderColor: accent.accent + "33" }]}>
-          <View style={[styles.cardIcon, { backgroundColor: accent.accent + "1A", borderColor: accent.accent + "55" }]}>
-            <MaterialCommunityIcons name="diamond-stone" size={22} color={accent.accent} />
+        {/* HERO */}
+        <View style={[st.heroCard, { borderColor: accent.accent + "33" }]}>
+          <LinearGradient
+            colors={["transparent", accent.accent + "10"]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <View style={[st.heroIcon, { backgroundColor: accent.accent + "1A", borderColor: accent.accent + "55" }]}>
+            <MaterialCommunityIcons name="qrcode-scan" size={26} color={accent.accent} />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.title, { color: accent.accent }]}>PIX → BLEX TOKEN</Text>
-            <Text style={styles.sub}>
-              Recarga simulada — o valor é creditado imediatamente em BLX para teste.
-              Quando o gateway Pix estiver integrado, vira QR Code real.
-            </Text>
-          </View>
+          <Text style={[st.heroTitle, { color: accent.accent }]}>RECARGA VIA PIX</Text>
+          <Text style={st.heroSub}>
+            Pague o PIX, abra o pedido e o suporte libera seu saldo BLX.
+            <Text style={{ color: accent.accent, fontWeight: "900" }}>  ~{info?.estimated_minutes ?? 10} min</Text>
+          </Text>
         </View>
 
-        <Text style={styles.lbl}>VALOR (R$)</Text>
+        {/* PASSO 1 */}
+        <Text style={st.sectionLbl}>1. DADOS DO PIX</Text>
+        <View style={st.pixCard}>
+          <Row label="Beneficiário" value={info?.beneficiario || "—"} />
+          <Row label="CNPJ" value={info?.cnpj_masked || "—"} />
+          <Row label="Instituição" value={info?.instituicao || "—"} />
+        </View>
+
+        {/* Botão copiar */}
+        <TouchableOpacity
+          style={[st.copyBtn, copied && { borderColor: "#4EE07F", backgroundColor: "#4EE07F1A" }]}
+          onPress={copyPix}
+          disabled={!info?.pix_code}
+          activeOpacity={0.85}
+          testID="topup-copy-pix"
+        >
+          <Ionicons
+            name={copied ? "checkmark-circle" : "copy-outline"}
+            size={20}
+            color={copied ? "#4EE07F" : accent.accent}
+          />
+          <Text style={[st.copyBtnTxt, { color: copied ? "#4EE07F" : accent.accent }]}>
+            {copied ? "CÓDIGO COPIADO!" : "COPIAR CÓDIGO PIX"}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Visualizador do código (read-only, scrollable) */}
+        {info?.pix_code ? (
+          <View style={st.pixCodeBox}>
+            <Text style={st.pixCodeLbl}>PIX COPIA E COLA</Text>
+            <Text style={st.pixCodeTxt} numberOfLines={3}>
+              {info.pix_code}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* PASSO 2 — Valor pago */}
+        <Text style={st.sectionLbl}>2. VALOR PAGO (R$)</Text>
         <TextInput
-          style={styles.input}
+          style={st.input}
           value={amount}
           onChangeText={setAmount}
           keyboardType="decimal-pad"
           placeholder="0,00"
-          placeholderTextColor="#555"
-          testID="topup-input"
+          placeholderTextColor="#444"
+          testID="topup-amount"
         />
-
-        <View style={styles.presets}>
+        <View style={st.presets}>
           {PRESETS.map((p) => {
-            const active = parseFloat(amount.replace(",", ".")) === p;
+            const active = parseFloat((amount || "").replace(",", ".")) === p;
             return (
               <TouchableOpacity
                 key={p}
-                style={[styles.preset, active && { borderColor: accent.accent, backgroundColor: accent.accent + "14" }]}
+                style={[st.preset, active && { borderColor: accent.accent, backgroundColor: accent.accent + "14" }]}
                 onPress={() => setAmount(String(p))}
-                testID={`topup-preset-${p}`}
               >
-                <Text style={[styles.presetTxt, active && { color: accent.accent }]}>R$ {p}</Text>
+                <Text style={[st.presetTxt, active && { color: accent.accent }]}>R${p}</Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
+        {/* Conversão preview */}
+        {validAmount ? (
+          <View style={st.previewBox}>
+            <View style={st.previewRow}>
+              <Text style={st.previewLbl}>Valor pago no PIX</Text>
+              <Text style={st.previewVal}>{formatBRL(v)}</Text>
+            </View>
+            <View style={st.previewRow}>
+              <Text style={st.previewLbl}>Taxa de processamento ({fee_pct}%)</Text>
+              <Text style={[st.previewVal, { color: "#F87171" }]}>− {formatBRL(v * fee_pct / 100)}</Text>
+            </View>
+            <View style={[st.previewRow, st.previewTotal]}>
+              <Text style={[st.previewLbl, { color: accent.accent, fontWeight: "900" }]}>VOCÊ RECEBE</Text>
+              <Text style={[st.previewVal, { color: accent.accent, fontSize: 20, fontWeight: "900" }]}>
+                {blxOut.toFixed(2)} BLX
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Observação opcional */}
+        <Text style={st.sectionLbl}>OBSERVAÇÃO (OPCIONAL)</Text>
+        <TextInput
+          style={[st.input, { fontSize: 14, fontWeight: "500", paddingVertical: 10, minHeight: 60 }]}
+          value={note}
+          onChangeText={setNote}
+          placeholder="Ex: comprovante anexado no chat, transferência feita às 14h..."
+          placeholderTextColor="#444"
+          multiline
+          maxLength={300}
+        />
+
+        {/* PASSO 3 — Botão de envio */}
         <TouchableOpacity
-          style={[styles.btn, loading && { opacity: 0.5 }]}
-          disabled={loading}
+          style={[st.submit, (!validAmount || loading) && { opacity: 0.45 }]}
           onPress={submit}
+          disabled={!validAmount || loading}
+          activeOpacity={0.85}
           testID="topup-submit"
-          activeOpacity={0.88}
         >
           <LinearGradient
             colors={accent.gradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.btnInner}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={st.submitInner}
           >
-            {loading ? <ActivityIndicator color="#000" /> : (
+            {loading ? (
+              <ActivityIndicator color="#000" />
+            ) : (
               <>
-                <Ionicons name="flash" size={16} color="#0A0A0A" />
-                <Text style={styles.btnTxt}>GERAR PIX (SIMULADO)</Text>
+                <Ionicons name="checkmark-done-circle" size={20} color="#000" />
+                <Text style={st.submitTxt}>JÁ FIZ O PIX → ABRIR PEDIDO</Text>
               </>
             )}
           </LinearGradient>
         </TouchableOpacity>
 
-        <Text style={styles.note}>
-          Quando você nos enviar a API Key do gateway (Mercado Pago, PagBank, Efi, etc.),
-          esta tela vira Pix real com QR code e webhook.
-        </Text>
+        {/* Como funciona */}
+        <View style={st.howCard}>
+          <Text style={st.howTitle}>COMO FUNCIONA</Text>
+          {(info?.instructions || []).map((it: string, idx: number) => (
+            <View key={idx} style={st.howRow}>
+              <View style={[st.howStep, { backgroundColor: accent.accent + "22", borderColor: accent.accent + "55" }]}>
+                <Text style={[st.howStepTxt, { color: accent.accent }]}>{idx + 1}</Text>
+              </View>
+              <Text style={st.howTxt}>{it}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Meus pedidos */}
+        {orders.length > 0 ? (
+          <>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 28, marginBottom: 8 }}>
+              <Text style={st.sectionLbl}>MEUS PEDIDOS RECENTES</Text>
+              <TouchableOpacity onPress={loadAll}><Ionicons name="refresh" size={16} color="#888" /></TouchableOpacity>
+            </View>
+            {orders.slice(0, 8).map((o) => (
+              <OrderRow key={o.order_id} o={o} accent={accent.accent} />
+            ))}
+          </>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    flexDirection: "row", gap: 12, alignItems: "flex-start",
-    padding: 14, backgroundColor: "#0A0A0A", borderWidth: 1,
-    borderRadius: 12, marginBottom: 20,
-  },
-  cardIcon: {
-    width: 38, height: 38, borderRadius: 10,
-    alignItems: "center", justifyContent: "center",
+// ============================================================================
+// Componentes auxiliares
+// ============================================================================
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={st.row}>
+      <Text style={st.rowLbl}>{label}</Text>
+      <Text style={st.rowVal} numberOfLines={1}>{value}</Text>
+    </View>
+  );
+}
+
+function OrderRow({ o, accent }: { o: any; accent: string }) {
+  const status = o.status as "pending" | "approved" | "rejected" | "cancelled";
+  const cfg = STATUS_CFG[status] || STATUS_CFG.pending;
+  const date = o.created_at ? new Date(o.created_at).toLocaleString("pt-BR", {
+    day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+  }) : "—";
+  return (
+    <View style={st.orderRow}>
+      <View style={[st.orderDot, { backgroundColor: cfg.color + "22", borderColor: cfg.color + "66" }]}>
+        <Ionicons name={cfg.icon as any} size={16} color={cfg.color} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={st.orderTitle}>{formatBRL(o.amount_brl_centavos / 100)} → {(o.blx_centavos / 100).toFixed(2)} BLX</Text>
+        <Text style={st.orderSub}>{cfg.label} • {date}</Text>
+        {status === "rejected" && o.rejection_reason ? (
+          <Text style={[st.orderSub, { color: "#F87171", marginTop: 2 }]}>Motivo: {o.rejection_reason}</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const STATUS_CFG: Record<string, { color: string; icon: string; label: string }> = {
+  pending:   { color: "#F5C150", icon: "time-outline",          label: "Aguardando aprovação" },
+  approved:  { color: "#4EE07F", icon: "checkmark-circle",      label: "Aprovado" },
+  rejected:  { color: "#F87171", icon: "close-circle",          label: "Rejeitado" },
+  cancelled: { color: "#888888", icon: "ban-outline",           label: "Cancelado" },
+};
+
+const formatBRL = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
+const formatBLX = (cents: number) => (cents / 100).toFixed(2);
+
+// ============================================================================
+// Styles
+// ============================================================================
+const st = StyleSheet.create({
+  heroCard: {
+    backgroundColor: "#0A0A0A",
     borderWidth: 1,
+    borderRadius: 14,
+    padding: 18,
+    alignItems: "center",
+    marginBottom: 22,
+    overflow: "hidden",
   },
-  title: { fontSize: 11, fontWeight: "900", letterSpacing: 2 },
-  sub: { color: "#888", fontSize: 11, lineHeight: 15, marginTop: 4 },
-  lbl: { color: "#888", fontSize: 10, fontWeight: "900", letterSpacing: 2, marginBottom: 8 },
-  input: {
-    backgroundColor: "#121212", borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 14,
-    color: "#FFF", fontSize: 22, fontWeight: "900",
+  heroIcon: {
+    width: 56, height: 56, borderRadius: 28,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, marginBottom: 10,
+  },
+  heroTitle: { fontSize: 12, fontWeight: "900", letterSpacing: 2.5, marginBottom: 6 },
+  heroSub: { color: "#AAA", fontSize: 12, lineHeight: 17, textAlign: "center" },
+
+  sectionLbl: { color: "#777", fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: 18, marginBottom: 8 },
+  pixCard: {
+    backgroundColor: "#0E0E0E",
     borderWidth: 1, borderColor: "#1F1F1F",
+    borderRadius: 12, padding: 14, gap: 10,
   },
-  presets: { flexDirection: "row", gap: 8, marginTop: 10 },
+  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
+  rowLbl: { color: "#888", fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+  rowVal: { color: "#F5F5F5", fontSize: 13, fontWeight: "800", flexShrink: 1, textAlign: "right" },
+
+  copyBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 14,
+    borderWidth: 1.5, borderRadius: 12,
+    borderColor: "#1F1F1F",
+    backgroundColor: "#0A0A0A",
+    marginTop: 12,
+  },
+  copyBtnTxt: { fontSize: 12, fontWeight: "900", letterSpacing: 1.5 },
+
+  pixCodeBox: {
+    backgroundColor: "#080808",
+    borderWidth: 1, borderColor: "#1A1A1A",
+    borderRadius: 10, padding: 10, marginTop: 8,
+  },
+  pixCodeLbl: { color: "#666", fontSize: 9, fontWeight: "900", letterSpacing: 1.5, marginBottom: 4 },
+  pixCodeTxt: { color: "#AAA", fontSize: 10, lineHeight: 14, fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }) },
+
+  input: {
+    backgroundColor: "#121212",
+    borderWidth: 1, borderColor: "#1F1F1F",
+    borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+    color: "#FFF", fontSize: 22, fontWeight: "900",
+  },
+  presets: { flexDirection: "row", gap: 6, marginTop: 8 },
   preset: {
-    flex: 1, paddingVertical: 10, alignItems: "center",
+    flex: 1, paddingVertical: 9, alignItems: "center",
     borderRadius: 8, borderWidth: 1, borderColor: "#222",
     backgroundColor: "#111",
   },
-  presetTxt: { color: "#DDD", fontSize: 12, fontWeight: "800" },
-  btn: { marginTop: 24, borderRadius: 12, overflow: "hidden" },
-  btnInner: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    paddingVertical: 14,
+  presetTxt: { color: "#DDD", fontSize: 11, fontWeight: "800" },
+
+  previewBox: {
+    backgroundColor: "#0A0A0A",
+    borderWidth: 1, borderColor: "#1F1F1F",
+    borderRadius: 12, padding: 14, marginTop: 14,
   },
-  btnTxt: { color: "#000", fontSize: 12, fontWeight: "900", letterSpacing: 1.5 },
-  note: { color: "#666", fontSize: 11, textAlign: "center", marginTop: 14, lineHeight: 16 },
+  previewRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 },
+  previewLbl: { color: "#888", fontSize: 12 },
+  previewVal: { color: "#F5F5F5", fontSize: 14, fontWeight: "800" },
+  previewTotal: { borderTopWidth: 1, borderTopColor: "#1F1F1F", marginTop: 6, paddingTop: 8 },
+
+  submit: { marginTop: 20, borderRadius: 12, overflow: "hidden" },
+  submitInner: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 16,
+  },
+  submitTxt: { color: "#000", fontSize: 12, fontWeight: "900", letterSpacing: 1.2 },
+
+  howCard: {
+    marginTop: 22, padding: 14,
+    backgroundColor: "#0A0A0A",
+    borderWidth: 1, borderColor: "#1A1A1A",
+    borderRadius: 12, gap: 10,
+  },
+  howTitle: { color: "#F5F5F5", fontSize: 11, fontWeight: "900", letterSpacing: 2, marginBottom: 4 },
+  howRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  howStep: {
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1,
+  },
+  howStepTxt: { fontSize: 11, fontWeight: "900" },
+  howTxt: { color: "#BBB", fontSize: 12, lineHeight: 17, flex: 1 },
+
+  orderRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: "#0A0A0A",
+    borderWidth: 1, borderColor: "#1A1A1A",
+    borderRadius: 10, padding: 12, marginBottom: 8,
+  },
+  orderDot: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+  orderTitle: { color: "#F5F5F5", fontSize: 13, fontWeight: "800" },
+  orderSub: { color: "#888", fontSize: 11, marginTop: 2 },
 });

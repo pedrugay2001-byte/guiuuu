@@ -3055,6 +3055,235 @@ async def wallet_topup(data: TopupRequest, staff: dict = Depends(require_staff))
     return tx
 
 
+# =============================================================================
+# PIX MANUAL ORDERS — recarga via PIX com aprovação manual do suporte
+# Fluxo:
+#  1. Membro faz PIX para os dados fixos (BRLA Digital Ltda / Stark Bank)
+#  2. Membro abre um pedido (POST /blx/pix-orders) informando o valor pago
+#  3. Pedido fica `pending` até suporte/admin aprovar (em /staff/pix-orders)
+#  4. Aprovação credita BLX na carteira aplicando taxa de 1% (R$ 100 → 99 BLX)
+# =============================================================================
+
+# Dados fixos do PIX (ajustáveis depois, por enquanto hardcoded conforme cliente)
+PIX_INFO: Dict[str, Any] = {
+    "beneficiario": "BRLA Digital Ltda",
+    "cnpj_masked": "50.***.***/0001-7*",
+    "instituicao": "STARK BANK S.A. - IP",
+    "pix_code": "00020126870014br.gov.bcb.pix0136011e1c39-ac85-45a0-b13e-01a4541ed9a10225LUIS_GUILHERME_DE_JESUS_S5204000053039865802BR5909Kast_Card6009Sao Paulo621505110005WD3560063048A85",
+    "fee_pct": 1.0,                # 1% de taxa de processamento
+    "rate_brl_to_blx": 1.0,        # 1 BRL = 1 BLX (antes da taxa)
+    "min_brl": 10.0,
+    "estimated_minutes": 10,
+    "instructions": [
+        "Faça o PIX no valor desejado para os dados acima.",
+        "Após o pagamento, abra um pedido informando o valor pago.",
+        "Nosso suporte analisa e libera o saldo em BLX.",
+        "Comprovante é opcional — peça apenas se o suporte solicitar.",
+    ],
+}
+
+
+def _pix_calc_blx_centavos(amount_brl_centavos: int) -> int:
+    """Aplica taxa de 1% sobre o valor BRL (em centavos) e devolve BLX em centavos.
+    R$ 100,00 (10000 cent) → 9900 cent = 99,00 BLX."""
+    if amount_brl_centavos <= 0:
+        return 0
+    fee = PIX_INFO["fee_pct"] / 100.0
+    rate = PIX_INFO["rate_brl_to_blx"]
+    blx_cents = int(round(amount_brl_centavos * rate * (1.0 - fee)))
+    return max(0, blx_cents)
+
+
+class PixOrderCreate(BaseModel):
+    member_id: str
+    amount_brl_centavos: Optional[int] = None
+    amount_brl: Optional[float] = None  # R$ em float (ex: 100.00)
+    note: Optional[str] = None
+    receipt_base64: Optional[str] = None  # data URI opcional
+
+
+@api_router.get("/blx/pix-info")
+async def get_pix_info():
+    """Devolve dados do PIX + instruções para a UI do membro."""
+    return PIX_INFO
+
+
+@api_router.post("/blx/pix-orders")
+async def pix_order_create(data: PixOrderCreate):
+    """Membro abre pedido de recarga via PIX. Fica pending até aprovação do staff."""
+    if data.amount_brl_centavos is not None:
+        cents = int(data.amount_brl_centavos)
+    elif data.amount_brl is not None:
+        cents = int(round(float(data.amount_brl) * 100))
+    else:
+        raise HTTPException(status_code=400, detail="Informe amount_brl ou amount_brl_centavos")
+
+    min_cents = int(round(PIX_INFO["min_brl"] * 100))
+    if cents < min_cents:
+        raise HTTPException(status_code=400, detail=f"Valor mínimo R$ {PIX_INFO['min_brl']:.2f}")
+    if cents > 1_000_000_00:  # 1.000.000 BRL
+        raise HTTPException(status_code=400, detail="Valor acima do limite por pedido")
+
+    # Verifica membro
+    m = await db.members.find_one({"member_id": data.member_id}, {"_id": 0, "name": 1, "nickname": 1, "tier": 1})
+    if not m:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+
+    blx_cents = _pix_calc_blx_centavos(cents)
+    now = datetime.now(timezone.utc)
+    order = {
+        "order_id": f"pix_{uuid.uuid4().hex[:14]}",
+        "member_id": data.member_id,
+        "member_name": m.get("nickname") or m.get("name") or "Membro",
+        "member_tier": m.get("tier"),
+        "amount_brl_centavos": cents,
+        "blx_centavos": blx_cents,
+        "fee_pct": PIX_INFO["fee_pct"],
+        "status": "pending",  # pending | approved | rejected | cancelled
+        "note": (data.note or "").strip()[:500] or None,
+        "receipt_base64": data.receipt_base64,
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.pix_orders.insert_one(order.copy())
+    order.pop("_id", None)
+    # Serializa datetimes
+    if isinstance(order.get("created_at"), datetime):
+        order["created_at"] = order["created_at"].isoformat()
+    if isinstance(order.get("updated_at"), datetime):
+        order["updated_at"] = order["updated_at"].isoformat()
+    return order
+
+
+@api_router.get("/blx/pix-orders/me/{member_id}")
+async def pix_orders_mine(member_id: str, limit: int = 50):
+    """Lista pedidos PIX do próprio membro (mais recentes primeiro)."""
+    cur = db.pix_orders.find({"member_id": member_id}, {"_id": 0, "receipt_base64": 0}).sort("created_at", -1).limit(int(limit))
+    out: List[Dict[str, Any]] = []
+    async for o in cur:
+        if isinstance(o.get("created_at"), datetime):
+            o["created_at"] = o["created_at"].isoformat()
+        if isinstance(o.get("updated_at"), datetime):
+            o["updated_at"] = o["updated_at"].isoformat()
+        if isinstance(o.get("approved_at"), datetime):
+            o["approved_at"] = o["approved_at"].isoformat()
+        out.append(o)
+    return {"orders": out}
+
+
+@api_router.get("/blx/pix-orders")
+async def pix_orders_list(status: Optional[str] = None, limit: int = 100, staff: dict = Depends(require_staff)):
+    """Listagem para staff/admin (autenticado via JWT). Use ?status=pending para filtrar."""
+    q: Dict[str, Any] = {}
+    if status:
+        q["status"] = status
+    cur = db.pix_orders.find(q, {"_id": 0}).sort("created_at", -1).limit(int(limit))
+    out: List[Dict[str, Any]] = []
+    async for o in cur:
+        for k in ("created_at", "updated_at", "approved_at"):
+            if isinstance(o.get(k), datetime):
+                o[k] = o[k].isoformat()
+        out.append(o)
+    return {"orders": out}
+
+
+@api_router.get("/blx/pix-orders/stats")
+async def pix_orders_stats(staff: dict = Depends(require_staff)):
+    """Resumo p/ staff: contagens por status."""
+    pending = await db.pix_orders.count_documents({"status": "pending"})
+    approved = await db.pix_orders.count_documents({"status": "approved"})
+    rejected = await db.pix_orders.count_documents({"status": "rejected"})
+    return {"pending": pending, "approved": approved, "rejected": rejected}
+
+
+class PixOrderActionBody(BaseModel):
+    note: Optional[str] = None
+
+
+@api_router.post("/blx/pix-orders/{order_id}/approve")
+async def pix_order_approve(order_id: str, body: PixOrderActionBody, staff: dict = Depends(require_staff)):
+    """Staff/admin aprova o pedido — credita BLX na carteira do membro (com taxa de 1%)."""
+    order = await db.pix_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    if order.get("status") != "pending":
+        return {"ok": True, "already": order.get("status"), "order": order}
+
+    member_id = order["member_id"]
+    blx_cents = int(order.get("blx_centavos") or 0)
+    if blx_cents <= 0:
+        raise HTTPException(status_code=400, detail="Valor BLX inválido")
+
+    w = await _wallet_get_or_create(member_id)
+    blx_float = blx_cents / 100.0
+    await db.wallets.update_one(
+        {"member_id": member_id},
+        {"$inc": {"balance": blx_float, "balance_centavos": blx_cents}},
+    )
+
+    tx = {
+        "tx_id": f"tx_{uuid.uuid4().hex[:12]}",
+        "type": "topup",
+        "from_id": None,
+        "to_id": member_id,
+        "to_wallet": w.get("wallet_number"),
+        "amount": blx_float,
+        "amount_centavos": blx_cents,
+        "currency": "BLX",
+        "status": "settled",
+        "note": f"Recarga PIX aprovada (pedido {order_id}) por {staff.get('email','')}",
+        "created_at": datetime.now(timezone.utc),
+        "ref_pix_order_id": order_id,
+    }
+    await db.wallet_txs.insert_one(tx.copy())
+
+    now_ts = datetime.now(timezone.utc)
+    upd = {
+        "status": "approved",
+        "approved_at": now_ts,
+        "approved_by_id": staff.get("user_id"),
+        "approved_by_email": staff.get("email"),
+        "approval_note": (body.note or "").strip()[:300] or None,
+        "tx_id": tx["tx_id"],
+        "updated_at": now_ts,
+    }
+    await db.pix_orders.update_one({"order_id": order_id}, {"$set": upd})
+
+    out = {**order, **upd}
+    for k in ("created_at", "updated_at", "approved_at"):
+        if isinstance(out.get(k), datetime):
+            out[k] = out[k].isoformat()
+    return {"ok": True, "order": out}
+
+
+@api_router.post("/blx/pix-orders/{order_id}/reject")
+async def pix_order_reject(order_id: str, body: PixOrderActionBody, staff: dict = Depends(require_staff)):
+    """Staff/admin rejeita o pedido com motivo."""
+    order = await db.pix_orders.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+    if order.get("status") != "pending":
+        return {"ok": True, "already": order.get("status"), "order": order}
+    now_ts = datetime.now(timezone.utc)
+    upd = {
+        "status": "rejected",
+        "rejected_at": now_ts,
+        "rejected_by_id": staff.get("user_id"),
+        "rejected_by_email": staff.get("email"),
+        "rejection_reason": (body.note or "").strip()[:300] or "Sem motivo informado",
+        "updated_at": now_ts,
+    }
+    await db.pix_orders.update_one({"order_id": order_id}, {"$set": upd})
+    out = {**order, **upd}
+    for k in ("created_at", "updated_at", "rejected_at"):
+        if isinstance(out.get(k), datetime):
+            out[k] = out[k].isoformat()
+    return {"ok": True, "order": out}
+
+
+# =============================================================================
+
+
 class WithdrawRequest(BaseModel):
     member_id: str
     amount: float
