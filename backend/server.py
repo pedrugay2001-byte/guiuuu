@@ -40,8 +40,15 @@ except Exception:  # pragma: no cover
     openai_client = None
 
 # MongoDB connection
+# `serverSelectionTimeoutMS` keeps initial connection attempts from blocking
+# forever in production (Atlas) — fails fast and lets background retry happen.
 mongo_url = os.environ["MONGO_URL"]
-client = AsyncIOMotorClient(mongo_url)
+client = AsyncIOMotorClient(
+    mongo_url,
+    serverSelectionTimeoutMS=5_000,   # 5s to find a server (default is 30s)
+    connectTimeoutMS=5_000,
+    socketTimeoutMS=20_000,
+)
 db = client[os.environ["DB_NAME"]]
 
 JWT_ALGORITHM = "HS256"
@@ -2159,10 +2166,16 @@ async def seed_products():
 @app.on_event("startup")
 async def on_startup():
     """
-    Startup event — wrapped in try/except to keep the app alive even if any step fails.
-    Previously, a single failing index/seed could block container startup and cause
-    Kubernetes to kill the pod (restart loop on deploy).
+    Startup event — schedules slow tasks in BACKGROUND so the app is immediately
+    responsive to Kubernetes liveness/readiness probes (avoids restart loops on
+    deploy when Atlas MongoDB is slow or seeds take time).
     """
+    # Spawn all slow stuff in background — DO NOT await here.
+    asyncio.create_task(_run_startup_tasks())
+
+
+async def _run_startup_tasks():
+    """Slow startup tasks. Run AFTER the app is already responding to probes."""
     logger_local = logging.getLogger("startup")
 
     # ----- Indexes (idempotent; may fail if duplicate data exists in Atlas) -----
@@ -2196,11 +2209,13 @@ async def on_startup():
         except Exception as e:  # noqa: BLE001
             logger_local.warning(f"{name} failed (non-fatal): {e}")
 
-    # ----- Migrations (run in background so they don't block readiness probe) -----
+    # ----- Migrations (also background-safe) -----
     try:
-        asyncio.create_task(backfill_member_numbers())
+        await backfill_member_numbers()
     except Exception as e:  # noqa: BLE001
-        logger_local.warning(f"backfill_member_numbers scheduling failed: {e}")
+        logger_local.warning(f"backfill_member_numbers failed: {e}")
+
+    logger_local.info("All startup tasks completed (background).")
 
 
 async def backfill_member_numbers():

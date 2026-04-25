@@ -532,6 +532,104 @@ test_plan:
   test_all: false
   test_priority: "high_first"
 
+# ===== SMOKE TEST — Background startup tasks + health checks (25/04/2026) =====
+backend_startup_smoke:
+  - task: "Health checks ultra-rápidos (GET /, /health, /ready, /api/health)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            SMOKE PASS — 10/10 assertions em /app/smoke_test_startup.py.
+            • GET / (localhost:8001) → 200 em ~3ms, body {"status":"ok","service":"blacksclub-api","api":"/api"} ✅
+            • GET /health (localhost:8001) → 200 em ~1ms, body {"status":"ok","service":"blacksclub-api"} ✅
+            • GET /ready (localhost:8001) → 200 em ~2ms, body {"status":"ready"} ✅
+            • GET /api/health (public URL) → 200, body {"status":"ok","service":"blacksclub-api"} ✅
+            Tempos compatíveis com liveness probe do Kubernetes (sub-10ms). Probes em produção batem
+            no pod internamente (0.0.0.0:8001), o que está coberto. Via ingress público, /health, /ready
+            e / não são roteados para o backend (apenas /api/* é) — comportamento esperado/documentado.
+
+  - task: "Login regression — admin staff (auth/login) + member (members/login)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            • POST /api/auth/login admin@farmaclube.com / WE1U-DARN-OIKP-OH07!94 → 200, JWT token de 203 chars ✅
+              (resposta é {user, token}; legacy access_token também aceita)
+            • POST /api/members/login guilherme925145000@gmail.com / 8P6S-JSIN-ISGN!45 → 200,
+              shape completo (member_id, name, tier, staff_token, staff_user) ✅
+            Não há regressão pós-mudança no startup.
+
+  - task: "PIX info público + Staff team — endpoints chave"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            • GET /api/blx/pix-info (público, sem auth) → 200, keys: beneficiario, cnpj_masked,
+              instituicao, pix_code, fee_pct, rate_brl_to_blx, min_brl, estimated_minutes, instructions ✅
+            • GET /api/staff/team (JWT admin) → 200, {team:[5 contas]} com admin@farmaclube.com,
+              guilherme925145000@gmail.com, financeiro@blacksclub.com, suporte@farmaclube.com,
+              suporte@blacksclub.com ✅
+
+  - task: "Seed admin rodou em background (asyncio.create_task)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: |
+            CONFIRMADO. Pós-startup com asyncio.create_task(_run_startup_tasks()):
+            • GET /api/staff/team retornou 5 contas (>=3 esperado) ✅
+            • Roles presentes: admin, support, financeiro ✅
+            • Logs do supervisor confirmam: "All startup tasks completed (background)" 
+              após "Application startup complete" — startup do FastAPI não bloqueia
+              esperando seeds/indexes ✅
+            • Login funciona normalmente, ou seja, seeds completaram em background sem
+              quebrar autenticação.
+
+agent_communication_startup_smoke:
+    -agent: "testing"
+    -message: |
+        SMOKE TEST DE SANIDADE — 10/10 PASS, 0 FAIL em /app/smoke_test_startup.py.
+
+        Mudança no @app.on_event("startup") (asyncio.create_task) NÃO causou regressão:
+        1) Health checks ultra-rápidos: /, /health, /ready, /api/health todos 200 com bodies
+           exatos esperados (1-3ms via localhost:8001 — k8s probe perspective). ✅
+        2) Login admin (admin@farmaclube.com / WE1U-DARN-OIKP-OH07!94) → 200 + JWT. ✅
+        3) Login membro (guilherme925145000@gmail.com / 8P6S-JSIN-ISGN!45) → 200. ✅
+        4) GET /api/blx/pix-info (público) → 200, payload completo. ✅
+        5) GET /api/staff/team (admin) → 200, 5 contas (admin/support/financeiro presentes). ✅
+        6) Confirmado: seed_admin executou via background task — equipe semeada, login funciona,
+           logs mostram "All startup tasks completed (background)" pós Application startup. ✅
+
+        Nota informativa: As rotas /, /health e /ready não são acessíveis via URL pública
+        (Kubernetes ingress só roteia /api/* para o backend); via localhost:8001 elas funcionam
+        perfeitamente, que é exatamente como o liveness probe do K8s as acessa (pod-internal).
+        Isso é o comportamento esperado e documentado.
+
+        Nenhum bug detectado. Pode prosseguir.
+
 
 # ================= STAFF TEAM MANAGEMENT (NEW — 25/04/2026) =================
 # 7 novos endpoints para o admin master gerir contas da equipe.
