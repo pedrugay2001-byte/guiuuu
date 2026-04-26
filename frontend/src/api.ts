@@ -535,6 +535,31 @@ export const api = {
     request<{ ok: boolean }>(`/staff/team/${user_id}`, { method: "DELETE" }),
   staffTeamAuditLog: (limit = 100) =>
     request<{ entries: StaffAuditEntry[] }>(`/staff/team/audit-log?limit=${limit}`),
+
+  // ----- Publishers (membros que podem publicar anúncios) -----
+  listPublishers: () =>
+    request<{ publishers: PublisherMember[]; count: number }>("/admin/members/publishers"),
+  grantPublisher: (member_id: string) =>
+    request<{ ok: boolean; member_id: string; can_post_ads: boolean }>(
+      `/admin/members/${member_id}/grant-publisher`,
+      { method: "POST" },
+    ),
+  revokePublisher: (member_id: string) =>
+    request<{ ok: boolean; member_id: string; can_post_ads: boolean }>(
+      `/admin/members/${member_id}/revoke-publisher`,
+      { method: "POST" },
+    ),
+};
+
+export type PublisherMember = {
+  member_id: string;
+  name: string;
+  nickname?: string | null;
+  tier: TierId;
+  email?: string;
+  city?: string;
+  state?: string;
+  avatar_base64?: string | null;
 };
 
 export type StaffTeamMember = {

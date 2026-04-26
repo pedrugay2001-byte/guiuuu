@@ -204,6 +204,14 @@ export default function StaffDashboard() {
                 )}
               </TouchableOpacity>
               <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#7FD7E5", borderColor: "#7FD7E5" }]}
+                onPress={() => router.push("/staff/publishers" as any)}
+                testID="staff-action-publishers"
+              >
+                <Ionicons name="megaphone" size={18} color="#000" />
+                <Text style={[styles.actionText, { color: "#000" }]}>PUBLICADORES</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: "#FF3B30", borderColor: "#FF3B30" }]}
                 onPress={() => router.push("/staff/team" as any)}
                 testID="staff-action-team"

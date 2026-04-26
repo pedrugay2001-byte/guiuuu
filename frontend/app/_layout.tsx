@@ -67,6 +67,7 @@ export default function RootLayout() {
             <Stack.Screen name="staff/inbox" options={{ title: "Caixa de Mensagens" }} />
             <Stack.Screen name="staff/pix-orders" options={{ title: "Pedidos PIX → BLX", headerShown: false }} />
             <Stack.Screen name="staff/team" options={{ title: "Gestão de Equipe", headerShown: false }} />
+            <Stack.Screen name="staff/publishers" options={{ title: "Publicadores", headerShown: false }} />
             <Stack.Screen name="staff/metrics" options={{ title: "Métricas BLX", headerShown: false }} />
             <Stack.Screen name="staff/chat/[member_id]" options={{ title: "Conversa" }} />
             {/* Rotas sem header (possuem header customizado dentro) */}
