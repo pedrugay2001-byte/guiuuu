@@ -1,16 +1,20 @@
 import { useCallback, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions, Platform, Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle, Defs, Stop, RadialGradient, LinearGradient as SvgLinearGradient } from "react-native-svg";
-import { api, GoalDashboard, BlxWallet } from "../../src/api";
+import { api, GoalDashboard, BlxWallet, Ad } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { useTierAccent } from "../../src/use-tier-accent";
 import { formatBLX } from "../../src/blx";
+
+const DIAMOND_LIGHT = "#A8E4EF";
+const DIAMOND = "#7FD7E5";
+const DIAMOND_DARK = "#4A8F99";
 
 const GOLD = "#F5C150";
 const GOLD_DARK = "#C89A3A";
@@ -110,17 +114,23 @@ export default function Home() {
   const { member } = useGate();
   const { width } = useWindowDimensions();
   const [dashboard, setDashboard] = useState<GoalDashboard | null>(null);
+  const [diamondAds, setDiamondAds] = useState<Ad[]>([]);
+
+  const isDiamond = (member?.tier || "").toLowerCase() === "diamond";
 
   const load = useCallback(async () => {
     try {
-      const [dd, w] = await Promise.all([
+      const [dd, w, ads] = await Promise.all([
         member ? api.goalsDashboard(member.member_id).catch(() => null) : Promise.resolve(null),
         member ? api.blxWallet(member.member_id).catch(() => null) : Promise.resolve(null),
+        // Carrega anúncios Diamond apenas se o membro for diamond (otimização)
+        isDiamond ? api.listAds({ tier: "diamond", limit: 6 }).catch(() => []) : Promise.resolve([]),
       ]);
       setDashboard(dd);
       setWallet(w);
+      setDiamondAds((ads as any[]) || []);
     } catch {}
-  }, [member]);
+  }, [member, isDiamond]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -140,6 +150,127 @@ export default function Home() {
   };
 
   const forecastGoal = dashboard?.critical_goal;
+
+  // Bloco da Central de Performance — extraído em função para ser renderizado
+  // em posição diferente conforme o tier (topo para não-Diamond, base para Diamond).
+  const renderCentralPerformance = () => (
+    <View style={s.central}>
+      {/* Title row with user name on right */}
+      <View style={s.centralHead}>
+        <View style={s.centralHeadIcon}>
+          <MaterialCommunityIcons name="chart-line-variant" size={13} color={SILVER} />
+        </View>
+        <Text style={s.centralHeadTxt}>CENTRAL DE PERFORMANCE</Text>
+        <Text style={s.centralUser}>{name}</Text>
+      </View>
+
+      {/* Buttons row — nome da meta ativa (cor da meta) + BLACK AI (preto) */}
+      <View style={s.aiBtnRow}>
+        <TouchableOpacity
+          style={[
+            s.btnGhost,
+            hasGoals && forecastGoal?.color
+              ? { borderColor: `${forecastGoal.color}90`, backgroundColor: `${forecastGoal.color}18` }
+              : null,
+          ]}
+          onPress={() => router.push("/(tabs)/performance")}
+          activeOpacity={0.85}
+          testID="btn-meta-nome"
+        >
+          <Text
+            numberOfLines={1}
+            style={[
+              s.btnGhostTxt,
+              hasGoals && forecastGoal?.color ? { color: forecastGoal.color } : null,
+            ]}
+          >
+            {hasGoals ? (forecastGoal?.title || "Sua meta") : "Criar meta"}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={s.btnPrimary}
+          onPress={() => {
+            const gid = forecastGoal?.goal_id;
+            router.push(gid ? `/black-ai?goalId=${gid}` as any : "/black-ai" as any);
+          }}
+          activeOpacity={0.9}
+          testID="btn-black-ai"
+        >
+          <MaterialCommunityIcons name="brain" size={13} color="#FFF" />
+          <Text style={s.btnPrimaryTxt}>BLACK AI</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* STATS — 4 columns with vertical dividers */}
+      <View style={s.statsRow}>
+        <Stat
+          iconCircle={<MaterialCommunityIcons name="target" size={20} color="#EEE" />}
+          label="METAS ATIVAS"
+          value={stats.activeGoals}
+          caption={hasGoals ? "ver metas" : "criar"}
+          captionColor={GOLD}
+        />
+        <View style={s.statDividerV} />
+        <Stat
+          iconCircle={<RingProgress size={42} stroke={3.5} progress={stats.progress} label={`${stats.progress}%`} />}
+          label="PROGRESSO GERAL"
+          value={`${stats.progress}%`}
+          caption={hasGoals ? `+${stats.weeklyDelta}% essa semana` : "—"}
+          captionColor={GREEN}
+        />
+        <View style={s.statDividerV} />
+        {/* RITMO ATUAL — mostra kg perdidos/ganhos com frase dinâmica verde/vermelho */}
+        {(() => {
+          const g: any = forecastGoal;
+          const hasData = !!g && typeof g.current_value === "number" && typeof g.initial_value === "number";
+          const init = hasData ? g.initial_value : 0;
+          const cur = hasData ? g.current_value : 0;
+          const tgt = hasData ? g.target_value : 0;
+          const losing = hasData ? tgt < init : false;
+          const achievedRaw = losing ? init - cur : cur - init;
+          const achieved = Math.max(0, achievedRaw);
+          const regressing = achievedRaw < 0;
+          const unit = g?.unit || (g?.type === "financial" ? "R$" : g?.type === "productivity" ? "h" : "kg");
+          const fmt = (n: number) => {
+            const abs = Math.abs(n);
+            if (unit === "R$") return `R$ ${abs.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
+            const isInt = Math.abs(abs - Math.round(abs)) < 0.01;
+            return `${isInt ? Math.round(abs) : abs.toFixed(1).replace(".", ",")} ${unit}`;
+          };
+          const verb = g?.type === "financial" ? "acumulou"
+            : g?.type === "productivity" ? "entregou"
+            : losing ? "perdeu" : "ganhou";
+          const verbBad = g?.type === "financial" ? "recuou" : losing ? "voltou a ganhar" : "recuou";
+          const value = hasData ? fmt(regressing ? Math.abs(achievedRaw) : achieved) : "—";
+          const caption = !hasData ? "sem dados"
+            : regressing ? `Cuidado — ${verbBad}`
+            : achieved > 0 ? `Boa! Você já ${verb}`
+            : "comece a registrar";
+          const captionColor = !hasData ? "#777"
+            : regressing ? RED
+            : achieved > 0 ? GREEN
+            : "#888";
+          return (
+            <Stat
+              iconCircle={<Ionicons name={regressing ? "trending-down" : "trending-up"} size={20} color="#EEE" />}
+              label="RITMO ATUAL"
+              value={value}
+              caption={caption}
+              captionColor={captionColor}
+            />
+          );
+        })()}
+        <View style={s.statDividerV} />
+        <Stat
+          iconCircle={<MaterialCommunityIcons name="calendar-month" size={20} color="#EEE" />}
+          label="DIAS RESTANTES"
+          value={hasGoals ? stats.daysLeft : "—"}
+          caption={hasGoals ? "para sua meta" : "—"}
+          captionColor="#888"
+        />
+      </View>
+    </View>
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -197,126 +328,70 @@ export default function Home() {
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* CENTRAL DE PERFORMANCE */}
-          <View style={s.central}>
-            {/* Title row with user name on right */}
-            <View style={s.centralHead}>
-              <View style={s.centralHeadIcon}>
-                <MaterialCommunityIcons name="chart-line-variant" size={13} color={SILVER} />
-              </View>
-              <Text style={s.centralHeadTxt}>CENTRAL DE PERFORMANCE</Text>
-              <Text style={s.centralUser}>{name}</Text>
-            </View>
-
-            {/* Buttons row — nome da meta ativa (cor da meta) + BLACK AI (preto) */}
-            <View style={s.aiBtnRow}>
-              <TouchableOpacity
-                style={[
-                  s.btnGhost,
-                  hasGoals && forecastGoal?.color
-                    ? { borderColor: `${forecastGoal.color}90`, backgroundColor: `${forecastGoal.color}18` }
-                    : null,
-                ]}
-                onPress={() => router.push("/(tabs)/performance")}
-                activeOpacity={0.85}
-                testID="btn-meta-nome"
+          {/* DIAMOND MARKETPLACE — substitui a Central de Performance no topo (somente Diamond).
+              Mostra anúncios exclusivos com CTA para o catálogo. */}
+          {isDiamond && (
+            <TouchableOpacity
+              style={s.diamondMkt}
+              activeOpacity={0.9}
+              onPress={() => router.push("/catalog/diamond" as any)}
+              testID="home-diamond-marketplace"
+            >
+              <LinearGradient
+                colors={["#101418", "#0A0D11", "#06080B"] as const}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={s.diamondMktInner}
               >
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    s.btnGhostTxt,
-                    hasGoals && forecastGoal?.color ? { color: forecastGoal.color } : null,
-                  ]}
-                >
-                  {hasGoals ? (forecastGoal?.title || "Sua meta") : "Criar meta"}
+                <View style={s.diamondMktHead}>
+                  <View style={[s.diamondMktIcon, { backgroundColor: DIAMOND + "1A", borderColor: DIAMOND + "55" }]}>
+                    <MaterialCommunityIcons name="diamond-stone" size={16} color={DIAMOND} />
+                  </View>
+                  <Text style={[s.diamondMktTitle, { color: DIAMOND }]}>MARKETPLACE DIAMANTE</Text>
+                  <Ionicons name="chevron-forward" size={16} color={DIAMOND} />
+                </View>
+                <Text style={s.diamondMktSub}>
+                  Ofertas exclusivas para membros Diamond.
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={s.btnPrimary}
-                onPress={() => {
-                  const gid = forecastGoal?.goal_id;
-                  router.push(gid ? `/black-ai?goalId=${gid}` as any : "/black-ai" as any);
-                }}
-                activeOpacity={0.9}
-                testID="btn-black-ai"
-              >
-                <MaterialCommunityIcons name="brain" size={13} color="#FFF" />
-                <Text style={s.btnPrimaryTxt}>BLACK AI</Text>
-              </TouchableOpacity>
-            </View>
 
-            {/* STATS — 4 columns with vertical dividers */}
-            <View style={s.statsRow}>
-              <Stat
-                iconCircle={<MaterialCommunityIcons name="target" size={20} color="#EEE" />}
-                label="METAS ATIVAS"
-                value={stats.activeGoals}
-                caption={hasGoals ? "ver metas" : "criar"}
-                captionColor={GOLD}
-              />
-              <View style={s.statDividerV} />
-              <Stat
-                iconCircle={<RingProgress size={42} stroke={3.5} progress={stats.progress} label={`${stats.progress}%`} />}
-                label="PROGRESSO GERAL"
-                value={`${stats.progress}%`}
-                caption={hasGoals ? `+${stats.weeklyDelta}% essa semana` : "—"}
-                captionColor={GREEN}
-              />
-              <View style={s.statDividerV} />
-              {/* RITMO ATUAL — mostra kg perdidos/ganhos com frase dinâmica verde/vermelho */}
-              {(() => {
-                // Calcula delta da meta crítica (em kg/R$/etc.) para exibir no stat.
-                const g: any = forecastGoal;
-                const hasData = !!g && typeof g.current_value === "number" && typeof g.initial_value === "number";
-                const init = hasData ? g.initial_value : 0;
-                const cur = hasData ? g.current_value : 0;
-                const tgt = hasData ? g.target_value : 0;
-                const losing = hasData ? tgt < init : false; // meta de emagrecer/reduzir
-                // achieved (sempre positivo): o quanto andou na direção certa
-                const achievedRaw = losing ? init - cur : cur - init;
-                const achieved = Math.max(0, achievedRaw);
-                const regressing = achievedRaw < 0;
-                const unit = g?.unit || (g?.type === "financial" ? "R$" : g?.type === "productivity" ? "h" : "kg");
-                const fmt = (n: number) => {
-                  const abs = Math.abs(n);
-                  if (unit === "R$") return `R$ ${abs.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
-                  // 1 casa decimal com vírgula (ex.: 2,5 kg / 0,3 kg)
-                  const isInt = Math.abs(abs - Math.round(abs)) < 0.01;
-                  return `${isInt ? Math.round(abs) : abs.toFixed(1).replace(".", ",")} ${unit}`;
-                };
-                const verb = g?.type === "financial" ? "acumulou"
-                  : g?.type === "productivity" ? "entregou"
-                  : losing ? "perdeu" : "ganhou";
-                const verbBad = g?.type === "financial" ? "recuou" : losing ? "voltou a ganhar" : "recuou";
-                const value = hasData ? fmt(regressing ? Math.abs(achievedRaw) : achieved) : "—";
-                const caption = !hasData ? "sem dados"
-                  : regressing ? `Cuidado — ${verbBad}`
-                  : achieved > 0 ? `Boa! Você já ${verb}`
-                  : "comece a registrar";
-                const captionColor = !hasData ? "#777"
-                  : regressing ? RED
-                  : achieved > 0 ? GREEN
-                  : "#888";
-                return (
-                  <Stat
-                    iconCircle={<Ionicons name={regressing ? "trending-down" : "trending-up"} size={20} color="#EEE" />}
-                    label="RITMO ATUAL"
-                    value={value}
-                    caption={caption}
-                    captionColor={captionColor}
-                  />
-                );
-              })()}
-              <View style={s.statDividerV} />
-              <Stat
-                iconCircle={<MaterialCommunityIcons name="calendar-month" size={20} color="#EEE" />}
-                label="DIAS RESTANTES"
-                value={hasGoals ? stats.daysLeft : "—"}
-                caption={hasGoals ? "para sua meta" : "—"}
-                captionColor="#888"
-              />
-            </View>
-          </View>
+                {/* Carrossel horizontal de anúncios */}
+                {diamondAds.length > 0 ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingTop: 14, gap: 10 }}
+                    nestedScrollEnabled
+                  >
+                    {diamondAds.slice(0, 6).map((ad) => (
+                      <TouchableOpacity
+                        key={ad.ad_id}
+                        style={s.adChip}
+                        onPress={() => router.push(`/ads/${ad.ad_id}` as any)}
+                        activeOpacity={0.85}
+                      >
+                        {ad.images && ad.images[0] ? (
+                          <Image source={{ uri: ad.images[0] }} style={s.adChipImg} resizeMode="cover" />
+                        ) : (
+                          <View style={[s.adChipImg, { backgroundColor: "#1A1A1A", alignItems: "center", justifyContent: "center" }]}>
+                            <Ionicons name="image-outline" size={20} color="#666" />
+                          </View>
+                        )}
+                        <Text style={s.adChipTitle} numberOfLines={1}>{ad.title}</Text>
+                        <Text style={[s.adChipPrice, { color: DIAMOND_LIGHT }]}>{formatBLX(Math.round(ad.price_full * 100))} BLX</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <View style={s.adEmpty}>
+                    <Ionicons name="storefront-outline" size={26} color="#444" />
+                    <Text style={s.adEmptyTxt}>Toque para explorar o marketplace.</Text>
+                  </View>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          {/* CENTRAL DE PERFORMANCE — para NÃO-Diamond aparece aqui (no topo); para Diamond renderiza embaixo. */}
+          {!isDiamond && renderCentralPerformance()}
 
           {/* ACESSO RÁPIDO — grid 2x4 em quadrados cinza (sem título) */}
           <View style={s.grid}>
@@ -333,6 +408,9 @@ export default function Home() {
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Para DIAMOND: Central de Performance fica AQUI no final (após os atalhos) */}
+          {isDiamond && renderCentralPerformance()}
         </ScrollView>
     </View>
   );
@@ -429,6 +507,38 @@ const s = StyleSheet.create({
   blxVal: { color: "#FFF", fontSize: 20, fontWeight: "900", letterSpacing: -0.5 },
   blxUnit: { fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
   blxReserved: { color: "#B79045", fontSize: 10, fontWeight: "700", marginTop: 3 },
+
+  // Marketplace Diamond — card especial no topo da home pra membros Diamond
+  diamondMkt: {
+    marginHorizontal: 12,
+    marginTop: 4,
+    marginBottom: 14,
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#7FD7E533",
+  },
+  diamondMktInner: { padding: 16 },
+  diamondMktHead: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 },
+  diamondMktIcon: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1,
+  },
+  diamondMktTitle: { flex: 1, fontSize: 12, fontWeight: "900", letterSpacing: 1.5 },
+  diamondMktSub: { color: "#9AA0A6", fontSize: 11, lineHeight: 15 },
+  adChip: {
+    width: 130,
+    backgroundColor: "#0F1216",
+    borderWidth: 1, borderColor: "#1A1F25",
+    borderRadius: 10,
+    padding: 7,
+  },
+  adChipImg: { width: "100%", height: 80, borderRadius: 7, marginBottom: 6 },
+  adChipTitle: { color: "#EEE", fontSize: 11, fontWeight: "800", marginBottom: 3 },
+  adChipPrice: { fontSize: 11, fontWeight: "900" },
+  adEmpty: { alignItems: "center", paddingVertical: 16, gap: 6 },
+  adEmptyTxt: { color: "#666", fontSize: 11 },
 
   // Central
   central: {
