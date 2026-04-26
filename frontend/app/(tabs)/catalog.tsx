@@ -10,6 +10,16 @@ import { useGate } from "../../src/gate";
 
 const BG = "#050505";
 
+// Categorias rápidas — espelham as do catálogo, com emoji em destaque para conversão
+const CATEGORIES: Array<{ id: string; label: string; emoji: string; color: string }> = [
+  { id: "metabolicos", label: "Emagrecedores",  emoji: "🔥", color: "#FF6B35" },
+  { id: "performance", label: "Força e Massa",  emoji: "💪", color: "#FFD700" },
+  { id: "regeneracao", label: "Recuperação",    emoji: "🩹", color: "#95D5B2" },
+  { id: "estetica",    label: "Estética",       emoji: "✨", color: "#F58FC3" },
+  { id: "foco",        label: "Foco",           emoji: "🧠", color: "#B794F4" },
+  { id: "funcionais",  label: "Energia",        emoji: "⚡", color: "#7FD7E5" },
+];
+
 type TierId = "diamond" | "gold" | "silver";
 
 type TierCard = {
@@ -126,6 +136,30 @@ export default function CatalogMenu() {
           <Text style={st.sub}>
             Cada tier desbloqueia um marketplace exclusivo, com produtos, descontos e benefícios específicos do seu plano.
           </Text>
+        </View>
+
+        {/* CATEGORIAS RÁPIDAS — atalhos diretos pro catálogo do tier do usuário, já filtrado */}
+        <View style={st.catSection}>
+          <Text style={st.catSectionTitle}>NAVEGUE POR CATEGORIA</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={st.catScroll}
+            keyboardShouldPersistTaps="handled"
+          >
+            {CATEGORIES.map((c) => (
+              <TouchableOpacity
+                key={c.id}
+                style={[st.catChip, { borderColor: c.color + "55", backgroundColor: c.color + "12" }]}
+                activeOpacity={0.85}
+                onPress={() => router.push(`/catalog/${myTier}?cat=${c.id}` as any)}
+                testID={`landing-cat-${c.id}`}
+              >
+                <Text style={st.catEmoji}>{c.emoji}</Text>
+                <Text style={[st.catLabel, { color: c.color }]}>{c.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
         {/* 3 CARDS PREMIUM */}
@@ -268,6 +302,34 @@ const st = StyleSheet.create({
     paddingHorizontal: 14,
     gap: 14,
   },
+
+  // === Categorias rápidas no topo da landing do marketplace ===
+  catSection: {
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    paddingBottom: 18,
+    marginBottom: 4,
+  },
+  catSectionTitle: {
+    color: "#888",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 2,
+    marginBottom: 12,
+  },
+  catScroll: { gap: 10, paddingRight: 14 },
+  catChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 22,
+    borderWidth: 1.2,
+    minHeight: 42,
+  },
+  catEmoji: { fontSize: 16, lineHeight: 18 },
+  catLabel: { fontSize: 12, fontWeight: "900", letterSpacing: 0.3 },
 
   card: {
     borderRadius: 16,
