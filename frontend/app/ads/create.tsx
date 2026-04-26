@@ -18,6 +18,7 @@ const CATS = [
   { id: "estetica",    name: "✨ Estética" },
   { id: "foco",        name: "🧠 Foco" },
   { id: "funcionais",  name: "⚡ Energia" },
+  { id: "oportunidades", name: "🚀 Oportunidades" },
 ];
 
 // Tema visual de cada marketplace — aplicado ao card do anúncio

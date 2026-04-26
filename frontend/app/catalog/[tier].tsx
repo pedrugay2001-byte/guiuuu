@@ -24,6 +24,7 @@ const CAT_META: Record<string, { label: string; icon: string; color: string; emo
   estetica:    { label: "Estética",       emoji: "✨", icon: "sparkles",           color: "#F58FC3" },
   foco:        { label: "Foco",           emoji: "🧠", icon: "bulb",               color: "#B794F4" },
   funcionais:  { label: "Energia",        emoji: "⚡", icon: "barbell",            color: "#7FD7E5" },
+  oportunidades:{ label: "Oportunidades", emoji: "🚀", icon: "rocket",             color: "#4EE07F" },
   // Umbrella Saúde (Diamond) — AZUL premium para destacar exclusividade
   saude_diamante: { label: "Saúde Diamante", emoji: "💎", icon: "shield-checkmark", color: "#7FD7E5" },
   // Legados (retrocompat de produtos antigos — não aparecem no seletor novo)

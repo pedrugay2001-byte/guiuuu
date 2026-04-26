@@ -1556,7 +1556,7 @@ class Product(BaseModel):
 # -------------- Marketplace Category Access Rules --------------
 # Apenas Silver, Gold e Diamante acessam o marketplace.
 # Categorias sensíveis são ocultas sob a etiqueta "saude_diamante" (diamond).
-PUBLIC_CATEGORIES = ["metabolicos", "performance", "regeneracao", "estetica", "foco", "funcionais"]
+PUBLIC_CATEGORIES = ["metabolicos", "performance", "regeneracao", "estetica", "foco", "funcionais", "oportunidades"]
 HEALTH_CATEGORIES = ["emagrecedores", "peptideos", "landerlan", "hormonios"]
 HEALTH_UMBRELLA_ID = "saude_diamante"
 
@@ -1896,6 +1896,7 @@ async def get_categories(member_id: Optional[str] = None):
         {"id": "estetica",     "name": "Estética",        "icon": "sparkles",           "emoji": "✨", "restricted": False, "group": "public"},
         {"id": "foco",         "name": "Foco",            "icon": "bulb",               "emoji": "🧠", "restricted": False, "group": "public"},
         {"id": "funcionais",   "name": "Energia",         "icon": "barbell",            "emoji": "⚡", "restricted": False, "group": "public"},
+        {"id": "oportunidades","name": "Oportunidades",   "icon": "rocket",             "emoji": "🚀", "restricted": False, "group": "public"},
     ]
     if tier != "diamond":
         return public

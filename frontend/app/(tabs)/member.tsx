@@ -179,34 +179,52 @@ export default function Member() {
           <Ionicons name="chevron-forward" size={18} color={accent.accent} />
         </TouchableOpacity>
 
-        {/* === BOTÃO DE PUBLICAR ANÚNCIO — visível apenas para staff e publishers Diamond === */}
+        {/* === BOTÕES DE PUBLICAR ANÚNCIO — visível para staff e publishers Diamond ===
+            3 botões separados (Diamond / Gold / Silver) deixam EXPLÍCITO que o
+            publisher pode escolher onde publicar. Resolve confusão de UX onde
+            o usuário não percebia o seletor de tier dentro do create-screen. */}
         {canPublishAds && (
-          <TouchableOpacity
-            style={styles.publishAdCta}
-            onPress={() =>
-              router.push({
-                pathname: "/ads/create",
-                params: { tier: member?.tier === "diamond" ? "diamond" : (member?.tier || "diamond") },
-              } as any)
-            }
-            activeOpacity={0.88}
-            testID="profile-publish-ad"
-          >
-            <View style={styles.publishAdIcon}>
-              <Ionicons name="diamond" size={18} color="#0A0A0A" />
+          <View style={styles.publishAdsCard}>
+            <View style={styles.publishAdsHeader}>
+              <Ionicons name="megaphone" size={14} color="#7FD7E5" />
+              <Text style={styles.publishAdsTitle}>PUBLICAR ANÚNCIO</Text>
+              <Text style={styles.publishAdsHint}>Escolha o marketplace</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.publishAdTitle}>PUBLICAR ANÚNCIO DIAMANTE</Text>
-              <Text style={styles.publishAdSub}>
-                {isStaff
-                  ? "Curadoria oficial · Acesso staff total"
-                  : "Você foi autorizado pelo time a publicar"}
-              </Text>
+            <View style={styles.publishAdsRow}>
+              <TouchableOpacity
+                style={[styles.publishAdsBtn, { borderColor: "rgba(127,215,229,0.55)", backgroundColor: "rgba(127,215,229,0.08)" }]}
+                onPress={() => router.push({ pathname: "/ads/create", params: { tier: "diamond" } } as any)}
+                activeOpacity={0.85}
+                testID="profile-publish-diamond"
+              >
+                <Ionicons name="diamond" size={18} color="#7FD7E5" />
+                <Text style={[styles.publishAdsBtnTxt, { color: "#A8E4EF" }]}>DIAMANTE</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.publishAdsBtn, { borderColor: "rgba(212,175,55,0.55)", backgroundColor: "rgba(212,175,55,0.08)" }]}
+                onPress={() => router.push({ pathname: "/ads/create", params: { tier: "gold" } } as any)}
+                activeOpacity={0.85}
+                testID="profile-publish-gold"
+              >
+                <Ionicons name="star" size={18} color="#D4AF37" />
+                <Text style={[styles.publishAdsBtnTxt, { color: "#F4D47A" }]}>GOLD</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.publishAdsBtn, { borderColor: "rgba(184,184,184,0.55)", backgroundColor: "rgba(184,184,184,0.06)" }]}
+                onPress={() => router.push({ pathname: "/ads/create", params: { tier: "silver" } } as any)}
+                activeOpacity={0.85}
+                testID="profile-publish-silver"
+              >
+                <Ionicons name="medal" size={18} color="#B8B8B8" />
+                <Text style={[styles.publishAdsBtnTxt, { color: "#E8E8E8" }]}>SILVER</Text>
+              </TouchableOpacity>
             </View>
-            <View style={styles.publishAdArrow}>
-              <Ionicons name="add" size={18} color="#7FD7E5" />
-            </View>
-          </TouchableOpacity>
+            <Text style={styles.publishAdsFooter}>
+              {isStaff
+                ? "Você é staff oficial · pode publicar em qualquer marketplace"
+                : "Você foi autorizado pelo time a publicar nos 3 marketplaces"}
+            </Text>
+          </View>
         )}
 
         {/* INVITE CODE — visible, shareable */}
@@ -581,27 +599,30 @@ const styles = StyleSheet.create({
   editProfileTitle: { color: "#D4AF37", fontSize: 12, fontWeight: "900", letterSpacing: 1.5 },
   editProfileSub: { color: theme.colors.textMuted, fontSize: 11, marginTop: 3 },
 
-  // CTA premium "Publicar Anúncio Diamante" — paleta ciano para destacar
-  publishAdCta: {
-    flexDirection: "row", alignItems: "center", gap: 12,
+  // Card de publicar anúncio com 3 botões de tier (Diamond/Gold/Silver)
+  publishAdsCard: {
     marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
-    paddingHorizontal: 16, paddingVertical: 14,
+    paddingHorizontal: 14, paddingVertical: 12,
     backgroundColor: "#0B1216",
-    borderWidth: 1.5, borderColor: "rgba(127,215,229,0.45)",
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.3)",
     borderRadius: 12,
   },
-  publishAdIcon: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "#7FD7E5",
-    alignItems: "center", justifyContent: "center",
+  publishAdsHeader: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    marginBottom: 10,
   },
-  publishAdTitle: { color: "#A8E4EF", fontSize: 12, fontWeight: "900", letterSpacing: 1.5 },
-  publishAdSub: { color: theme.colors.textMuted, fontSize: 11, marginTop: 3 },
-  publishAdArrow: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: "rgba(127,215,229,0.12)",
-    borderWidth: 1, borderColor: "rgba(127,215,229,0.3)",
-    alignItems: "center", justifyContent: "center",
+  publishAdsTitle: { color: "#A8E4EF", fontSize: 11, fontWeight: "900", letterSpacing: 1.5 },
+  publishAdsHint: { color: theme.colors.textMuted, fontSize: 10, fontWeight: "600", marginLeft: "auto" },
+  publishAdsRow: { flexDirection: "row", gap: 8 },
+  publishAdsBtn: {
+    flex: 1, flexDirection: "column", alignItems: "center", justifyContent: "center",
+    gap: 4, paddingVertical: 12, paddingHorizontal: 4,
+    borderRadius: 10, borderWidth: 1.2,
+  },
+  publishAdsBtnTxt: { fontSize: 10.5, fontWeight: "900", letterSpacing: 1 },
+  publishAdsFooter: {
+    color: theme.colors.textMuted, fontSize: 10.5,
+    marginTop: 10, fontStyle: "italic", textAlign: "center",
   },
 
   inviteCard: {
