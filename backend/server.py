@@ -1888,14 +1888,14 @@ async def get_categories(member_id: Optional[str] = None):
     if tier == "black":
         raise HTTPException(status_code=403, detail="Marketplace exclusivo para membros Silver, Gold e Diamante")
 
-    # Categorias públicas — novo padrão BlacksClub (classes metabólicas/performance)
+    # Categorias públicas — nomes comerciais BlacksClub (foco em conversão)
     public = [
-        {"id": "metabolicos",  "name": "Metabólicos",  "icon": "flame",              "restricted": False, "group": "public"},
-        {"id": "performance",  "name": "Performance",  "icon": "flash",              "restricted": False, "group": "public"},
-        {"id": "regeneracao",  "name": "Regeneração",  "icon": "leaf",               "restricted": False, "group": "public"},
-        {"id": "estetica",     "name": "Estética",     "icon": "sparkles",           "restricted": False, "group": "public"},
-        {"id": "foco",         "name": "Foco",         "icon": "bulb",               "restricted": False, "group": "public"},
-        {"id": "funcionais",   "name": "Funcionais",   "icon": "barbell",            "restricted": False, "group": "public"},
+        {"id": "metabolicos",  "name": "Emagrecedores",   "icon": "flame",              "emoji": "🔥", "restricted": False, "group": "public"},
+        {"id": "performance",  "name": "Força e Massa",   "icon": "flash",              "emoji": "💪", "restricted": False, "group": "public"},
+        {"id": "regeneracao",  "name": "Recuperação",     "icon": "leaf",               "emoji": "🩹", "restricted": False, "group": "public"},
+        {"id": "estetica",     "name": "Estética",        "icon": "sparkles",           "emoji": "✨", "restricted": False, "group": "public"},
+        {"id": "foco",         "name": "Foco",            "icon": "bulb",               "emoji": "🧠", "restricted": False, "group": "public"},
+        {"id": "funcionais",   "name": "Energia",         "icon": "barbell",            "emoji": "⚡", "restricted": False, "group": "public"},
     ]
     if tier != "diamond":
         return public

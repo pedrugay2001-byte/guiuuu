@@ -16,20 +16,20 @@ import { theme } from "../../src/theme";
 const GOLD = "#D4AF37";
 const DIAMOND_BLUE = "#7FD7E5"; // ciano premium usado para destacar seção Diamond
 
-const CAT_META: Record<string, { label: string; icon: string; color: string }> = {
-  // NOVAS CATEGORIAS BLACKSCLUB — classes de performance/metabolismo
-  metabolicos: { label: "Metabólicos", icon: "flame",              color: "#FF6B35" },
-  performance: { label: "Performance", icon: "flash",              color: "#FFD700" },
-  regeneracao: { label: "Regeneração", icon: "leaf",               color: "#95D5B2" },
-  estetica:    { label: "Estética",    icon: "sparkles",           color: "#F58FC3" },
-  foco:        { label: "Foco",        icon: "bulb",               color: "#B794F4" },
-  funcionais:  { label: "Funcionais",  icon: "barbell",            color: "#7FD7E5" },
+const CAT_META: Record<string, { label: string; icon: string; color: string; emoji: string }> = {
+  // CATEGORIAS COMERCIAIS BlacksClub — nomes diretos e foco em conversão
+  metabolicos: { label: "Emagrecedores",  emoji: "🔥", icon: "flame",              color: "#FF6B35" },
+  performance: { label: "Força e Massa",  emoji: "💪", icon: "flash",              color: "#FFD700" },
+  regeneracao: { label: "Recuperação",    emoji: "🩹", icon: "leaf",               color: "#95D5B2" },
+  estetica:    { label: "Estética",       emoji: "✨", icon: "sparkles",           color: "#F58FC3" },
+  foco:        { label: "Foco",           emoji: "🧠", icon: "bulb",               color: "#B794F4" },
+  funcionais:  { label: "Energia",        emoji: "⚡", icon: "barbell",            color: "#7FD7E5" },
   // Umbrella Saúde (Diamond) — AZUL premium para destacar exclusividade
-  saude_diamante: { label: "Saúde Diamante", icon: "shield-checkmark", color: "#7FD7E5" },
+  saude_diamante: { label: "Saúde Diamante", emoji: "💎", icon: "shield-checkmark", color: "#7FD7E5" },
   // Legados (retrocompat de produtos antigos — não aparecem no seletor novo)
-  hormonios:    { label: "Hormônios",   icon: "pulse",              color: "#E8C96B" },
-  emagrecedores:{ label: "Emagrecedores", icon: "flame",            color: "#FF6B35" },
-  peptideos:    { label: "Peptídeos",     icon: "flask",            color: "#7FD7E5" },
+  hormonios:    { label: "Hormônios",     emoji: "🧪", icon: "pulse",              color: "#E8C96B" },
+  emagrecedores:{ label: "Emagrecedores", emoji: "🔥", icon: "flame",              color: "#FF6B35" },
+  peptideos:    { label: "Peptídeos",     emoji: "🧬", icon: "flask",              color: "#7FD7E5" },
   landerlan:    { label: "Landerlan",     icon: "shield-checkmark", color: "#D4AF37" },
   tecnologia:   { label: "Tecnologia",  icon: "hardware-chip",      color: "#B794F4" },
   bem_estar:    { label: "Bem-estar",   icon: "leaf",               color: "#95D5B2" },
@@ -236,21 +236,24 @@ export default function Marketplace() {
         contentContainerStyle={st.catRowTop}
         keyboardShouldPersistTaps="handled"
       >
-        <CatChip active={cat === "all"} onPress={() => setCat("all")} label="Todos" icon="apps" color={tierMeta.accent} />
+        <CatChip active={cat === "all"} onPress={() => setCat("all")} label="Todos" emoji="🛍️" color={tierMeta.accent} />
         {publicCats.map((c) => {
-          const meta = CAT_META[c.id] || { label: c.name, icon: c.icon || "cube", color: "#888" };
+          const meta = CAT_META[c.id] || { label: c.name, emoji: "📦", color: "#888" };
           return (
             <CatChip
               key={c.id}
               active={cat === c.id}
               onPress={() => setCat(c.id)}
               label={meta.label}
-              icon={meta.icon}
+              emoji={meta.emoji}
               color={meta.color}
             />
           );
         })}
       </ScrollView>
+
+      {/* Divider visual sutil — separa a área de categorias da busca */}
+      <View style={st.catSearchDivider} />
 
       {/* Busca FUNCIONAL — input ocupa toda largura, botão lupa à direita dispara/foca a busca */}
       <View style={st.searchRow}>
@@ -464,11 +467,18 @@ export default function Marketplace() {
   );
 }
 
-function CatChip({ active, onPress, label, icon, color }: { active: boolean; onPress: () => void; label: string; icon: string; color: string }) {
+function CatChip({ active, onPress, label, emoji, color }: { active: boolean; onPress: () => void; label: string; emoji: string; color: string }) {
   return (
-    <TouchableOpacity onPress={onPress} style={[st.chip, active && { backgroundColor: "#1A1A1A", borderColor: color }]} activeOpacity={0.85}>
-      <Ionicons name={icon as any} size={14} color={active ? color : "#888"} />
-      <Text style={[st.chipTxt, active && { color: "#FFF" }]}>{label}</Text>
+    <TouchableOpacity
+      onPress={onPress}
+      style={[
+        st.chip,
+        active && { backgroundColor: color + "1A", borderColor: color, borderWidth: 1.5 },
+      ]}
+      activeOpacity={0.85}
+    >
+      <Text style={st.chipEmoji}>{emoji}</Text>
+      <Text style={[st.chipTxt, active && { color: "#FFF", fontWeight: "900" }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -524,6 +534,14 @@ function AdGridCard({ ad, onPress }: { ad: Ad; onPress: () => void }) {
 }
 
 const st = StyleSheet.create({
+  // Divider sutil entre categorias e busca
+  catSearchDivider: {
+    height: 1,
+    backgroundColor: "#1A1A1A",
+    marginHorizontal: 14,
+    marginBottom: 4,
+  },
+
   searchRow: {
     flexDirection: "row", alignItems: "center", gap: 8,
     marginHorizontal: 14, marginTop: 10, marginBottom: 6,
@@ -653,10 +671,14 @@ const st = StyleSheet.create({
   catRow: { paddingHorizontal: 14, gap: 8 },
   chip: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 18, borderWidth: 1, borderColor: "#222", backgroundColor: "#0A0A0A",
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 22,
+    borderWidth: 1, borderColor: "#1F1F1F",
+    backgroundColor: "#0E0E0E",
+    minHeight: 38,
   },
-  chipTxt: { color: "#999", fontSize: 11.5, fontWeight: "700" },
+  chipEmoji: { fontSize: 15, lineHeight: 18 },
+  chipTxt: { color: "#CCC", fontSize: 12, fontWeight: "800", letterSpacing: 0.2 },
 
   emptyBox: { alignItems: "center", padding: 30, gap: 8 },
   emptyTitle: { color: "#888", fontSize: 14, fontWeight: "800" },
@@ -835,11 +857,12 @@ const st = StyleSheet.create({
     backgroundColor: "#141414", borderWidth: 1, borderColor: "#222",
   },
 
-  // === Categoria chips no topo (acima da busca) ===
+  // === Categoria chips FIXAS no topo (acima da busca, com destaque visual) ===
+  // Layout: separadas da busca por divider sutil para evitar competição visual
   catRowTop: {
     paddingHorizontal: 14,
-    paddingTop: 4,
-    paddingBottom: 8,
+    paddingTop: 10,
+    paddingBottom: 12,
     gap: 8,
   },
   // === Busca funcional (full width + botão lupa à direita) ===

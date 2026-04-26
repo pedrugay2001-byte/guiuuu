@@ -12,12 +12,12 @@ import { pickCompressedImage } from "../../src/imagepicker";
 import ScreenHeader from "../../src/screen-header";
 
 const CATS = [
-  { id: "metabolicos", name: "Metabólicos" },
-  { id: "performance", name: "Performance" },
-  { id: "regeneracao", name: "Regeneração" },
-  { id: "estetica",    name: "Estética" },
-  { id: "foco",        name: "Foco" },
-  { id: "funcionais",  name: "Funcionais" },
+  { id: "metabolicos", name: "🔥 Emagrecedores" },
+  { id: "performance", name: "💪 Força e Massa" },
+  { id: "regeneracao", name: "🩹 Recuperação" },
+  { id: "estetica",    name: "✨ Estética" },
+  { id: "foco",        name: "🧠 Foco" },
+  { id: "funcionais",  name: "⚡ Energia" },
 ];
 
 // Tema visual de cada marketplace — aplicado ao card do anúncio
