@@ -527,10 +527,109 @@ metadata:
             consistente entre os 3 caminhos bloqueados (join, GET msgs, POST msgs).
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Ads Moderation — POST/PUT/DELETE /api/ads (staff JWT moderation)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+# ===== ADS MODERATION SMOKE (26/04/2026) =====
+backend_ads_moderation:
+  - task: "Ads Moderation — POST/PUT/DELETE /api/ads (staff JWT moderation)"
+    implemented: true
+    working: false
+    file: "backend/server.py"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: false
+        -agent: "testing"
+        -comment: |
+            SMOKE TEST executado em /app/backend_test_ads_moderation.py contra URL pública.
+            **RESULT passed=14/18 failed=4 — 1 BUG CRÍTICO encontrado.**
+
+            ### BUG CRÍTICO — Staff JWT moderation NÃO FUNCIONA em ads endpoints
+            Causa raiz (root cause IDENTIFICADO): nas 3 rotas modificadas, o decode
+            do JWT usa a chave errada para extrair o user_id do payload.
+
+            JWT é assinado com `{"sub": user_id, ...}` (server.py:108 em create_access_token,
+            e server.py:459 no member_login staff_token). Mas as 3 rotas novas decodificam
+            com:
+              • POST /api/ads (server.py:2899): `db.users.find_one({"user_id": payload.get("user_id")})`
+              • DELETE /api/ads/{id} (server.py:3046): mesma coisa
+              • PUT /api/ads/{id} (server.py:3094): mesma coisa
+
+            `payload.get("user_id")` SEMPRE retorna None (a chave correta é "sub"),
+            então a query `{"user_id": None}` não casa com nenhum user → a detecção
+            de staff falha silenciosamente (try/except Exception engole tudo).
+
+            Consequências observadas:
+            • 1a) POST /api/ads com JWT admin + seller_id=mem_5c0fee9f50c1 (publisher):
+              status 200 mas posted_by_role="diamond_publisher" e verified=False
+              (caiu no path do publisher). Esperado: posted_by_role="admin", verified=True.
+            • 2c) DELETE /api/ads/{id} com JWT admin + seller_id falso → 403
+              "Você não pode excluir este anúncio" (esperado 200 com moderated_by=admin).
+            • 3c) PUT /api/ads/{id} com JWT admin + seller_id falso → 403
+              "Você não pode editar este anúncio" (esperado 200).
+
+            FIX (3 linhas, 1 char cada):
+              • server.py:2899  trocar `payload.get("user_id")` → `payload.get("sub")`
+              • server.py:3046  idem
+              • server.py:3094  idem
+
+            (Compare com o pattern correto em get_current_user @ server.py:135:
+            `db.users.find_one({"user_id": payload["sub"]}, ...)`.)
+
+            ### Cenários do review — resultado:
+            1) POST /api/ads
+               • 1a staff JWT admin → 200 ✅ MAS shape errado (role/verified) ❌ (impacto da regressão)
+               • 1b sem JWT, publisher RHIAN (mem_5c0fee9f50c1) → 200 ✅ posted_by_role=diamond_publisher ✅
+               • 1c sem JWT, non-publisher (Demo mem_e5bb9b5878dd) → 403 ✅
+            2) DELETE /api/ads/{id}?seller_id=...
+               • 2a dono hard-delete próprio ad → 200 deleted=true ✅; GET pós-delete → 404 ✅
+               • 2b outro membro tenta deletar → 403 ✅; ad ainda existe ✅
+               • 2c staff JWT apaga ad de qualquer membro → ❌ 403 (BUG)
+               • 2d ?hard=false → 200 deactivated=true, doc continua com active=false ✅
+            3) PUT /api/ads/{id}
+               • 3a dono edita (title/price_full) → 200 com campos atualizados ✅
+               • 3b outro membro edita → 403 ✅; título preservado ✅
+               • 3c staff JWT edita ad de qualquer um → ❌ 403 (BUG)
+
+            Cleanup 100% concluído.
+
+agent_communication_ads_moderation:
+    -agent: "testing"
+    -message: |
+        SMOKE TEST ADS MODERATION — 14/18 PASS, **4 FAIL com BUG CRÍTICO único**
+        (todas as falhas são manifestações do MESMO bug).
+
+        ## BUG CRÍTICO — payload key mismatch
+        Os 3 blocos de detecção de staff JWT em POST/DELETE/PUT /api/ads usam
+        `payload.get("user_id")`, mas o JWT é assinado com a claim **`"sub"`**
+        (igual a todo o resto do app — get_current_user em server.py:135 usa
+        `payload["sub"]`).
+
+        Resultado: detecção de staff sempre falha → 1a vira publisher fallback
+        (verified=False, posted_by_role=diamond_publisher), 2c (DELETE
+        moderação) e 3c (PUT moderação) retornam 403.
+
+        ## FIX TRIVIAL
+        Substituir `payload.get("user_id")` por `payload.get("sub")` em 3 linhas:
+          • server.py:2899 (POST /api/ads — JWT path)
+          • server.py:3046 (DELETE /api/ads/{id} — moderation path)
+          • server.py:3094 (PUT /api/ads/{id} — moderation path)
+
+        Após fix, recomendo re-rodar /app/backend_test_ads_moderation.py — devo
+        ver 18/18 PASS.
+
+        ## OK (sem bugs)
+        • Hard delete por padrão funciona (GET retorna 404 após delete) ✅
+        • Soft delete via ?hard=false mantém doc com active=false ✅
+        • RBAC owner-only (membro tenta apagar/editar ad de outro) → 403 corretos ✅
+        • Publisher member (RHIAN, can_post_ads=true) cria sem JWT ✅
+        • Non-publisher member (Demo) → 403 correto ✅
+        • Login admin (admin@farmaclube.com / WE1U-DARN-OIKP-OH07!94) → 200 + JWT ✅
 
 # ===== SMOKE TEST — Background startup tasks + health checks (25/04/2026) =====
 backend_startup_smoke:

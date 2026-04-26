@@ -9,6 +9,7 @@ import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api, Ad, ApiError } from "../../src/api";
 import { useGate } from "../../src/gate";
+import { useAuth } from "../../src/auth";
 import { formatBLX } from "../../src/blx";
 import { notify } from "../../src/alerts";
 import { theme, TIERS } from "../../src/theme";
@@ -31,6 +32,7 @@ export default function AdView() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { member, refreshMember } = useGate();
+  const { user } = useAuth();
   const [ad, setAd] = useState<Ad | null>(null);
   const [pay, setPay] = useState<PayId>("full");
   const [favorited, setFavorited] = useState(false);
@@ -59,8 +61,38 @@ export default function AdView() {
   const entryCents = Math.round(finalCents * entryPct / 100);
   const remainingCents = finalCents - entryCents;
   const isOwner = ad.seller_id === member?.member_id;
+  const isStaff = !!user && ["admin", "support", "financeiro"].includes((user.role || "") as string);
+  const canManage = isOwner || isStaff;
   const sellerTier = (ad.seller_tier || "diamond").toLowerCase();
   const sellerIsDiamond = sellerTier === "diamond";
+
+  const editAd = () => {
+    router.push({ pathname: "/ads/create", params: { edit_id: ad.ad_id, tier: ad.ad_tier || "diamond" } } as any);
+  };
+
+  const deleteAd = () => {
+    if (!member) return;
+    Alert.alert(
+      "Excluir anúncio?",
+      `"${ad.title}" será REMOVIDO PERMANENTEMENTE do marketplace.\n\nEsta ação não pode ser desfeita.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "EXCLUIR",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.deleteAd(ad.ad_id, member.member_id);
+              notify("Anúncio excluído", "Removido do marketplace.");
+              setTimeout(() => router.back(), 800);
+            } catch (e: any) {
+              Alert.alert("Erro", e.message || "Falha ao excluir");
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const toggleFav = async () => {
     if (!member) return;
@@ -175,6 +207,36 @@ export default function AdView() {
             <Text style={s.sellerName} numberOfLines={1}>Vendedor: {ad.seller_nickname}</Text>
             <Ionicons name="chevron-forward" size={14} color="#555" />
           </TouchableOpacity>
+
+          {/* Ações do dono / staff — Editar e Excluir o anúncio */}
+          {canManage && (
+            <View style={s.ownerActions}>
+              <TouchableOpacity
+                style={[s.ownerBtn, { borderColor: DIAMOND + "55" }]}
+                onPress={editAd}
+                activeOpacity={0.85}
+                testID="ad-edit-btn"
+              >
+                <Ionicons name="create-outline" size={16} color={DIAMOND} />
+                <Text style={[s.ownerBtnTxt, { color: DIAMOND }]}>EDITAR</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.ownerBtn, { borderColor: "#F8717155" }]}
+                onPress={deleteAd}
+                activeOpacity={0.85}
+                testID="ad-delete-btn"
+              >
+                <Ionicons name="trash-outline" size={16} color="#F87171" />
+                <Text style={[s.ownerBtnTxt, { color: "#F87171" }]}>EXCLUIR</Text>
+              </TouchableOpacity>
+              {!isOwner && isStaff && (
+                <View style={s.modBadge}>
+                  <Ionicons name="shield-checkmark" size={11} color="#F5C150" />
+                  <Text style={s.modBadgeTxt}>MODERAÇÃO</Text>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Preço principal — gradiente CIANO */}
           <LinearGradient
@@ -456,6 +518,27 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center", overflow: "hidden",
   },
   sellerName: { flex: 1, color: "#EEE", fontSize: 12.5, fontWeight: "700" },
+
+  // Ações de gerenciamento (dono ou staff)
+  ownerActions: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginTop: 12, marginBottom: 4,
+  },
+  ownerBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 11, borderRadius: 9,
+    borderWidth: 1.2,
+    backgroundColor: "#0A0A0A",
+  },
+  ownerBtnTxt: { fontSize: 11, fontWeight: "900", letterSpacing: 0.6 },
+  modBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 5,
+    backgroundColor: "#F5C15014",
+    borderWidth: 1, borderColor: "#F5C15044",
+    borderRadius: 6,
+  },
+  modBadgeTxt: { color: "#F5C150", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
 
   priceCard: {
     marginTop: 14, padding: 14, borderRadius: 12,

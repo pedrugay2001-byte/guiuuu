@@ -3021,11 +3021,44 @@ async def admin_clear_ads(staff: dict = Depends(require_staff)):
 
 
 @api_router.delete("/ads/{ad_id}")
-async def delete_ad(ad_id: str, seller_id: str):
-    r = await db.ads.update_one({"ad_id": ad_id, "seller_id": seller_id}, {"$set": {"active": False}})
-    if r.matched_count == 0:
+async def delete_ad(ad_id: str, seller_id: str, hard: bool = True, request: Request = None):
+    """Exclui um anúncio.
+
+    Permissão:
+      - O próprio dono (seller_id == ad.seller_id) sempre pode excluir.
+      - Staff JWT (admin/support/financeiro) pode excluir QUALQUER anúncio (moderação).
+
+    Por padrão `hard=true` → exclusão permanente (remove do banco).
+    Use `hard=false` para soft delete (apenas marca como inativo).
+    """
+    ad = await db.ads.find_one({"ad_id": ad_id})
+    if not ad:
         raise HTTPException(status_code=404, detail="Anúncio não encontrado")
-    return {"ok": True}
+
+    is_authorized = ad.get("seller_id") == seller_id
+    moderator_email: Optional[str] = None
+    # Permite staff JWT moderar (apagar anúncio de qualquer um)
+    if not is_authorized and request is not None:
+        auth = request.headers.get("authorization", "")
+        if auth.lower().startswith("bearer "):
+            try:
+                payload = jwt.decode(auth.split(" ", 1)[1], JWT_SECRET, algorithms=[JWT_ALGORITHM])
+                u = await db.users.find_one({"user_id": payload.get("user_id")})
+                if u and u.get("role") in ("admin", "support", "financeiro"):
+                    is_authorized = True
+                    moderator_email = u.get("email")
+            except Exception:
+                pass
+
+    if not is_authorized:
+        raise HTTPException(status_code=403, detail="Você não pode excluir este anúncio")
+
+    if hard:
+        await db.ads.delete_one({"ad_id": ad_id})
+        return {"ok": True, "deleted": True, "moderated_by": moderator_email}
+    else:
+        await db.ads.update_one({"ad_id": ad_id}, {"$set": {"active": False}})
+        return {"ok": True, "deactivated": True, "moderated_by": moderator_email}
 
 
 class AdUpdate(BaseModel):
@@ -3041,11 +3074,32 @@ class AdUpdate(BaseModel):
 
 
 @api_router.put("/ads/{ad_id}")
-async def update_ad(ad_id: str, data: AdUpdate):
-    """Atualiza um anúncio. Apenas o vendedor original pode editar."""
-    ad = await db.ads.find_one({"ad_id": ad_id, "seller_id": data.seller_id})
+async def update_ad(ad_id: str, data: AdUpdate, request: Request):
+    """Atualiza um anúncio.
+
+    Permissão:
+      - O próprio dono (data.seller_id == ad.seller_id) pode editar.
+      - Staff JWT (admin/support/financeiro) pode editar QUALQUER anúncio (moderação).
+    """
+    ad = await db.ads.find_one({"ad_id": ad_id})
     if not ad:
-        raise HTTPException(status_code=404, detail="Anúncio não encontrado ou você não é o dono")
+        raise HTTPException(status_code=404, detail="Anúncio não encontrado")
+
+    is_authorized = ad.get("seller_id") == data.seller_id
+    if not is_authorized:
+        auth = request.headers.get("authorization", "")
+        if auth.lower().startswith("bearer "):
+            try:
+                payload = jwt.decode(auth.split(" ", 1)[1], JWT_SECRET, algorithms=[JWT_ALGORITHM])
+                u = await db.users.find_one({"user_id": payload.get("user_id")})
+                if u and u.get("role") in ("admin", "support", "financeiro"):
+                    is_authorized = True
+            except Exception:
+                pass
+
+    if not is_authorized:
+        raise HTTPException(status_code=403, detail="Você não pode editar este anúncio")
+
     updates: Dict[str, Any] = {}
     if data.title is not None:
         updates["title"] = data.title.strip()[:120]

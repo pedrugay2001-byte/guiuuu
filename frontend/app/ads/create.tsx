@@ -57,7 +57,11 @@ export default function CreateAd() {
   // (A validação completa fica no backend; aqui é só pra mostrar a UI)
   const isStaff = !!user && ["admin", "support", "financeiro"].includes((user.role || "") as string);
   const isMemberPublisher = !!member?.can_post_ads;
-  const canPost = isStaff || isMemberPublisher;
+  // Em modo edição, o dono do anúncio pode editar mesmo sem publisher permission
+  // (caso a permissão tenha sido revogada após a publicação).
+  const [editAdSellerId, setEditAdSellerId] = useState<string | null>(null);
+  const isEditOwner = isEdit && !!editAdSellerId && editAdSellerId === member?.member_id;
+  const canPost = isStaff || isMemberPublisher || isEditOwner;
 
   // Modo EDIÇÃO — carrega dados do anúncio existente
   useEffect(() => {
@@ -67,6 +71,7 @@ export default function CreateAd() {
       try {
         const ad = await api.getAd(String(editId));
         if (cancelled) return;
+        setEditAdSellerId(ad.seller_id || null);
         setTitle(ad.title || "");
         setDesc(ad.description || "");
         setPrice(String(ad.price_full ?? ""));
