@@ -2896,7 +2896,7 @@ async def create_ad(data: AdCreate, request: Request):
         try:
             token = auth_header.split(" ", 1)[1]
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-            user = await db.users.find_one({"user_id": payload.get("user_id")})
+            user = await db.users.find_one({"user_id": payload.get("sub")})
             if user and user.get("role") in ("admin", "support", "financeiro"):
                 actor_role = user["role"]
                 actor_email = user.get("email")
@@ -3043,7 +3043,7 @@ async def delete_ad(ad_id: str, seller_id: str, hard: bool = True, request: Requ
         if auth.lower().startswith("bearer "):
             try:
                 payload = jwt.decode(auth.split(" ", 1)[1], JWT_SECRET, algorithms=[JWT_ALGORITHM])
-                u = await db.users.find_one({"user_id": payload.get("user_id")})
+                u = await db.users.find_one({"user_id": payload.get("sub")})
                 if u and u.get("role") in ("admin", "support", "financeiro"):
                     is_authorized = True
                     moderator_email = u.get("email")
@@ -3091,7 +3091,7 @@ async def update_ad(ad_id: str, data: AdUpdate, request: Request):
         if auth.lower().startswith("bearer "):
             try:
                 payload = jwt.decode(auth.split(" ", 1)[1], JWT_SECRET, algorithms=[JWT_ALGORITHM])
-                u = await db.users.find_one({"user_id": payload.get("user_id")})
+                u = await db.users.find_one({"user_id": payload.get("sub")})
                 if u and u.get("role") in ("admin", "support", "financeiro"):
                     is_authorized = True
             except Exception:
