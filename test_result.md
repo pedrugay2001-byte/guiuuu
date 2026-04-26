@@ -3278,3 +3278,25 @@ agent_communication:
         
         Foque apenas nestes 3 cenários. Os outros endpoints não devem ser afetados (regressão improvável).
 
+
+
+## 2026-04-26 — UI Catalog Refactor + Excluir Anúncio Fix (web compat)
+agent_communication:
+  - agent: main
+    message: |
+      Refatorei o `app/catalog/[tier].tsx` por exigência crítica do usuário:
+      1) Barra de pesquisa movida para o TOPO ABSOLUTO (substituiu o título "MEMBRO DIAMOND").
+      2) Categorias fixas LOGO ABAIXO da busca, sem sobreposição (estrutura: SafeArea+searchRow → catContainer com borderTop/borderBottom).
+      3) Botão "PUBLICAR ANÚNCIO" REMOVIDO do catálogo e movido para o Perfil (`app/(tabs)/member.tsx`) — visível para staff (admin/support/financeiro) E membros com `can_post_ads=true`.
+      4) Bug crítico do botão "EXCLUIR" no `/ads/[id].tsx` corrigido: substituí `Alert.alert` (não-confiável em react-native-web) por `confirm()` universal que usa `window.confirm` em web. Mesma correção aplicada em `(tabs)/member.tsx#handleDeleteAd`.
+      5) Bug paralelo: corrigi violação de Rules of Hooks no `catalog/[tier].tsx` movendo `useEffect(() => setAdsPage(1), [cat,q])` para ANTES dos early returns.
+
+      Validação em browser playwright:
+      - Login admin master → diamond/admin role.
+      - Catálogo Diamond renderizando: search top + categorias logo abaixo (sem overlap), grid de anúncios.
+      - Perfil mostra novo CTA "PUBLICAR ANÚNCIO DIAMANTE".
+      - Excluir anúncio: clicou em `[data-testid="ad-delete-btn"]`, confirm aceito, API confirmou 404 no GET subsequente (hard delete OK).
+
+      Build & deploy: `npm run build` → `cp dist/* backend/static_frontend/` → `supervisorctl restart expo`. Verificado HTTP 200.
+
+      Status: COMPLETO — não precisa testes do agent (validei manualmente via screenshot e API).

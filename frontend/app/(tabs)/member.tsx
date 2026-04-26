@@ -11,6 +11,7 @@ import { useAuth } from "../../src/auth";
 import { api, Product, formatBRL, setToken } from "../../src/api";
 import { theme, TIERS } from "../../src/theme";
 import { useTierAccent } from "../../src/use-tier-accent";
+import { confirm, notify } from "../../src/alerts";
 
 export default function Member() {
   const router = useRouter();
@@ -24,6 +25,8 @@ export default function Member() {
     refreshMember();
   }, [refreshUser, refreshMember]));
   const isStaff = ["admin", "support", "financeiro"].includes(authUser?.role || "");
+  // Publisher Diamond — membro com permissão explícita (pode publicar anúncios)
+  const canPublishAds = isStaff || !!member?.can_post_ads;
   const [adminProducts, setAdminProducts] = useState<Product[]>([]);
   const [myAds, setMyAds] = useState<any[]>([]);
   const [myPhotos, setMyPhotos] = useState<string[]>([]);
@@ -53,26 +56,21 @@ export default function Member() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // Excluir anúncio (soft delete via API)
-  const handleDeleteAd = (ad: any) => {
+  // Excluir anúncio (hard delete via API) — confirm() funciona em web e mobile
+  const handleDeleteAd = async (ad: any) => {
     if (!member) return;
-    Alert.alert(
+    const ok = await confirm(
       "Excluir anúncio",
-      `Remover "${ad.title}"? Essa ação desativa o anúncio e ele não aparece mais no marketplace.`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Excluir",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await api.deleteAd(ad.ad_id, member.member_id);
-              await load();
-            } catch (e: any) { Alert.alert("Erro", e.message); }
-          },
-        },
-      ],
+      `Remover "${ad.title}" PERMANENTEMENTE? Esta ação não pode ser desfeita.`,
     );
+    if (!ok) return;
+    try {
+      await api.deleteAd(ad.ad_id, member.member_id);
+      notify("Anúncio excluído", "Removido do marketplace.");
+      await load();
+    } catch (e: any) {
+      notify("Erro", e?.message || "Falha ao excluir o anúncio.");
+    }
   };
 
   // Reativar anúncio inativo
@@ -181,6 +179,36 @@ export default function Member() {
           <Ionicons name="chevron-forward" size={18} color={accent.accent} />
         </TouchableOpacity>
 
+        {/* === BOTÃO DE PUBLICAR ANÚNCIO — visível apenas para staff e publishers Diamond === */}
+        {canPublishAds && (
+          <TouchableOpacity
+            style={styles.publishAdCta}
+            onPress={() =>
+              router.push({
+                pathname: "/ads/create",
+                params: { tier: member?.tier === "diamond" ? "diamond" : (member?.tier || "diamond") },
+              } as any)
+            }
+            activeOpacity={0.88}
+            testID="profile-publish-ad"
+          >
+            <View style={styles.publishAdIcon}>
+              <Ionicons name="diamond" size={18} color="#0A0A0A" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.publishAdTitle}>PUBLICAR ANÚNCIO DIAMANTE</Text>
+              <Text style={styles.publishAdSub}>
+                {isStaff
+                  ? "Curadoria oficial · Acesso staff total"
+                  : "Você foi autorizado pelo time a publicar"}
+              </Text>
+            </View>
+            <View style={styles.publishAdArrow}>
+              <Ionicons name="add" size={18} color="#7FD7E5" />
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* INVITE CODE — visible, shareable */}
         {member?.invite_code ? (
           <View style={styles.inviteCard}>
@@ -261,8 +289,8 @@ export default function Member() {
           <Text style={styles.photosHint}>{myPhotos.length}/10 fotos publicadas no seu perfil público</Text>
         </View>
 
-        {/* === MEUS ANÚNCIOS === Apenas para membros que podem publicar (staff) */}
-        {isStaff && (
+        {/* === MEUS ANÚNCIOS === Staff + Membros com permissão de publicar */}
+        {canPublishAds && (
           <View style={styles.section}>
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>MEUS ANÚNCIOS</Text>
@@ -552,6 +580,29 @@ const styles = StyleSheet.create({
   },
   editProfileTitle: { color: "#D4AF37", fontSize: 12, fontWeight: "900", letterSpacing: 1.5 },
   editProfileSub: { color: theme.colors.textMuted, fontSize: 11, marginTop: 3 },
+
+  // CTA premium "Publicar Anúncio Diamante" — paleta ciano para destacar
+  publishAdCta: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,
+    paddingHorizontal: 16, paddingVertical: 14,
+    backgroundColor: "#0B1216",
+    borderWidth: 1.5, borderColor: "rgba(127,215,229,0.45)",
+    borderRadius: 12,
+  },
+  publishAdIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "#7FD7E5",
+    alignItems: "center", justifyContent: "center",
+  },
+  publishAdTitle: { color: "#A8E4EF", fontSize: 12, fontWeight: "900", letterSpacing: 1.5 },
+  publishAdSub: { color: theme.colors.textMuted, fontSize: 11, marginTop: 3 },
+  publishAdArrow: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: "rgba(127,215,229,0.12)",
+    borderWidth: 1, borderColor: "rgba(127,215,229,0.3)",
+    alignItems: "center", justifyContent: "center",
+  },
 
   inviteCard: {
     marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md,

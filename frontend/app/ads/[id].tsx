@@ -11,7 +11,7 @@ import { api, Ad, ApiError } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { useAuth } from "../../src/auth";
 import { formatBLX } from "../../src/blx";
-import { notify } from "../../src/alerts";
+import { notify, confirm } from "../../src/alerts";
 import { theme, TIERS } from "../../src/theme";
 import InsufficientBalanceModal from "../../src/components/InsufficientBalanceModal";
 
@@ -70,28 +70,21 @@ export default function AdView() {
     router.push({ pathname: "/ads/create", params: { edit_id: ad.ad_id, tier: ad.ad_tier || "diamond" } } as any);
   };
 
-  const deleteAd = () => {
+  const deleteAd = async () => {
     if (!member) return;
-    Alert.alert(
+    // Usa confirm() universal (mobile + web) — Alert.alert é instável no react-native-web
+    const ok = await confirm(
       "Excluir anúncio?",
       `"${ad.title}" será REMOVIDO PERMANENTEMENTE do marketplace.\n\nEsta ação não pode ser desfeita.`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "EXCLUIR",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await api.deleteAd(ad.ad_id, member.member_id);
-              notify("Anúncio excluído", "Removido do marketplace.");
-              setTimeout(() => router.back(), 800);
-            } catch (e: any) {
-              Alert.alert("Erro", e.message || "Falha ao excluir");
-            }
-          },
-        },
-      ],
     );
+    if (!ok) return;
+    try {
+      await api.deleteAd(ad.ad_id, member.member_id);
+      notify("Anúncio excluído", "Removido do marketplace.");
+      setTimeout(() => router.back(), 800);
+    } catch (e: any) {
+      notify("Erro ao excluir", e?.message || "Falha ao excluir o anúncio.");
+    }
   };
 
   const toggleFav = async () => {

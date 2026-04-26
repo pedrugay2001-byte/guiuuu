@@ -123,6 +123,11 @@ export default function Marketplace() {
   }, [myTier]);
   const priceFor = (base: number) => Math.round(base * (1 - tierDisc));
 
+  // Reset para a página 1 quando categoria/busca mudam (UX intuitiva)
+  // CRITICAL: este useEffect deve ficar ANTES dos early returns para
+  // respeitar Rules of Hooks (mesma quantidade de hooks em todos os renders).
+  useEffect(() => { setAdsPage(1); }, [cat, q]);
+
   // Validação do tier_param da URL — se é um tier válido
   if (!tierMeta) {
     return (
@@ -196,28 +201,47 @@ export default function Marketplace() {
   const safePage = Math.min(adsPage, adsTotalPages);  // se filtrar e ficar com menos pgs
   const pagedAds = filteredAds.slice((safePage - 1) * ADS_PER_PAGE, safePage * ADS_PER_PAGE);
 
-  // Reset para a página 1 quando categoria/busca mudam (UX intuitiva)
-  useEffect(() => { setAdsPage(1); }, [cat, q]);
-
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="marketplace-screen">
       <Stack.Screen options={{ headerShown: false }} />
-      {/* HEADER premium — título do tier + carrinho (ícone de sacola à direita) */}
+
+      {/* ============== HEADER REFATORADO ============== */}
+      {/* Barra de busca no TOPO ABSOLUTO (substituindo o título "MEMBRO XYZ") */}
+      {/* Layout: [voltar] [busca full-width] [carrinho]                    */}
       <SafeAreaView edges={["top"]} style={{ backgroundColor: theme.colors.bg }}>
-        <View style={st.topHeader}>
+        <View style={st.topBarSearch}>
           <TouchableOpacity
             onPress={() => router.back()}
             style={st.topBackBtn}
             hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            testID="marketplace-back"
           >
             <Ionicons name="chevron-back" size={22} color="#EEE" />
           </TouchableOpacity>
-          <View style={st.topTitleWrap}>
-            <View style={[st.topDot, { backgroundColor: tierMeta.color }]} />
-            <Text style={st.topTitle}>
-              MEMBRO <Text style={{ color: tierMeta.accent, fontWeight: "900" }}>{paramTier.toUpperCase()}</Text>
-            </Text>
+
+          <View style={[st.searchBoxTop, { borderColor: tierMeta.color + "44" }]}>
+            <Ionicons name="search" size={15} color={tierMeta.accent} style={{ marginRight: 6 }} />
+            <TextInput
+              style={st.searchInputTop}
+              value={q}
+              onChangeText={setQ}
+              placeholder={`Buscar em ${tierMeta.label.replace("Marketplace ", "")}...`}
+              placeholderTextColor="#666"
+              autoCapitalize="none"
+              returnKeyType="search"
+              onSubmitEditing={() => Keyboard.dismiss()}
+              testID="marketplace-search"
+            />
+            {q.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setQ("")}
+                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              >
+                <Ionicons name="close-circle" size={16} color="#888" />
+              </TouchableOpacity>
+            )}
           </View>
+
           <TouchableOpacity
             onPress={() => router.push("/cart" as any)}
             style={st.topCartBtn}
@@ -229,84 +253,30 @@ export default function Marketplace() {
         </View>
       </SafeAreaView>
 
-      {/* CATEGORIAS — barra fixa acima da busca (aproveita o espaço vazio do topo) */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={st.catRowTop}
-        keyboardShouldPersistTaps="handled"
-      >
-        <CatChip active={cat === "all"} onPress={() => setCat("all")} label="Todos" emoji="🛍️" color={tierMeta.accent} />
-        {publicCats.map((c) => {
-          const meta = CAT_META[c.id] || { label: c.name, emoji: "📦", color: "#888" };
-          return (
-            <CatChip
-              key={c.id}
-              active={cat === c.id}
-              onPress={() => setCat(c.id)}
-              label={meta.label}
-              emoji={meta.emoji}
-              color={meta.color}
-            />
-          );
-        })}
-      </ScrollView>
-
-      {/* Divider visual sutil — separa a área de categorias da busca */}
-      <View style={st.catSearchDivider} />
-
-      {/* Busca FUNCIONAL — input ocupa toda largura, botão lupa à direita dispara/foca a busca */}
-      <View style={st.searchRow}>
-        <TextInput
-          style={st.searchInputFull}
-          value={q}
-          onChangeText={setQ}
-          placeholder="Buscar produto pelo nome..."
-          placeholderTextColor="#666"
-          autoCapitalize="none"
-          returnKeyType="search"
-          onSubmitEditing={() => Keyboard.dismiss()}
-          testID="marketplace-search"
-        />
-        {q.length > 0 && (
-          <TouchableOpacity
-            onPress={() => setQ("")}
-            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-            style={st.searchClearBtn}
-          >
-            <Ionicons name="close-circle" size={16} color="#666" />
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          onPress={() => Keyboard.dismiss()}
-          style={[st.searchBtn, { backgroundColor: tierMeta.color }]}
-          activeOpacity={0.85}
-          testID="marketplace-search-btn"
+      {/* CATEGORIAS — fixadas LOGO ABAIXO da busca (sem sobreposição) */}
+      <View style={st.catContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={st.catRowTop}
+          keyboardShouldPersistTaps="handled"
         >
-          <Ionicons name="search" size={16} color="#0A0A0A" />
-        </TouchableOpacity>
+          <CatChip active={cat === "all"} onPress={() => setCat("all")} label="Todos" emoji="🛍️" color={tierMeta.accent} />
+          {publicCats.map((c) => {
+            const meta = CAT_META[c.id] || { label: c.name, emoji: "📦", color: "#888" };
+            return (
+              <CatChip
+                key={c.id}
+                active={cat === c.id}
+                onPress={() => setCat(c.id)}
+                label={meta.label}
+                emoji={meta.emoji}
+                color={meta.color}
+              />
+            );
+          })}
+        </ScrollView>
       </View>
-
-      {/* CTA — Botão de publicar anúncio (apenas staff: admin/support/financeiro) */}
-      {canPost && (
-        <TouchableOpacity
-          style={[st.postCta, { borderColor: tierMeta.color + "55", backgroundColor: tierMeta.color + "10" }]}
-          onPress={() => router.push({ pathname: "/ads/create", params: { tier: paramTier } } as any)}
-          activeOpacity={0.85}
-          testID="marketplace-post-ad"
-        >
-          <View style={[st.postCtaIcon, { backgroundColor: tierMeta.color + "22", borderColor: tierMeta.color + "66" }]}>
-            <Ionicons name="add" size={16} color={tierMeta.accent} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[st.postCtaTitle, { color: tierMeta.accent }]}>
-              PUBLICAR ANÚNCIO NO {paramTier.toUpperCase()}
-            </Text>
-            <Text style={st.postCtaSub}>Curadoria oficial BlacksClub · Staff autorizado</Text>
-          </View>
-          <Ionicons name="arrow-forward" size={14} color={tierMeta.color} />
-        </TouchableOpacity>
-      )}
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
@@ -534,6 +504,30 @@ function AdGridCard({ ad, onPress }: { ad: Ad; onPress: () => void }) {
 }
 
 const st = StyleSheet.create({
+  // === Header refatorado: busca no topo + categorias logo abaixo ===
+  // Layout linha única: [back] [search-input] [cart]
+  topBarSearch: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 12, paddingTop: 8, paddingBottom: 10,
+  },
+  searchBoxTop: {
+    flex: 1,
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 12, paddingVertical: 9,
+    backgroundColor: "#0E0E0E",
+    borderRadius: 12, borderWidth: 1,
+  },
+  searchInputTop: {
+    flex: 1,
+    color: "#EEE", fontSize: 13.5,
+    padding: 0, // Android default padding kills layout
+  },
+  // Container das categorias — logo abaixo da busca, sem sobreposição
+  catContainer: {
+    backgroundColor: theme.colors.bg,
+    borderTopWidth: 1, borderTopColor: "#141414",
+    borderBottomWidth: 1, borderBottomColor: "#141414",
+  },
   // Divider sutil entre categorias e busca
   catSearchDivider: {
     height: 1,
