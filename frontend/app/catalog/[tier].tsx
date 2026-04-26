@@ -79,6 +79,9 @@ export default function Marketplace() {
   const [categories, setCategories] = useState<Category[]>(_catCache.data || []);
   const [products, setProducts] = useState<Product[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
+  // Paginação de anúncios — 20 por página
+  const ADS_PER_PAGE = 20;
+  const [adsPage, setAdsPage] = useState(1);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -99,7 +102,8 @@ export default function Marketplace() {
       if (!catsFresh) { _catCache.data = cats as Category[]; _catCache.ts = Date.now(); }
       setCategories(cats as Category[]);
       setProducts(prods);
-      setAds(aa.slice(0, 8));
+      setAds(aa);  // mostra TODOS os anúncios filtrados (paginação faz a divisão depois)
+      setAdsPage(1);  // reseta pra primeira página em qualquer reload
     } finally { setLoading(false); }
   }, [cat, q, member, hasMarketplaceAccess, paramTier]);
 
@@ -186,6 +190,14 @@ export default function Marketplace() {
       (a.description || "").toLowerCase().includes(qLower);
     return matchCat && matchQ;
   });
+
+  // Paginação após filtro
+  const adsTotalPages = Math.max(1, Math.ceil(filteredAds.length / ADS_PER_PAGE));
+  const safePage = Math.min(adsPage, adsTotalPages);  // se filtrar e ficar com menos pgs
+  const pagedAds = filteredAds.slice((safePage - 1) * ADS_PER_PAGE, safePage * ADS_PER_PAGE);
+
+  // Reset para a página 1 quando categoria/busca mudam (UX intuitiva)
+  useEffect(() => { setAdsPage(1); }, [cat, q]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }} testID="marketplace-screen">
@@ -332,15 +344,50 @@ export default function Marketplace() {
                 </Text>
               </View>
             ) : (
-              <View style={st.adsGrid}>
-                {filteredAds.map((ad) => (
-                  <AdGridCard
-                    key={ad.ad_id}
-                    ad={ad}
-                    onPress={() => router.push({ pathname: "/ads/[id]", params: { id: ad.ad_id } })}
-                  />
-                ))}
-              </View>
+              <>
+                <View style={st.adsGrid}>
+                  {pagedAds.map((ad) => (
+                    <AdGridCard
+                      key={ad.ad_id}
+                      ad={ad}
+                      onPress={() => router.push({ pathname: "/ads/[id]", params: { id: ad.ad_id } })}
+                    />
+                  ))}
+                </View>
+
+                {/* Paginação — aparece apenas se houver mais de 1 página de anúncios */}
+                {adsTotalPages > 1 && (
+                  <View style={st.pagination}>
+                    <TouchableOpacity
+                      style={[st.pagBtn, safePage <= 1 && { opacity: 0.35 }]}
+                      onPress={() => setAdsPage((p) => Math.max(1, p - 1))}
+                      disabled={safePage <= 1}
+                      activeOpacity={0.75}
+                      testID="ads-prev-page"
+                    >
+                      <Ionicons name="chevron-back" size={16} color="#EEE" />
+                      <Text style={st.pagBtnTxt}>ANTERIOR</Text>
+                    </TouchableOpacity>
+
+                    <Text style={st.pagInfo}>
+                      <Text style={{ color: GOLD, fontWeight: "900" }}>{safePage}</Text>
+                      <Text> de {adsTotalPages}</Text>
+                      <Text style={st.pagInfoSub}>{"\n"}{filteredAds.length} anúncio{filteredAds.length === 1 ? "" : "s"}</Text>
+                    </Text>
+
+                    <TouchableOpacity
+                      style={[st.pagBtn, safePage >= adsTotalPages && { opacity: 0.35 }]}
+                      onPress={() => setAdsPage((p) => Math.min(adsTotalPages, p + 1))}
+                      disabled={safePage >= adsTotalPages}
+                      activeOpacity={0.75}
+                      testID="ads-next-page"
+                    >
+                      <Text style={st.pagBtnTxt}>PRÓXIMA</Text>
+                      <Ionicons name="chevron-forward" size={16} color="#EEE" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
             )}
           </>
         ) : (
@@ -706,6 +753,23 @@ const st = StyleSheet.create({
     flexDirection: "row", flexWrap: "wrap",
     paddingHorizontal: 12, gap: 10, marginTop: 6,
   },
+
+  // Paginação de anúncios
+  pagination: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingVertical: 16, marginTop: 6,
+    gap: 8,
+  },
+  pagBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingVertical: 10, paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1, borderColor: "#1F1F1F",
+    backgroundColor: "#0E1216",
+  },
+  pagBtnTxt: { color: "#EEE", fontSize: 11, fontWeight: "900", letterSpacing: 0.5 },
+  pagInfo: { color: "#999", fontSize: 12, textAlign: "center", lineHeight: 16 },
+  pagInfoSub: { color: "#666", fontSize: 10 },
   adGridCard: {
     width: "48.5%",
     backgroundColor: "#0B1218",
