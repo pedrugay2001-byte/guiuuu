@@ -2262,6 +2262,7 @@ def _public_member(m: Dict[str, Any], online_cutoff: datetime) -> Dict[str, Any]
         "city": m.get("city"),
         "bio": m.get("bio"),
         "is_online": is_online,
+        "can_post_ads": bool(m.get("can_post_ads")),
     }
 
 
@@ -2876,20 +2877,63 @@ async def buy_ad_with_blx(ad_id: str, data: AdBLXBuy):
 
 
 @api_router.post("/ads")
-async def create_ad(data: AdCreate, staff: dict = Depends(require_staff)):
+async def create_ad(data: AdCreate, request: Request):
     """
     Publica anúncio no marketplace.
-    ⚠️ Apenas staff do clube (admin, support, financeiro) podem publicar.
-    Membros comuns, mesmo Diamond, não têm permissão — o marketplace é curado.
+
+    Quem pode publicar:
+      • Qualquer staff autenticado via JWT (admin, support, financeiro)
+      • Qualquer membro com a flag `can_post_ads: true` no perfil
+        (concedida individualmente pelo admin a Diamonds confiáveis).
+
+    Membros comuns sem essa flag NÃO podem publicar — o marketplace é curado.
     """
+    # 1) Tenta autenticar via JWT (staff)
+    actor_role: Optional[str] = None
+    actor_email: Optional[str] = None
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        try:
+            token = auth_header.split(" ", 1)[1]
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            user = await db.users.find_one({"user_id": payload.get("user_id")})
+            if user and user.get("role") in ("admin", "support", "financeiro"):
+                actor_role = user["role"]
+                actor_email = user.get("email")
+        except Exception:
+            pass
+
+    # 2) Carrega o membro vendedor
     m = await db.members.find_one({"member_id": data.seller_id})
     if not m:
         raise HTTPException(status_code=404, detail="Membro não encontrado")
-    seller_tier = (m.get("tier") or "silver").lower()
-    # Validação de ad_tier: staff pode publicar em qualquer marketplace.
+
+    # 3) Se não é staff via JWT, exige que o member tenha a flag
+    if actor_role is None:
+        if not m.get("can_post_ads"):
+            raise HTTPException(
+                status_code=403,
+                detail="Você não tem permissão para publicar anúncios. Solicite ao admin.",
+            )
+        actor_role = "diamond_publisher"
+        actor_email = m.get("email")
+
+    # 4) Validações de tier do anúncio
     requested_tier = (data.ad_tier or "diamond").lower()
     if requested_tier not in ("silver", "gold", "diamond"):
         requested_tier = "diamond"
+
+    # Membros com can_post_ads só podem publicar no marketplace do próprio tier
+    # ou inferiores (staff pode publicar em qualquer tier).
+    if actor_role == "diamond_publisher":
+        seller_tier = (m.get("tier") or "silver").lower()
+        TIER_RANK = {"silver": 1, "gold": 2, "diamond": 3}
+        if TIER_RANK.get(requested_tier, 3) > TIER_RANK.get(seller_tier, 1):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Você só pode publicar no marketplace {seller_tier} ou inferior.",
+            )
+
     ad = {
         "ad_id": f"ad_{uuid.uuid4().hex[:12]}",
         "seller_id": data.seller_id,
@@ -2901,13 +2945,69 @@ async def create_ad(data: AdCreate, staff: dict = Depends(require_staff)):
         "images": [img for img in (data.images or []) if isinstance(img, str)][:6],
         "stock": max(int(data.stock or 1), 1),
         "active": True,
-        "verified": True,  # anúncios publicados por staff são oficiais/verificados
-        "posted_by_role": staff.get("role"),
+        "verified": actor_role != "diamond_publisher",  # apenas staff = oficial/verificado
+        "posted_by_role": actor_role,
+        "posted_by_email": actor_email,
         "created_at": datetime.now(timezone.utc),
     }
     await db.ads.insert_one(ad.copy())
     ad.pop("_id", None)
     return ad
+
+
+@api_router.post("/admin/members/{member_id}/grant-publisher")
+async def admin_grant_publisher(member_id: str, staff: dict = Depends(require_staff)):
+    """Concede permissão de publicar anúncios a um membro Diamond/Gold confiável.
+    O membro só pode publicar no próprio tier ou inferior."""
+    m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "name": 1, "tier": 1, "email": 1})
+    if not m:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    await db.members.update_one(
+        {"member_id": member_id},
+        {"$set": {"can_post_ads": True}},
+    )
+    await _audit_log(staff, "member_grant_publisher", target_email=m.get("email"), target_user_id=member_id,
+                    details={"name": m.get("name"), "tier": m.get("tier")})
+    return {"ok": True, "member_id": member_id, "can_post_ads": True}
+
+
+@api_router.post("/admin/members/{member_id}/revoke-publisher")
+async def admin_revoke_publisher(member_id: str, staff: dict = Depends(require_staff)):
+    """Revoga permissão de publicar anúncios."""
+    m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "name": 1, "tier": 1, "email": 1})
+    if not m:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    await db.members.update_one(
+        {"member_id": member_id},
+        {"$set": {"can_post_ads": False}},
+    )
+    await _audit_log(staff, "member_revoke_publisher", target_email=m.get("email"), target_user_id=member_id,
+                    details={"name": m.get("name"), "tier": m.get("tier")})
+    return {"ok": True, "member_id": member_id, "can_post_ads": False}
+
+
+@api_router.get("/admin/members/publishers")
+async def admin_list_publishers(staff: dict = Depends(require_staff)):
+    """Lista todos os membros com permissão de publicar anúncios."""
+    out = []
+    async for m in db.members.find(
+        {"can_post_ads": True},
+        {"_id": 0, "member_id": 1, "name": 1, "nickname": 1, "tier": 1, "email": 1, "city": 1, "state": 1, "avatar_base64": 1},
+    ).sort("name", 1):
+        out.append(m)
+    return {"publishers": out, "count": len(out)}
+
+
+@api_router.get("/members/{member_id}/can-post-ads")
+async def member_can_post_ads(member_id: str):
+    """Endpoint público (membro) — verifica se ele pode publicar anúncios."""
+    m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "can_post_ads": 1, "tier": 1})
+    if not m:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+    return {
+        "can_post_ads": bool(m.get("can_post_ads")),
+        "tier": m.get("tier"),
+    }
 
 
 @api_router.delete("/admin/ads/clear")

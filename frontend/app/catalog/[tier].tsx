@@ -63,8 +63,14 @@ export default function Marketplace() {
   // Diamond acessa todos; Gold acessa Gold+Silver; Silver só Silver; Black nenhum.
   const TIER_RANK: Record<string, number> = { silver: 1, gold: 2, diamond: 3, black: 0 };
   const hasMarketplaceAccess = (TIER_RANK[myTier] ?? 0) >= (TIER_RANK[paramTier] ?? 99);
-  // Apenas staff (admin/support/financeiro) pode publicar anúncios — marketplace curado
-  const canPost = !!user && ["admin", "support", "financeiro"].includes((user.role || "") as string);
+  // Pode publicar:
+  //   - staff JWT (admin/support/financeiro), OU
+  //   - membro com flag `can_post_ads` (concedida individualmente pelo admin)
+  // Membros com flag só publicam no próprio tier ou inferior.
+  const isStaff = !!user && ["admin", "support", "financeiro"].includes((user.role || "") as string);
+  const isMemberPublisher = !!member?.can_post_ads;
+  const canPostMemberTier = isMemberPublisher && (TIER_RANK[myTier] ?? 0) >= (TIER_RANK[paramTier] ?? 99);
+  const canPost = isStaff || canPostMemberTier;
   // Diamond é marketplace exclusivamente de anúncios curados (sem catálogo de produtos dourados)
   const isDiamondView = paramTier === "diamond";
 

@@ -51,8 +51,13 @@ export default function CreateAd() {
 
   const theme = useMemo(() => TIER_THEME[adTier], [adTier]);
 
-  // Apenas staff (admin/support/financeiro) pode publicar — marketplace curado BlacksClub
-  const canPost = !!user && ["admin", "support", "financeiro"].includes((user.role || "") as string);
+  // Pode publicar:
+  //  - Staff JWT (admin/support/financeiro), OU
+  //  - Membro com flag `can_post_ads` concedida pelo admin
+  // (A validação completa fica no backend; aqui é só pra mostrar a UI)
+  const isStaff = !!user && ["admin", "support", "financeiro"].includes((user.role || "") as string);
+  const isMemberPublisher = !!member?.can_post_ads;
+  const canPost = isStaff || isMemberPublisher;
 
   // Modo EDIÇÃO — carrega dados do anúncio existente
   useEffect(() => {

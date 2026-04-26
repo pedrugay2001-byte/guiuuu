@@ -21,6 +21,7 @@ export type MemberData = {
   tier: TierId;
   nickname?: string | null;
   avatar_base64?: string | null;
+  can_post_ads?: boolean; // permissão de publicar anúncios (concedida pelo admin)
 };
 
 type GateState = {

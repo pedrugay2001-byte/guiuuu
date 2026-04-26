@@ -97,6 +97,7 @@ export type MemberData = {
   neighborhood?: string; city?: string; state?: string;
   total_members?: number; created_at: string;
   avatar_base64?: string | null;
+  can_post_ads?: boolean; // membros com permissão de publicar anúncios
 };
 
 export type AuthorizedEntry = {
