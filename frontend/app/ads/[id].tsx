@@ -9,9 +9,8 @@ import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { api, Ad, ApiError } from "../../src/api";
 import { useGate } from "../../src/gate";
-import { useAuth } from "../../src/auth";
 import { formatBLX } from "../../src/blx";
-import { notify, confirm } from "../../src/alerts";
+import { notify } from "../../src/alerts";
 import { theme, TIERS } from "../../src/theme";
 import InsufficientBalanceModal from "../../src/components/InsufficientBalanceModal";
 
@@ -32,7 +31,6 @@ export default function AdView() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { member, refreshMember } = useGate();
-  const { user } = useAuth();
   const [ad, setAd] = useState<Ad | null>(null);
   const [pay, setPay] = useState<PayId>("full");
   const [favorited, setFavorited] = useState(false);
@@ -61,31 +59,8 @@ export default function AdView() {
   const entryCents = Math.round(finalCents * entryPct / 100);
   const remainingCents = finalCents - entryCents;
   const isOwner = ad.seller_id === member?.member_id;
-  const isStaff = !!user && ["admin", "support", "financeiro"].includes((user.role || "") as string);
-  const canManage = isOwner || isStaff;
   const sellerTier = (ad.seller_tier || "diamond").toLowerCase();
   const sellerIsDiamond = sellerTier === "diamond";
-
-  const editAd = () => {
-    router.push({ pathname: "/ads/create", params: { edit_id: ad.ad_id, tier: ad.ad_tier || "diamond" } } as any);
-  };
-
-  const deleteAd = async () => {
-    if (!member) return;
-    // Usa confirm() universal (mobile + web) — Alert.alert é instável no react-native-web
-    const ok = await confirm(
-      "Excluir anúncio?",
-      `"${ad.title}" será REMOVIDO PERMANENTEMENTE do marketplace.\n\nEsta ação não pode ser desfeita.`,
-    );
-    if (!ok) return;
-    try {
-      await api.deleteAd(ad.ad_id, member.member_id);
-      notify("Anúncio excluído", "Removido do marketplace.");
-      setTimeout(() => router.back(), 800);
-    } catch (e: any) {
-      notify("Erro ao excluir", e?.message || "Falha ao excluir o anúncio.");
-    }
-  };
 
   const toggleFav = async () => {
     if (!member) return;
@@ -200,36 +175,6 @@ export default function AdView() {
             <Text style={s.sellerName} numberOfLines={1}>Vendedor: {ad.seller_nickname}</Text>
             <Ionicons name="chevron-forward" size={14} color="#555" />
           </TouchableOpacity>
-
-          {/* Ações do dono / staff — Editar e Excluir o anúncio */}
-          {canManage && (
-            <View style={s.ownerActions}>
-              <TouchableOpacity
-                style={[s.ownerBtn, { borderColor: DIAMOND + "55" }]}
-                onPress={editAd}
-                activeOpacity={0.85}
-                testID="ad-edit-btn"
-              >
-                <Ionicons name="create-outline" size={16} color={DIAMOND} />
-                <Text style={[s.ownerBtnTxt, { color: DIAMOND }]}>EDITAR</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[s.ownerBtn, { borderColor: "#F8717155" }]}
-                onPress={deleteAd}
-                activeOpacity={0.85}
-                testID="ad-delete-btn"
-              >
-                <Ionicons name="trash-outline" size={16} color="#F87171" />
-                <Text style={[s.ownerBtnTxt, { color: "#F87171" }]}>EXCLUIR</Text>
-              </TouchableOpacity>
-              {!isOwner && isStaff && (
-                <View style={s.modBadge}>
-                  <Ionicons name="shield-checkmark" size={11} color="#F5C150" />
-                  <Text style={s.modBadgeTxt}>MODERAÇÃO</Text>
-                </View>
-              )}
-            </View>
-          )}
 
           {/* Preço principal — gradiente CIANO */}
           <LinearGradient
