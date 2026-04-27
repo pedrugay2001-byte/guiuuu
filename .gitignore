@@ -31,15 +31,13 @@ next-env.d.ts
 # dist/
 # dist
 
-# Environment files (comprehensive coverage)
+# Environment files
+# NOTE: .env files MUST be committed to the repo — Emergent K8s deployment
+# overwrites them with production values at deploy time. Blocking them here
+# breaks production deploys (deployment_agent flagged this as BLOCKER).
 
 *token.json*
 *credentials.json*
-**/.env
-**/.env.*
-!**/.env.example
-.env
-.env.*
 
 # Logs and debug files
 npm-debug.log*
