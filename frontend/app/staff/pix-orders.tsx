@@ -1,13 +1,14 @@
 import { useCallback, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Alert, Modal, TextInput, KeyboardAvoidingView, Platform,
+  RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../src/api";
 import type { PixOrder } from "../../src/api";
+import { confirm, notify } from "../../src/alerts";
 
 const TABS = [
   { key: "pending",  label: "Pendentes",  color: "#F5C150", icon: "time-outline" },
@@ -47,7 +48,7 @@ export default function StaffPixOrders() {
       setStats(st || { pending: 0, approved: 0, rejected: 0 });
     } catch (e: any) {
       if (String(e.message || "").toLowerCase().includes("staff")) {
-        Alert.alert("Acesso negado", "Apenas staff/admin");
+        notify("Acesso negado", "Apenas staff/admin");
         router.replace("/staff/login");
       }
     } finally {
@@ -59,28 +60,25 @@ export default function StaffPixOrders() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const approve = async (o: PixOrder) => {
-    Alert.alert(
+    // confirm() universal: funciona tanto em web (window.confirm) quanto em mobile (Alert nativo)
+    const ok = await confirm(
       "Aprovar pedido?",
       `Confirma o crédito de ${(o.blx_centavos / 100).toFixed(2)} BLX para ${o.member_name || "membro"}?\n(R$ ${(o.amount_brl_centavos / 100).toFixed(2)} pago no PIX)`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "APROVAR",
-          style: "default",
-          onPress: async () => {
-            setActioning(o.order_id);
-            try {
-              await api.pixOrderApprove(o.order_id);
-              load();
-            } catch (e: any) {
-              Alert.alert("Erro", e.message || "Falha ao aprovar");
-            } finally {
-              setActioning(null);
-            }
-          },
-        },
-      ],
     );
+    if (!ok) return;
+    setActioning(o.order_id);
+    try {
+      await api.pixOrderApprove(o.order_id);
+      notify(
+        "✅ Pedido aprovado",
+        `${(o.blx_centavos / 100).toFixed(2)} BLX creditados para ${o.member_name || "o membro"}.`,
+      );
+      load();
+    } catch (e: any) {
+      notify("Erro ao aprovar", e?.message || "Falha ao aprovar pedido.");
+    } finally {
+      setActioning(null);
+    }
   };
 
   const openReject = (o: PixOrder) => {
@@ -91,17 +89,21 @@ export default function StaffPixOrders() {
   const confirmReject = async () => {
     if (!rejecting) return;
     if (!rejectReason.trim()) {
-      Alert.alert("Informe um motivo", "Descreva por que está rejeitando.");
+      notify("Informe um motivo", "Descreva por que está rejeitando.");
       return;
     }
     setActioning(rejecting.order_id);
     try {
       await api.pixOrderReject(rejecting.order_id, rejectReason.trim());
+      notify(
+        "❌ Pedido rejeitado",
+        `Membro será notificado com o motivo: "${rejectReason.trim().slice(0, 60)}"`,
+      );
       setRejecting(null);
       setRejectReason("");
       load();
     } catch (e: any) {
-      Alert.alert("Erro", e.message || "Falha ao rejeitar");
+      notify("Erro ao rejeitar", e?.message || "Falha ao rejeitar pedido.");
     } finally {
       setActioning(null);
     }

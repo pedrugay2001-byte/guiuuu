@@ -5127,6 +5127,58 @@ async def get_notifications(member_id: str):
         owner = await db.members.find_one({"member_id": g.get("owner_id")}, {"_id": 0, "nickname": 1, "name": 1})
         items.append({"id": f"g_{g.get('group_id')}", "type": "group", "title": f"{(owner or {}).get('nickname') or 'Alguém'} te convidou para o grupo '{g.get('name')}'", "body": g.get("description") or "Entre e interaja!", "route": f"/community/group/{g.get('group_id')}", "created_at": g.get("created_at"), "icon": "people", "color": g.get("color", "#D4AF37")})
 
+    # ============== MINHAS RECARGAS PIX → BLX ==============
+    # Mostra status (pending/approved/rejected) dos meus pedidos de recarga,
+    # para o membro saber em tempo real se o crédito foi aprovado ou recusado.
+    pix_my_cur = db.pix_orders.find(
+        {"member_id": member_id, "created_at": {"$gte": since}},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(20)
+    async for p in pix_my_cur:
+        cents_brl = int(p.get("amount_brl_centavos", 0))
+        cents_blx = int(p.get("blx_centavos", 0))
+        brl_str = f"R$ {cents_brl // 100:,}".replace(",", ".") + f",{cents_brl % 100:02d}"
+        blx_str = f"{cents_blx // 100:,}".replace(",", ".") + f",{cents_blx % 100:02d} BLX"
+        status = p.get("status", "pending")
+        # Para o item mais recente de cada status, usa created_at OU o timestamp da decisão
+        # (approved_at / rejected_at) — assim a notificação "sobe" no feed quando muda.
+        if status == "approved" and p.get("approved_at"):
+            ts = p.get("approved_at")
+            title = f"✅ Sua recarga foi APROVADA · {blx_str}"
+            body = f"PIX de {brl_str} confirmado · saldo já creditado na sua carteira"
+            color = "#4EE07F"
+            icon = "checkmark-circle"
+        elif status == "rejected" and p.get("rejected_at"):
+            ts = p.get("rejected_at")
+            reason = (p.get("rejection_reason") or "").strip() or "Sem motivo informado"
+            title = f"❌ Sua recarga foi REJEITADA · {brl_str}"
+            body = f"Motivo: {reason[:90]}"
+            color = "#F87171"
+            icon = "close-circle"
+        elif status == "pending":
+            ts = p.get("created_at")
+            title = f"⏳ Recarga PIX em análise · {brl_str}"
+            body = "Aguarde aprovação do nosso time financeiro (até 24h úteis)"
+            color = "#F5C150"
+            icon = "time-outline"
+        else:
+            # Cancelado ou outro
+            ts = p.get("updated_at") or p.get("created_at")
+            title = f"Recarga PIX · {status} · {brl_str}"
+            body = ""
+            color = "#888"
+            icon = "wallet"
+        items.append({
+            "id": f"my_pix_{p.get('order_id')}_{status}",
+            "type": "my_pix",
+            "title": title,
+            "body": body,
+            "route": "/wallet/topup",
+            "created_at": ts,
+            "icon": icon,
+            "color": color,
+        })
+
     # ============== ADMIN/STAFF FEED — eventos GLOBAIS da plataforma ==============
     # Quando o membro é staff/admin (e-mail vinculado a users.role), agregamos:
     #   • Pedidos PIX (todos novos — pendentes, aprovados, rejeitados)
@@ -5259,6 +5311,23 @@ async def notifications_count(member_id: str):
         # `created_at` precisa ser MAIS RECENTE que o último "lido"
         sales_q["created_at"] = {"$gt": notif_read_at}
     sales_count = await db.wallet_txs.count_documents(sales_q)
+
+    # Conta meus pedidos PIX cuja decisão (approve/reject) ou criação ocorreu após o último "lido".
+    # Garante que o membro veja imediatamente o status do crédito no sino.
+    cutoff_my_pix = notif_read_at or since
+    my_pix_count = 0
+    try:
+        my_pix_count = await db.pix_orders.count_documents({
+            "member_id": member_id,
+            "$or": [
+                {"approved_at": {"$gt": cutoff_my_pix}},
+                {"rejected_at": {"$gt": cutoff_my_pix}},
+                {"created_at": {"$gt": cutoff_my_pix}, "status": "pending"},
+            ],
+        })
+    except Exception:
+        pass
+    sales_count += my_pix_count
 
     # ===== Contagem de eventos ADMIN/STAFF (bell badge global) =====
     # Se o membro é admin/staff (e-mail vinculado a users), agrega contagens globais
