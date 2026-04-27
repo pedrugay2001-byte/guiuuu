@@ -5054,10 +5054,24 @@ async def create_custom_group(data: CustomGroupCreate):
 
 @api_router.get("/notifications/{member_id}")
 async def get_notifications(member_id: str):
-    """Aggregated notifications feed: new DMs, purchases, escrow updates, group invites, ads activity."""
+    """Aggregated notifications feed: new DMs, purchases, escrow updates, group invites, ads activity.
+    Para membros que também são staff/admin (e-mail vinculado a um user com role admin/support/financeiro),
+    inclui também eventos GLOBAIS da plataforma: novos pedidos PIX, vendas no marketplace,
+    novos orçamentos e mensagens de suporte recebidas — para que o Master / equipe vejam tudo no sino.
+    """
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=30)
     items: List[Dict[str, Any]] = []
+
+    # Detecta se o membro é staff/admin (e-mail vinculado a users)
+    me_member = await db.members.find_one({"member_id": member_id}, {"_id": 0, "email": 1})
+    is_admin_member = False
+    admin_role: Optional[str] = None
+    if me_member and me_member.get("email"):
+        u = await db.users.find_one({"email": me_member["email"]}, {"_id": 0, "role": 1})
+        if u and u.get("role") in ("admin", "support", "financeiro"):
+            is_admin_member = True
+            admin_role = u.get("role")
 
     # New DMs received (last 30d)
     dm_cur = db.dms.find({"to_id": member_id, "created_at": {"$gte": since}}, {"_id": 0}).sort("created_at", -1).limit(30)
@@ -5113,6 +5127,95 @@ async def get_notifications(member_id: str):
         owner = await db.members.find_one({"member_id": g.get("owner_id")}, {"_id": 0, "nickname": 1, "name": 1})
         items.append({"id": f"g_{g.get('group_id')}", "type": "group", "title": f"{(owner or {}).get('nickname') or 'Alguém'} te convidou para o grupo '{g.get('name')}'", "body": g.get("description") or "Entre e interaja!", "route": f"/community/group/{g.get('group_id')}", "created_at": g.get("created_at"), "icon": "people", "color": g.get("color", "#D4AF37")})
 
+    # ============== ADMIN/STAFF FEED — eventos GLOBAIS da plataforma ==============
+    # Quando o membro é staff/admin (e-mail vinculado a users.role), agregamos:
+    #   • Pedidos PIX (todos novos — pendentes, aprovados, rejeitados)
+    #   • Vendas no marketplace (escrow criado por qualquer membro)
+    #   • Solicitações de orçamento (quotes pendentes)
+    #   • Mensagens recebidas no suporte (chat staff)
+    if is_admin_member:
+        # 1) Pedidos PIX (todos pendentes — alta prioridade)
+        pix_cur = db.pix_orders.find(
+            {"created_at": {"$gte": since}}, {"_id": 0}
+        ).sort("created_at", -1).limit(30)
+        async for p in pix_cur:
+            cents = int(p.get("amount_brl_centavos", 0))
+            brl_str = f"R$ {cents // 100:,}".replace(",", ".") + f",{cents % 100:02d}"
+            status = p.get("status", "pending")
+            badge = {
+                "pending": ("🔔 NOVO PEDIDO PIX", "#F5C150", "wallet"),
+                "approved": ("Pedido PIX aprovado", "#4EE07F", "checkmark-circle"),
+                "rejected": ("Pedido PIX rejeitado", "#F87171", "close-circle"),
+                "cancelled": ("Pedido PIX cancelado", "#888", "ban"),
+            }.get(status, (f"PIX · {status}", "#7FD7E5", "wallet"))
+            items.append({
+                "id": f"adm_pix_{p.get('order_id')}",
+                "type": "admin_pix",
+                "title": f"{badge[0]} — {p.get('member_name','Membro')}",
+                "body": f"{brl_str} · {p.get('member_tier','?').upper()} · toque para revisar",
+                "route": "/staff/pix-orders",
+                "created_at": p.get("created_at"),
+                "icon": badge[2],
+                "color": badge[1],
+            })
+
+        # 2) Vendas no marketplace (escrow criado por qualquer membro)
+        sales_cur = db.wallet_txs.find(
+            {"type": "escrow", "status": "escrow", "created_at": {"$gte": since}},
+            {"_id": 0}
+        ).sort("created_at", -1).limit(30)
+        async for s in sales_cur:
+            cents = int(s.get("amount_centavos") or round(float(s.get("amount", 0)) * 100))
+            blx_str = f"{cents // 100:,}".replace(",", ".") + f",{cents % 100:02d} BLX"
+            items.append({
+                "id": f"adm_sale_{s.get('tx_id')}",
+                "type": "admin_sale",
+                "title": f"💰 Compra no marketplace · {s.get('ad_title','Anúncio')}",
+                "body": f"{blx_str} · {s.get('from_name','Comprador')} → {s.get('to_name','Vendedor')}",
+                "route": "/staff/dashboard",
+                "created_at": s.get("created_at"),
+                "icon": "cart",
+                "color": "#4EE07F",
+            })
+
+        # 3) Orçamentos solicitados (todos abertos)
+        try:
+            q_cur = db.quotes.find(
+                {"created_at": {"$gte": since}}, {"_id": 0}
+            ).sort("created_at", -1).limit(20)
+            async for q in q_cur:
+                items.append({
+                    "id": f"adm_quote_{q.get('quote_id')}",
+                    "type": "admin_quote",
+                    "title": f"📋 Novo orçamento de {q.get('member_name','Membro')}",
+                    "body": (q.get("message") or "")[:80] or "Solicitação de orçamento aberta.",
+                    "route": "/staff/dashboard",
+                    "created_at": q.get("created_at"),
+                    "icon": "document-text",
+                    "color": "#7FD7E5",
+                })
+        except Exception:
+            pass
+
+        # 4) Mensagens de suporte recebidas (chat de membros para staff)
+        try:
+            sup_cur = db.chat_messages.find(
+                {"sender": "member", "created_at": {"$gte": since}}, {"_id": 0}
+            ).sort("created_at", -1).limit(20)
+            async for sm in sup_cur:
+                items.append({
+                    "id": f"adm_sup_{sm.get('message_id')}",
+                    "type": "admin_support",
+                    "title": f"💬 Suporte · {sm.get('sender_name','Membro')}",
+                    "body": (sm.get("text") or "")[:80] or "(sem texto)",
+                    "route": "/staff/inbox",
+                    "created_at": sm.get("created_at"),
+                    "icon": "headset",
+                    "color": "#D4AF37",
+                })
+        except Exception:
+            pass
+
     items.sort(key=lambda x: x.get("created_at") or now, reverse=True)
     # Serialize datetimes
     for it in items:
@@ -5156,10 +5259,56 @@ async def notifications_count(member_id: str):
         # `created_at` precisa ser MAIS RECENTE que o último "lido"
         sales_q["created_at"] = {"$gt": notif_read_at}
     sales_count = await db.wallet_txs.count_documents(sales_q)
+
+    # ===== Contagem de eventos ADMIN/STAFF (bell badge global) =====
+    # Se o membro é admin/staff (e-mail vinculado a users), agrega contagens globais
+    # de pendências críticas: pedidos PIX pendentes, vendas recentes (escrow), orçamentos abertos
+    # e mensagens não lidas do chat de suporte.
+    admin_count = 0
+    admin_breakdown: Dict[str, int] = {"pix_pending": 0, "sales": 0, "quotes": 0, "support_msgs": 0}
+    me_member = await db.members.find_one({"member_id": member_id}, {"_id": 0, "email": 1})
+    is_admin_member = False
+    if me_member and me_member.get("email"):
+        u = await db.users.find_one({"email": me_member["email"]}, {"_id": 0, "role": 1})
+        if u and u.get("role") in ("admin", "support", "financeiro"):
+            is_admin_member = True
+    if is_admin_member:
+        cutoff = notif_read_at or since
+        # 1) Pedidos PIX PENDENTES — todos (não importa quando foram criados, prioridade máxima)
+        try:
+            admin_breakdown["pix_pending"] = await db.pix_orders.count_documents({"status": "pending"})
+        except Exception:
+            pass
+        # 2) Vendas (escrow criadas após cutoff)
+        try:
+            admin_breakdown["sales"] = await db.wallet_txs.count_documents(
+                {"type": "escrow", "status": "escrow", "created_at": {"$gt": cutoff}}
+            )
+        except Exception:
+            pass
+        # 3) Orçamentos novos (abertos após cutoff)
+        try:
+            admin_breakdown["quotes"] = await db.quotes.count_documents(
+                {"status": {"$in": ["open", "pending", None]}, "created_at": {"$gt": cutoff}}
+            )
+        except Exception:
+            pass
+        # 4) Mensagens de suporte recebidas após cutoff (membros → staff)
+        try:
+            admin_breakdown["support_msgs"] = await db.chat_messages.count_documents(
+                {"sender": "member", "created_at": {"$gt": cutoff}}
+            )
+        except Exception:
+            pass
+        admin_count = sum(admin_breakdown.values())
+
     return {
-        "count": dm_count + sales_count,
+        "count": dm_count + sales_count + admin_count,
         "messages": dm_count,
-        "notifications": sales_count,
+        "notifications": sales_count + admin_count,
+        "admin_count": admin_count,
+        "admin_breakdown": admin_breakdown,
+        "is_admin_member": is_admin_member,
     }
 
 

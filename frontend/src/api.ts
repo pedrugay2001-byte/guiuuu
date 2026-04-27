@@ -498,7 +498,14 @@ export const api = {
 
   // ----- Notifications -----
   notifications: (member_id: string) => request<NotificationItem[]>(`/notifications/${member_id}`),
-  notificationsCount: (member_id: string) => request<{ count: number; messages?: number; notifications?: number }>(`/notifications/${member_id}/count`),
+  notificationsCount: (member_id: string) => request<{
+    count: number;
+    messages?: number;
+    notifications?: number;
+    admin_count?: number;
+    is_admin_member?: boolean;
+    admin_breakdown?: { pix_pending: number; sales: number; quotes: number; support_msgs: number };
+  }>(`/notifications/${member_id}/count`),
   recentSenders: (member_id: string) => request<{ senders: Array<{
     member_id: string;
     name: string;
