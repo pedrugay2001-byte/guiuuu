@@ -59,11 +59,10 @@ api_router = APIRouter(prefix="/api")
 
 
 # -------------- Health checks (for Kubernetes liveness/readiness probes) --------------
-@app.get("/")
-@app.head("/")
-async def root():
-    """Root endpoint — Kubernetes liveness probe hits GET / and expects 2xx."""
-    return {"status": "ok", "service": "blacksclub-api", "api": "/api"}
+# NOTA: A rota "/" NÃO é mais um health endpoint dedicado. A rota "/" é servida
+# pelo catch-all no final do arquivo, que retorna o index.html do frontend.
+# K8s agora usa "/health" (liveness) e "/ready" (readiness) que retornam JSON 200.
+# Se o usuário acessar "/" pelo navegador, ele vê o app carregando normalmente.
 
 
 @app.get("/health")
