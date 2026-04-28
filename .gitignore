@@ -27,9 +27,13 @@ next-env.d.ts
 
 # Production builds
 /build
-# NOTE: dist/ must NOT be ignored — the frontend static build is deployed to production via /app/frontend/dist
-# dist/
-# dist
+# Frontend Expo bundler cache — NUNCA commitar (265MB+ de lixo, trava deploy K8s)
+frontend/.metro-cache/
+**/.metro-cache/
+# Frontend dist (build staging) — o que vai pra produção é o static_frontend/
+# Mantemos dist/ fora do git porque é regenerado a cada build e já é
+# copiado para /app/backend/static_frontend/ (que ESTÁ no git).
+frontend/dist/
 
 # Environment files
 # NOTE: .env files MUST be committed to the repo — Emergent K8s deployment
