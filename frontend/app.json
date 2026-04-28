@@ -63,7 +63,8 @@
         {
           "microphonePermission": "Permitir gravar mensagens de áudio e usar o assistente por voz."
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
