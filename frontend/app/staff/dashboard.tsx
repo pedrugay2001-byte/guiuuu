@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Alert, TextInput, Modal, KeyboardAvoidingView, Platform,
+  RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter, useFocusEffect } from "expo-router";
@@ -9,6 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, setToken } from "../../src/api";
 import { theme, TIERS, TierId } from "../../src/theme";
 import { BrandLogo } from "../../src/brand";
+import { notify, confirm } from "../../src/alerts";
 
 export default function StaffDashboard() {
   const router = useRouter();
@@ -59,14 +60,16 @@ export default function StaffDashboard() {
     router.replace("/staff/login");
   };
 
-  const removeMember = (m: any) => {
-    Alert.alert("Remover membro", `Excluir ${m.name}? Isso apaga conversa e pedidos.`, [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Excluir", style: "destructive", onPress: async () => {
-          try { await api.adminDeleteMember(m.member_id); await load(); }
-          catch (e: any) { Alert.alert("Erro", e.message); }
-        } },
-    ]);
+  const removeMember = async (m: any) => {
+    const ok = await confirm("Remover membro", `Excluir ${m.name}? Isso apaga conversa e pedidos.`);
+    if (!ok) return;
+    try {
+      await api.adminDeleteMember(m.member_id);
+      notify("Removido", `${m.name} foi excluído.`);
+      await load();
+    } catch (e: any) {
+      notify("Erro", e?.message || "Falha ao remover membro.");
+    }
   };
 
   return (
@@ -312,10 +315,11 @@ function EditMemberModal({ member, onClose, onSaved }: { member: any; onClose: (
     setSaving(true);
     try {
       await api.adminUpdateMember(member.member_id, { name, phone, tier, active });
+      notify("Salvo", "Dados do membro atualizados.");
       onSaved();
       setName(""); setPhone(""); setNewPwd("");
     } catch (e: any) {
-      Alert.alert("Erro", e.message);
+      notify("Erro", e?.message || "Falha ao salvar.");
     } finally { setSaving(false); }
   };
 
@@ -323,19 +327,24 @@ function EditMemberModal({ member, onClose, onSaved }: { member: any; onClose: (
     if (!member) return;
     const pwd = newPwd.trim();
     if (pwd.length < 6) {
-      Alert.alert("Senha curta", "A nova senha precisa de pelo menos 6 caracteres.");
+      notify("Senha curta", "A nova senha precisa de pelo menos 6 caracteres.");
       return;
     }
+    const ok = await confirm(
+      "Redefinir senha?",
+      `A senha do membro ${member.name} será trocada para a nova senha digitada. Confirma?`,
+    );
+    if (!ok) return;
     setResetting(true);
     try {
       const res = await api.adminResetMemberPassword(member.member_id, pwd);
-      Alert.alert(
+      notify(
         "Senha redefinida",
         `Nova senha definida para ${member.name}${res.email ? `\nE-mail: ${res.email}` : ""}`,
       );
       setNewPwd("");
     } catch (e: any) {
-      Alert.alert("Erro", e.message || "Falha ao redefinir senha");
+      notify("Erro", e?.message || "Falha ao redefinir senha");
     } finally {
       setResetting(false);
     }

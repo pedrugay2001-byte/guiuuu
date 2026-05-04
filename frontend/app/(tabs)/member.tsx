@@ -25,6 +25,8 @@ export default function Member() {
     refreshMember();
   }, [refreshUser, refreshMember]));
   const isStaff = ["admin", "support", "financeiro"].includes(authUser?.role || "");
+  // Master = role admin (acesso total, troca senha, credita BLX, gerencia tudo)
+  const isMaster = authUser?.role === "admin";
   // Publisher Diamond — membro com permissão explícita (pode publicar anúncios)
   const canPublishAds = isStaff || !!member?.can_post_ads;
   const [adminProducts, setAdminProducts] = useState<Product[]>([]);
@@ -455,7 +457,15 @@ export default function Member() {
         {isStaff && (
         <View style={styles.adminSection}>
           {/* ATALHOS RÁPIDOS DE STAFF */}
-          <Text style={styles.sectionTitle}>ÁREA DA EQUIPE</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={styles.sectionTitle}>ÁREA DA EQUIPE</Text>
+            {isMaster && (
+              <View style={styles.masterBadge}>
+                <Ionicons name="shield-checkmark" size={10} color="#0A0A0A" />
+                <Text style={styles.masterBadgeTxt}>MASTER · ACESSO TOTAL</Text>
+              </View>
+            )}
+          </View>
           <View style={{ gap: 8, marginTop: 8 }}>
             <TouchableOpacity
               style={[styles.quickAction, { backgroundColor: "#2ECC71" }]}
@@ -773,6 +783,13 @@ const styles = StyleSheet.create({
   statValue: { color: theme.colors.white, fontSize: 28, fontWeight: "900" },
   statLabel: { color: theme.colors.silver, fontSize: 10, fontWeight: "800", letterSpacing: 1.5, marginTop: 4 },
   adminSection: { marginTop: theme.spacing.md, paddingHorizontal: theme.spacing.lg },
+  // Badge MASTER (visível só para Guilherme com role=admin) — destaca acesso total
+  masterBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: "#D4AF37", borderRadius: 6,
+  },
+  masterBadgeTxt: { color: "#0A0A0A", fontSize: 9.5, fontWeight: "900", letterSpacing: 1 },
   adminHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing.md },
 
   // Atalhos rápidos da área de staff (botões grandes com ícone + título + subtítulo).
