@@ -6660,6 +6660,17 @@ def _safe_mount_static():
                 app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")
             except Exception as e:
                 logger.warning(f"Could not mount /assets: {e}")
+        # Compatibility mount: Emergent K8s ingress in production rewrites
+        # /assets/* → /static/assets/* (or vice-versa). The Expo bundle JS
+        # hardcodes /assets/... paths for vector-icon fonts. Without this
+        # extra mount, fonts return 404 in production (icons render as
+        # empty squares "tofu"). We mount the entire FRONTEND_DIST under
+        # /static/ so BOTH /assets/foo.ttf and /static/assets/foo.ttf work
+        # regardless of which prefix the ingress uses.
+        try:
+            app.mount("/static", StaticFiles(directory=FRONTEND_DIST), name="static-compat")
+        except Exception as e:
+            logger.warning(f"Could not mount /static compat: {e}")
 
 
 _safe_mount_static()
