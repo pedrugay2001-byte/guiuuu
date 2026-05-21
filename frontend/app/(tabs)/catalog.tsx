@@ -181,22 +181,30 @@ export default function CatalogMenu() {
                   end={{ x: 1, y: 1 }}
                   style={st.cardInner}
                 >
-                  {/* Imagem à esquerda */}
+                  {/* Banner FULL-WIDTH no TOPO — mostra a arte do tier sem cortes laterais */}
                   <View style={st.cardImgWrap}>
                     <Image
                       source={{ uri: card.image }}
                       style={st.cardImg}
                       resizeMode="cover"
                     />
+                    {/* Gradiente vertical inferior para fundir banner ↔ conteúdo */}
                     <LinearGradient
-                      colors={["transparent", card.bgGradient[1] + "88", card.bgGradient[1]]}
+                      colors={["transparent", "transparent", card.bgGradient[1] + "EE"]}
                       start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
+                      end={{ x: 0, y: 1 }}
                       style={StyleSheet.absoluteFillObject}
                     />
+                    {/* Badge "SEU PLANO" sobreposta no canto superior direito (quando aplicável) */}
+                    {isMine && (
+                      <View style={[st.myBadgeOverlay, { borderColor: card.accentColor, backgroundColor: card.accentColor + "DD" }]}>
+                        <Ionicons name="checkmark-circle" size={11} color="#0A0A0A" />
+                        <Text style={[st.myBadgeOverlayTxt, { color: "#0A0A0A" }]}>SEU PLANO</Text>
+                      </View>
+                    )}
                   </View>
 
-                  {/* Conteúdo à direita */}
+                  {/* Conteúdo abaixo do banner */}
                   <View style={st.cardContent}>
                     <View style={st.cardTop}>
                       <View
@@ -208,12 +216,6 @@ export default function CatalogMenu() {
                         <MaterialCommunityIcons name={card.icon as any} size={11} color={card.accentColor} />
                         <Text style={[st.cardIconTxt, { color: card.accentColor }]}>{card.kicker.toUpperCase()}</Text>
                       </View>
-                      {isMine && (
-                        <View style={[st.myBadge, { borderColor: card.accentColor, backgroundColor: card.accentColor + "22" }]}>
-                          <Ionicons name="checkmark-circle" size={10} color={card.accentColor} />
-                          <Text style={[st.myBadgeTxt, { color: card.accentColor }]}>SEU PLANO</Text>
-                        </View>
-                      )}
                     </View>
 
                     <Text style={st.cardTitle}>Marketplace</Text>
@@ -337,23 +339,37 @@ const st = StyleSheet.create({
     borderWidth: 1,
   },
   cardInner: {
-    flexDirection: "row",
-    minHeight: 140,
+    flexDirection: "column",
   },
+  // Banner FULL-WIDTH no topo — mostra a arte do tier com proporção correta
   cardImgWrap: {
-    width: "42%",
+    width: "100%",
+    aspectRatio: 16 / 9,
     position: "relative",
     overflow: "hidden",
+    backgroundColor: "#000",
   },
   cardImg: {
     width: "100%",
     height: "100%",
   },
+  // Badge "SEU PLANO" sobreposta no canto superior direito do banner
+  myBadgeOverlay: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  myBadgeOverlayTxt: { fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   cardContent: {
-    flex: 1,
     padding: 14,
-    justifyContent: "space-between",
-    gap: 6,
+    gap: 8,
   },
 
   cardTop: {
