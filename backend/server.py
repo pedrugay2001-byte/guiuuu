@@ -6645,6 +6645,53 @@ async def favicon():
     return Response(content=b"", media_type="image/x-icon", status_code=200)
 
 
+# Pre-resolve all .ttf font paths in static_frontend ONCE at startup.
+# In production, Emergent K8s deploy strips/flattens some asset paths
+# (e.g. /assets/node_modules/@expo/vector-icons/...) so the bundle JS
+# requests fonts via paths that don't match the actual filesystem layout.
+# This lookup table maps basename → real disk path for fast direct serving
+# regardless of the URL path used in the request.
+_FONT_INDEX: Dict[str, str] = {}
+
+
+def _build_font_index() -> None:
+    """Walk FRONTEND_DIST once and index every .ttf/.otf/.woff* by basename."""
+    _FONT_INDEX.clear()
+    if not os.path.isdir(FRONTEND_DIST):
+        return
+    for root, _dirs, files in os.walk(FRONTEND_DIST):
+        for fname in files:
+            if fname.lower().endswith((".ttf", ".otf", ".woff", ".woff2")):
+                full = os.path.join(root, fname)
+                _FONT_INDEX[fname] = full
+    logger.info(f"Font index built: {len(_FONT_INDEX)} font files discovered")
+
+
+_build_font_index()
+
+
+@app.get("/{font_filename:path}.ttf", include_in_schema=False)
+@app.head("/{font_filename:path}.ttf", include_in_schema=False)
+async def serve_font_ttf(font_filename: str):
+    """
+    Fallback handler for icon fonts (Ionicons, MaterialCommunityIcons, etc).
+
+    The Expo bundle hardcodes paths like
+    /assets/node_modules/@expo/vector-icons/.../Fonts/Ionicons.{hash}.ttf
+    which work locally but break in production because the K8s ingress
+    rewrites/strips paths inconsistently.
+
+    Strategy: extract only the BASENAME (e.g. Ionicons.{hash}.ttf), look it
+    up in the pre-built font index, and serve the actual file from disk.
+    Works regardless of the URL prefix the request used.
+    """
+    basename = os.path.basename(font_filename) + ".ttf"
+    real_path = _FONT_INDEX.get(basename)
+    if real_path and os.path.isfile(real_path):
+        return FileResponse(real_path, media_type="font/ttf")
+    return Response(status_code=404)
+
+
 # Mount static subdirs if present (safe if dir doesn't exist — wrapped)
 def _safe_mount_static():
     if os.path.isdir(FRONTEND_DIST):
