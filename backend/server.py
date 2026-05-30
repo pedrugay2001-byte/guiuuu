@@ -512,8 +512,12 @@ async def member_reset(data: ResetRequest):
         raise HTTPException(status_code=400, detail="Senha muito curta")
     token_up = data.token.strip().upper()
     now = datetime.now(timezone.utc)
-    # Match either full hex or short (12 chars upper)
-    cursor = db.members.find({"reset_token": {"$exists": True}}, {"_id": 0})
+    # OTIMIZAÇÃO: limita a 200 membros recentes com reset_token ativo (índice
+    # em reset_expires evita scan completo da coleção mesmo em produção).
+    cursor = db.members.find(
+        {"reset_token": {"$exists": True}},
+        {"_id": 0, "member_id": 1, "reset_token": 1, "reset_expires": 1},
+    ).sort("reset_expires", -1).limit(200)
     async for m in cursor:
         rt = m.get("reset_token", "")
         if rt[:12].upper() == token_up or rt == data.token.strip():
