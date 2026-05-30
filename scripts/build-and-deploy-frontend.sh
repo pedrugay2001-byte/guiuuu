@@ -28,6 +28,12 @@ echo "==> Building Expo web..."
 cd "$FE"
 npm run build
 
+echo "==> Inlining icon fonts as base64 into index.html..."
+# Por que? Em produção (K8s) o /assets/.../*.ttf é servido errado (404 ou HTML)
+# fazendo ícones renderizarem como quadrados vazios. Inlinear como base64
+# elimina a dependência do path e garante que os ícones SEMPRE carregam.
+python3 /app/scripts/inline_fonts.py "$DIST"
+
 echo "==> Copying dist to static_frontend..."
 cp -r "$DIST"/* "$STATIC"/
 
