@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Image, RefreshControl,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "../../src/icons";
 import { api, Ad } from "../../src/api";
 import { formatBLX } from "../../src/blx";
 import { useGate } from "../../src/gate";

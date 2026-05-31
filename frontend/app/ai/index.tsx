@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "../../src/icons";
 import { api } from "../../src/api";
 import { theme } from "../../src/theme";
 import ScreenHeader from "../../src/screen-header";

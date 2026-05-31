@@ -1,6 +1,6 @@
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "./icons";
 import { theme } from "./theme";
 
 export function PasswordInput({

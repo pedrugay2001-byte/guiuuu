@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "../src/icons";
 import { api, setToken } from "../src/api";
 import { useGate } from "../src/gate";
 import { theme } from "../src/theme";

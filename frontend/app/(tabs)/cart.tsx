@@ -2,7 +2,7 @@ import {
   View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "../../src/icons";
 import { useRouter } from "expo-router";
 import { useCart } from "../../src/cart";
 import { theme } from "../../src/theme";

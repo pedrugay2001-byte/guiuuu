@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "./icons";
 import { BrandLogo } from "./brand";
 import { useGate } from "./gate";
 import { useMessageInbox } from "./message-inbox";

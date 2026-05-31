@@ -4,7 +4,7 @@ import {
   ActivityIndicator, StatusBar, Pressable, PanResponder, Platform, Image,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "../../../src/icons";
 import { api, Story, StoryGroup } from "../../../src/api";
 import { TIERS } from "../../../src/theme";
 import { useGate } from "../../../src/gate";

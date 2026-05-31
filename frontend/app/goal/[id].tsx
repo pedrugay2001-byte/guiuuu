@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { api, GoalDetail, Goal, GoalEntry, WhatToDoReply } from "../../src/api";
 import LineChart from "../../src/performance/LineChart";

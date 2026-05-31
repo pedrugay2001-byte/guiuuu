@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Alert, RefreshControl,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { api, MyOrder } from "../../src/api";
 import { useGate } from "../../src/gate";

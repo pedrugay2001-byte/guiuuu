@@ -4,7 +4,7 @@ import {
   KeyboardAvoidingView, Platform, Image, Alert, ActivityIndicator,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "../../src/icons";
 import { api } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { pickCompressedImage } from "../../src/imagepicker";

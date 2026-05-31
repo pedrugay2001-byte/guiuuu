@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity, Image, Animated, Easing,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "./icons";
 import { useRouter, useSegments } from "expo-router";
 import { useMessageInbox, RecentSender } from "./message-inbox";
 

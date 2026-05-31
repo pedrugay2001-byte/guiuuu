@@ -6,7 +6,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import * as Clipboard from "expo-clipboard";
 import { useRouter, useFocusEffect } from "expo-router";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
 import { api, BlxWallet, BlxTx } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { formatBLX, formatBLXShort } from "../../src/blx";

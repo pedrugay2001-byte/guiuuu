@@ -4,7 +4,7 @@ import {
   ActivityIndicator, RefreshControl,
 } from "react-native";
 import { Stack, useRouter, useFocusEffect } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "../../src/icons";
 import { api, NotificationItem } from "../../src/api";
 import { useGate } from "../../src/gate";
 

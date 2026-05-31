@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "../../src/icons";
 import { api, BlxOrder } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { formatBLX } from "../../src/blx";

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "./icons";
 
 type Props = { children: React.ReactNode };
 type State = { hasError: boolean; error?: Error };

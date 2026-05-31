@@ -4,7 +4,7 @@ import {
   FlatList, RefreshControl, ActivityIndicator, Alert,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "../../src/icons";
 import { api, StoryGroup, Post, CommunityMember, Group } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";

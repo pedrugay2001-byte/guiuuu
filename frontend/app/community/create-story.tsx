@@ -4,7 +4,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "../../src/icons";
 import { pickCompressedImage } from "../../src/imagepicker";
 import { notify } from "../../src/alerts";
 import { api } from "../../src/api";

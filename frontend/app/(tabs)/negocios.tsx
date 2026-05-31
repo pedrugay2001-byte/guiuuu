@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
 import { api, Plan } from "../../src/api";
 import { useGate } from "../../src/gate";
 import ActionSheet from "../../src/action-sheet";

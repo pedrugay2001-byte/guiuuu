@@ -4,7 +4,7 @@ import {
   FlatList, ActivityIndicator, TextInput,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "../../src/icons";
 import { api, CommunityMember, Group, CommunityEvent } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";

@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "./icons";
 import { api, ChatMessage } from "./api";
 import { theme } from "./theme";
 import { pickImage, takePhoto, PickedAsset } from "./media";

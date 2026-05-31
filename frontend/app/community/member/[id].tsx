@@ -4,7 +4,7 @@ import {
   ActivityIndicator, FlatList, Dimensions,
 } from "react-native";
 import { Stack, useRouter, useLocalSearchParams } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "../../../src/icons";
 import { api, CommunityMember, Ad } from "../../../src/api";
 import { formatBLX } from "../../../src/blx";
 import { TIERS } from "../../../src/theme";

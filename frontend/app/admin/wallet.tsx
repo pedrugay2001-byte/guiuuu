@@ -4,7 +4,7 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Modal, Image,
 } from "react-native";
 import { useRouter, useFocusEffect, Stack } from "expo-router";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
 import { api } from "../../src/api";
 import { TIERS, TierId } from "../../src/theme";
 import ScreenHeader from "../../src/screen-header";

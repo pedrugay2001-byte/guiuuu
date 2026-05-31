@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "./icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useGate } from "./gate";
 import { useMessageInbox } from "./message-inbox";

@@ -28,11 +28,12 @@ echo "==> Building Expo web..."
 cd "$FE"
 npm run build
 
-echo "==> Inlining icon fonts as base64 into index.html..."
-# Por que? Em produção (K8s) o /assets/.../*.ttf é servido errado (404 ou HTML)
-# fazendo ícones renderizarem como quadrados vazios. Inlinear como base64
-# elimina a dependência do path e garante que os ícones SEMPRE carregam.
-python3 /app/scripts/inline_fonts.py "$DIST"
+# ============================================================================
+# NOTA: O passo de "inline_fonts.py" foi REMOVIDO em favor da migração para
+# lucide-react-native. Agora todos os ícones são SVG components (não TTF),
+# então não há mais dependência de paths de assets nem necessidade de embarcar
+# fontes como base64 no HTML.
+# ============================================================================
 
 echo "==> Copying dist to static_frontend..."
 cp -r "$DIST"/* "$STATIC"/
