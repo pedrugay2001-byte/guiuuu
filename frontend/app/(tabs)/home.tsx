@@ -32,9 +32,9 @@ const INNER_CARD_BG = "#101010";
 type AreaId = "ai" | "community" | "marketplace" | "planos" | "wallet" | "performance" | "chat" | "profissionais";
 type Area = { id: AreaId; label: string; icon: { lib: "ion" | "mci"; name: string }; route: string };
 
-// Grid de 4 atalhos em quadrados cinza (Carrinho, Planos, Suporte, Profissionais).
+// Grid de 3 atalhos em quadrados cinza (Planos, Suporte, Profissionais).
+// O botão "Carrinho" foi REMOVIDO da home a pedido do usuário.
 const AREAS: Area[] = [
-  { id: "cart",          label: "Carrinho",      icon: { lib: "ion", name: "cart" },               route: "/(tabs)/cart" },
   { id: "planos",        label: "Planos",        icon: { lib: "mci", name: "diamond-stone" },      route: "/(tabs)/catalog" },
   { id: "chat",          label: "Suporte",       icon: { lib: "ion", name: "headset" },            route: "/chat" },
   { id: "profissionais", label: "Profissionais", icon: { lib: "mci", name: "stethoscope" },        route: "/ai" },
