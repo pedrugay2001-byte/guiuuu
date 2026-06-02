@@ -44,15 +44,15 @@ export default function BottomBrandBar({ unread, unreadMessages: _ignored }: Pro
 
   return (
     <View style={st.bar}>
-      {/* 1) Loja */}
+      {/* 1) Carteira (substituiu Loja — Loja agora é acessada via botão "Planos" da home) */}
       <TouchableOpacity
         style={st.item}
-        onPress={() => router.push("/catalog" as any)}
+        onPress={() => router.push("/wallet" as any)}
         activeOpacity={0.78}
-        testID="bottom-catalog"
+        testID="bottom-wallet"
       >
-        <Ionicons name="storefront" size={22} color={col("/catalog")} />
-        <Text allowFontScaling={false} style={[st.lbl, { color: col("/catalog") }]}>Loja</Text>
+        <Ionicons name="wallet" size={22} color={col("/wallet")} />
+        <Text allowFontScaling={false} style={[st.lbl, { color: col("/wallet") }]}>Carteira</Text>
       </TouchableOpacity>
 
       {/* 2) Metas */}

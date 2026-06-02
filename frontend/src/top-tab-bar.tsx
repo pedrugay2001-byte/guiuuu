@@ -58,21 +58,8 @@ export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
 
   return (
     <View style={st.bar}>
-      {/* ESQUERDA — Perfil (avatar do usuário) */}
-      <TouchableOpacity
-        style={st.side}
-        onPress={() => goto("member")}
-        activeOpacity={0.78}
-        testID="top-bar-profile"
-      >
-        <View style={[st.avatarRing, isOnMember && { borderColor: ACCENT, borderWidth: 2 }]}>
-          {avatar ? (
-            <Image source={{ uri: avatar }} style={st.avatarImg} />
-          ) : (
-            <Ionicons name="person-circle" size={34} color={isOnMember ? ACCENT : INACTIVE} />
-          )}
-        </View>
-      </TouchableOpacity>
+      {/* ESQUERDA — vazio para balancear o layout (Perfil agora fica à direita) */}
+      <View style={st.side} />
 
       {/* CENTRO — Logo BLACKSCLUB */}
       <TouchableOpacity
@@ -88,21 +75,27 @@ export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
         <BrandLogo size="sm" />
       </TouchableOpacity>
 
-      {/* DIREITA — Banco (wallet) + saldo BLX abaixo */}
+      {/* DIREITA — Perfil (avatar do membro) — substituiu o atalho de Carteira */}
       <TouchableOpacity
-        style={st.side}
-        onPress={() => goto("wallet")}
+        style={[st.side, { alignItems: "flex-end" }]}
+        onPress={() => goto("member")}
         activeOpacity={0.78}
-        testID="top-bar-wallet"
+        testID="top-bar-profile"
       >
-        <View style={st.walletWrap}>
-          <Ionicons name="wallet" size={22} color={isOnWallet ? ACCENT : "#E8E8E8"} />
+        <View style={st.profileWrap}>
+          <View style={[st.avatarRing, isOnMember && { borderColor: ACCENT, borderWidth: 2 }]}>
+            {avatar ? (
+              <Image source={{ uri: avatar }} style={st.avatarImg} />
+            ) : (
+              <Ionicons name="person-circle" size={34} color={isOnMember ? ACCENT : INACTIVE} />
+            )}
+          </View>
           <Text
             numberOfLines={1}
             allowFontScaling={false}
-            style={[st.balanceTxt, { color: isOnWallet ? ACCENT : "#C5C5C5" }]}
+            style={[st.balanceTxt, { color: isOnMember ? ACCENT : "#C5C5C5" }]}
           >
-            Carteira
+            Perfil
           </Text>
         </View>
       </TouchableOpacity>
@@ -140,14 +133,13 @@ const st = StyleSheet.create({
     backgroundColor: "#101010",
   },
   avatarImg: { width: 34, height: 34, borderRadius: 17 },
-  // Wallet à direita — ícone em cima, label "Carteira" CENTRALIZADO logo abaixo
-  walletWrap: {
+  // Profile à direita — avatar em cima, label "Perfil" CENTRALIZADO logo abaixo
+  profileWrap: {
     alignItems: "center",
     justifyContent: "center",
     gap: 2,
     minWidth: 0,
     flexShrink: 1,
-    width: "100%",
   },
   balanceTxt: {
     fontSize: 11,
