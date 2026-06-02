@@ -19,11 +19,26 @@ const DIAMOND_LIGHT = "#A8E4EF";
 const DIAMOND = "#7FD7E5";
 const DIAMOND_DARK = "#4A8F99";
 
-// Opções de pagamento — regra Diamante
+// =============================================================================
+// Regras do BLACKSCLUB:
+//   Desconto vem do TIER do membro (não da forma de pagamento):
+//     SILVER  → 0%   (preço cheio, sem desconto)
+//     GOLD    → 15%  desconto sobre o preço
+//     DIAMOND → 30%  desconto sobre o preço
+//
+// As 3 opções de pagamento (full/half/entry) controlam apenas o TIMING do
+// pagamento — não dão desconto adicional. O desconto do tier SEMPRE se aplica.
+// =============================================================================
+const TIER_DISCOUNT: Record<string, number> = {
+  silver: 0,
+  gold: 15,
+  diamond: 30,
+};
+
 const PAY_OPTIONS = [
-  { id: "full", label: "Antecipado 100%", discount: 30, sub: "Melhor preço" },
-  { id: "half", label: "50% de entrada", discount: 15, sub: "50% saldo na entrega" },
-  { id: "entry", label: "10% de entrada", discount: 0, sub: "90% saldo na entrega" },
+  { id: "full", label: "Pagamento integral", sub: "100% no fechamento" },
+  { id: "half", label: "50% de entrada", sub: "50% saldo na entrega" },
+  { id: "entry", label: "10% de entrada", sub: "90% saldo na entrega" },
 ] as const;
 type PayId = typeof PAY_OPTIONS[number]["id"];
 
@@ -52,15 +67,21 @@ export default function AdView() {
     return <View style={{ flex: 1, backgroundColor: theme.colors.bg, justifyContent: "center" }}><ActivityIndicator color={DIAMOND} /></View>;
   }
 
+  // Desconto definido pelo TIER do membro (silver=0, gold=15, diamond=30)
+  const memberTier = (member?.tier || "silver").toLowerCase();
+  const tierDiscount = TIER_DISCOUNT[memberTier] ?? 0;
   const opt = PAY_OPTIONS.find(o => o.id === pay)!;
   const fullCents = Math.round(ad.price_full * 100);
-  const finalCents = Math.round(fullCents * (100 - opt.discount) / 100);
+  // Desconto vem APENAS do tier — não da forma de pagamento
+  const finalCents = Math.round(fullCents * (100 - tierDiscount) / 100);
   const entryPct = pay === "full" ? 100 : pay === "half" ? 50 : 10;
   const entryCents = Math.round(finalCents * entryPct / 100);
   const remainingCents = finalCents - entryCents;
   const isOwner = ad.seller_id === member?.member_id;
   const sellerTier = (ad.seller_tier || "diamond").toLowerCase();
   const sellerIsDiamond = sellerTier === "diamond";
+  // Para compat com o resto da UI que lia `effectiveDiscount`
+  const effectiveDiscount = tierDiscount;
 
   const toggleFav = async () => {
     if (!member) return;
@@ -188,9 +209,9 @@ export default function AdView() {
                 <Text style={s.priceBLX}>{formatBLX(finalCents)}</Text>
                 <Text style={s.priceUnit}>BLX</Text>
               </View>
-              {opt.discount > 0 && (
+              {effectiveDiscount > 0 && (
                 <Text style={s.priceOld}>
-                  Valor cheio {formatBLX(fullCents)} BLX · {opt.label.toLowerCase()} −{opt.discount}%
+                  Valor cheio {formatBLX(fullCents)} BLX · {opt.label.toLowerCase()} −{effectiveDiscount}%
                 </Text>
               )}
             </View>
@@ -200,7 +221,7 @@ export default function AdView() {
           <Text style={s.sectionLbl}>FORMA DE PAGAMENTO</Text>
           <View style={{ gap: 6 }}>
             {PAY_OPTIONS.map(o => {
-              const discCents = Math.round(fullCents * (100 - o.discount) / 100);
+              const discCents = Math.round(fullCents * (100 - effectiveDiscount) / 100);
               const selected = pay === o.id;
               return (
                 <TouchableOpacity
@@ -218,9 +239,9 @@ export default function AdView() {
                     <Text style={s.paySub}>{o.sub}</Text>
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
-                    {o.discount > 0 && (
+                    {effectiveDiscount > 0 && (
                       <View style={s.discPill}>
-                        <Text style={s.discPillTxt}>−{o.discount}%</Text>
+                        <Text style={s.discPillTxt}>−{effectiveDiscount}%</Text>
                       </View>
                     )}
                     <Text style={[s.payPrice, selected && { color: DIAMOND_LIGHT }]}>{formatBLX(discCents)} BLX</Text>
@@ -249,7 +270,7 @@ export default function AdView() {
               <Text style={s.summaryLblBold}>Total</Text>
               <View style={{ alignItems: "flex-end" }}>
                 <Text style={[s.summaryTotal, { color: DIAMOND_LIGHT }]}>{formatBLX(finalCents)} BLX</Text>
-                {opt.discount > 0 && <Text style={s.summarySaving}>economia {formatBLX(fullCents - finalCents)} BLX</Text>}
+                {effectiveDiscount > 0 && <Text style={s.summarySaving}>economia {formatBLX(fullCents - finalCents)} BLX</Text>}
               </View>
             </View>
           </View>
@@ -335,10 +356,10 @@ export default function AdView() {
               <Text style={s.modalLbl}>Pagamento</Text>
               <Text style={s.modalVal}>{opt.label}</Text>
             </View>
-            {opt.discount > 0 && (
+            {effectiveDiscount > 0 && (
               <View style={s.modalRow}>
                 <Text style={s.modalLbl}>Desconto pagamento</Text>
-                <Text style={[s.modalVal, { color: "#4EE07F" }]}>−{opt.discount}%</Text>
+                <Text style={[s.modalVal, { color: "#4EE07F" }]}>−{effectiveDiscount}%</Text>
               </View>
             )}
             <View style={s.modalRow}>
