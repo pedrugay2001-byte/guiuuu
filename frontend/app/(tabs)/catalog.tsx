@@ -26,6 +26,7 @@ type TierCard = {
   id: TierId;
   title: string;
   kicker: string;
+  price: string;
   access: string;
   image: string;
   gradient: readonly [string, string, string];
@@ -51,6 +52,7 @@ const TIERS: TierCard[] = [
     borderColor: "rgba(197,209,218,0.35)",
     accentColor: "#EAF1F6",
     icon: "diamond",
+    price: "R$ 999",
   },
   {
     id: "gold",
@@ -64,6 +66,7 @@ const TIERS: TierCard[] = [
     borderColor: "rgba(212,175,55,0.35)",
     accentColor: "#F4D47A",
     icon: "star",
+    price: "R$ 499",
   },
   {
     id: "silver",
@@ -77,6 +80,7 @@ const TIERS: TierCard[] = [
     borderColor: "rgba(184,184,184,0.35)",
     accentColor: "#E8E8E8",
     icon: "medal",
+    price: "R$ 99",
   },
 ];
 
@@ -214,7 +218,7 @@ export default function CatalogMenu() {
                         ]}
                       >
                         <MaterialCommunityIcons name={card.icon as any} size={11} color={card.accentColor} />
-                        <Text style={[st.cardIconTxt, { color: card.accentColor }]}>{card.kicker.toUpperCase()}</Text>
+                        <Text style={[st.cardIconTxt, { color: card.accentColor }]}>{card.kicker.toUpperCase()} · {card.price}/mês</Text>
                       </View>
                     </View>
 
