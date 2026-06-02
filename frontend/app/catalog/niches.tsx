@@ -1,16 +1,53 @@
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "../../src/icons";
 
-// 6 nichos premium em grade 2x3 — exibidos antes dos produtos
+// 6 nichos premium em grade 2x3 — labels BRANCOS, ícones coloridos, fundo temático.
+// Cores específicas por nicho (cor sutil) + imagem de fundo discreta (~12% opacidade).
 const NICHES = [
-  { id: "tech",        label: "Tecnologia & Eletrônicos",  icon: "laptop-outline" as const,    accent: "#7FB8E5" },
-  { id: "performance", label: "Performance Humana",        icon: "fitness-outline" as const,    accent: "#FF8A4C" },
-  { id: "beleza",      label: "Moda, Saúde & Beleza",      icon: "sparkles" as const,           accent: "#F58FC3" },
-  { id: "casa",        label: "Casa & Lifestyle",          icon: "home-outline" as const,       accent: "#7FD7C5" },
-  { id: "lazer",       label: "Lazer, Hobby & Camp",       icon: "bicycle-outline" as const,    accent: "#A8D070" },
-  { id: "black",       label: "Exclusivos Black",          icon: "diamond" as const,            accent: "#C5D1DA" },
+  {
+    id: "tech",
+    label: "Tecnologia &\nEletrônicos",
+    icon: "laptop-outline" as const,
+    accent: "#5BA8F0", // azul tech
+    bgImage: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&q=60",
+  },
+  {
+    id: "performance",
+    label: "Performance\nHumana",
+    icon: "fitness-outline" as const,
+    accent: "#E67A35", // laranja discreto
+    bgImage: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=60",
+  },
+  {
+    id: "beleza",
+    label: "Moda, Saúde &\nBeleza",
+    icon: "sparkles" as const,
+    accent: "#B570D9", // roxo
+    bgImage: "https://images.unsplash.com/photo-1522335789203-aaa2db6bd0f1?w=600&q=60",
+  },
+  {
+    id: "casa",
+    label: "Casa &\nLifestyle",
+    icon: "home-outline" as const,
+    accent: "#4FD1C5", // turquesa
+    bgImage: "https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?w=600&q=60",
+  },
+  {
+    id: "lazer",
+    label: "Lazer, Hobby\n& Camp",
+    icon: "bicycle-outline" as const,
+    accent: "#9CAF55", // verde-oliva
+    bgImage: "https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=600&q=60",
+  },
+  {
+    id: "black",
+    label: "Exclusivos\nBlack",
+    icon: "diamond" as const,
+    accent: "#A8C5E5", // diamond silver-blue
+    bgImage: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&q=60",
+  },
 ] as const;
 
 export default function NichesScreen() {
@@ -28,20 +65,25 @@ export default function NichesScreen() {
         <Text style={st.title}>ESCOLHA SEU NICHO</Text>
         <View style={{ width: 30 }} />
       </View>
-      <Text style={st.sub}>Marketplace {safeTier.toUpperCase()} · selecione uma categoria premium</Text>
+      <Text style={st.sub}>Marketplace {safeTier.toUpperCase()} · selecione uma categoria</Text>
 
       <ScrollView contentContainerStyle={st.grid} showsVerticalScrollIndicator={false}>
         {NICHES.map((n) => (
           <TouchableOpacity
             key={n.id}
-            style={[st.card, { borderColor: n.accent + "55" }]}
+            style={[st.card, { borderColor: n.accent + "33" }]}
             activeOpacity={0.85}
             onPress={() => router.push({ pathname: "/catalog/[tier]", params: { tier: safeTier, niche: n.id } } as any)}
           >
-            <View style={[st.iconWrap, { borderColor: n.accent + "66" }]}>
-              <Ionicons name={n.icon} size={26} color={n.accent} />
+            {/* Imagem de fundo temática (opacidade ~12%) */}
+            <Image source={{ uri: n.bgImage }} style={st.bgImg} resizeMode="cover" />
+            {/* Overlay escuro para garantir legibilidade */}
+            <View style={st.bgOverlay} />
+            {/* Conteúdo */}
+            <View style={st.cardContent}>
+              <Ionicons name={n.icon} size={38} color={n.accent} style={st.cardIcon} />
+              <Text style={st.cardLabel}>{n.label}</Text>
             </View>
-            <Text style={st.cardLabel}>{n.label}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -58,7 +100,6 @@ const st = StyleSheet.create({
   backBtn: { padding: 4 },
   title: { color: "#EEE", fontSize: 14, fontWeight: "900", letterSpacing: 2 },
   sub: { color: "#888", fontSize: 11, textAlign: "center", marginBottom: 18, paddingHorizontal: 20 },
-  // Grade 2 colunas x 3 linhas
   grid: {
     flexDirection: "row", flexWrap: "wrap",
     justifyContent: "space-between",
@@ -66,17 +107,37 @@ const st = StyleSheet.create({
   },
   card: {
     width: "48%",
-    aspectRatio: 1.15,
+    aspectRatio: 1.25,
     backgroundColor: "#0A0A0A",
-    borderWidth: 1.2,
+    borderWidth: 1,
     borderRadius: 14,
+    overflow: "hidden",
+    position: "relative",
+  },
+  // Imagem temática de fundo — bem sutil
+  bgImg: {
+    ...StyleSheet.absoluteFillObject as any,
+    opacity: 0.12,
+  },
+  bgOverlay: {
+    ...StyleSheet.absoluteFillObject as any,
+    backgroundColor: "rgba(5,5,5,0.55)",
+  },
+  cardContent: {
+    flex: 1,
     padding: 14,
-    justifyContent: "space-between",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
-  iconWrap: {
-    width: 48, height: 48, borderRadius: 24,
-    alignItems: "center", justifyContent: "center",
-    borderWidth: 1.2, backgroundColor: "#0E0E0E",
+  cardIcon: { marginRight: 4 },
+  // Label SEMPRE branco — não colorido (regra do BlacksClub)
+  cardLabel: {
+    flex: 1,
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+    lineHeight: 17,
   },
-  cardLabel: { color: "#EEE", fontSize: 13, fontWeight: "800", letterSpacing: 0.3, lineHeight: 17 },
 });
