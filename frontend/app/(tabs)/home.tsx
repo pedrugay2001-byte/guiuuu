@@ -286,112 +286,73 @@ export default function Home() {
             <Text style={s.greetSub}>Foco hoje, resultado amanhã.</Text>
           </View>
 
-          {/* MINI BLX CARD — glance rápido do saldo (clicável → /wallet) */}
-          <TouchableOpacity
-            style={s.blxCard}
-            onPress={() => router.push("/(tabs)/wallet" as any)}
-            activeOpacity={0.88}
-            testID="home-blx-card"
-          >
-            <LinearGradient
-              colors={accent.isDiamond
-                ? ["#101418", "#0A0D10", "#05070A"] as const
-                : ["#14110A", "#0B0906", "#050301"] as const}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={s.blxInner}
-            >
-              <View style={s.blxIconWrap}>
-                <LinearGradient
-                  colors={accent.gradient}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                  style={s.blxIcon}
-                >
-                  <MaterialCommunityIcons name="diamond-stone" size={16} color="#050505" />
-                </LinearGradient>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.blxLbl, { color: accent.accentDark }]}>BLEX TOKEN</Text>
-                <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 2 }}>
-                  <Text style={s.blxVal}>
-                    {wallet ? formatBLX(wallet.balance_centavos) : "—"}
-                  </Text>
-                  <Text style={[s.blxUnit, { color: accent.accentLight }]}>BLX</Text>
-                </View>
-                {wallet && (wallet.reserved_centavos || 0) > 0 && (
-                  <Text style={s.blxReserved}>
-                    <Ionicons name="lock-closed" size={9} color="#F5C150" />{" "}
-                    {formatBLX(wallet.reserved_centavos || 0)} reservado
-                  </Text>
-                )}
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={accent.accent} />
-            </LinearGradient>
-          </TouchableOpacity>
-
-          {/* DIAMOND MARKETPLACE — substitui a Central de Performance no topo (somente Diamond).
-              Mostra anúncios exclusivos com CTA para o catálogo. */}
-          {isDiamond && (
-            <TouchableOpacity
-              style={s.diamondMkt}
-              activeOpacity={0.9}
-              onPress={() => router.push("/catalog/diamond" as any)}
-              testID="home-diamond-marketplace"
-            >
-              <LinearGradient
-                colors={["#101418", "#0A0D11", "#06080B"] as const}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={s.diamondMktInner}
+          {/* ============================================================
+              TIER BANNER do membro — substitui o card BLEX e o card
+              "MARKETPLACE DIAMANTE". Mostra a arte oficial do tier
+              (Diamante/Gold/Silver) com banner full-width clicável que
+              leva direto ao marketplace correspondente.
+              Acesso à carteira fica no botão "Carteira" do TOPO.
+              ============================================================ */}
+          {(() => {
+            // Define imagem + cor de destaque do plano do usuário
+            const tierKey = (member?.tier || "silver").toLowerCase();
+            const TIER_BANNER: Record<string, { image: string; title: string; sub: string; accent: string; route: string }> = {
+              diamond: {
+                image: "https://customer-assets.emergentagent.com/job_member-shop-2/artifacts/3rkrh49f_qqqqqqqqqqqqqqqq.png",
+                title: "PLANO DIAMANTE",
+                sub: "Acesso total · Marketplace completo",
+                accent: "#EAF1F6",
+                route: "/catalog/diamond",
+              },
+              gold: {
+                image: "https://customer-assets.emergentagent.com/job_member-shop-2/artifacts/uib3txco_20d0bf6b-3315-4f93-bb5e-94095fddb867%20%281%29.png",
+                title: "PLANO GOLD",
+                sub: "Acesso Premium · Ofertas exclusivas",
+                accent: "#F4D47A",
+                route: "/catalog/gold",
+              },
+              silver: {
+                image: "https://customer-assets.emergentagent.com/job_member-shop-2/artifacts/54hcb9bu_iuuuuuuuuuuuuuuuuuu.png",
+                title: "PLANO SILVER",
+                sub: "Acesso Inicial · Linha essencial",
+                accent: "#E8E8E8",
+                route: "/catalog/silver",
+              },
+            };
+            const banner = TIER_BANNER[tierKey] || TIER_BANNER.silver;
+            return (
+              <TouchableOpacity
+                style={s.tierBanner}
+                onPress={() => router.push(banner.route as any)}
+                activeOpacity={0.9}
+                testID="home-tier-banner"
               >
-                <View style={s.diamondMktHead}>
-                  <View style={[s.diamondMktIcon, { backgroundColor: DIAMOND + "1A", borderColor: DIAMOND + "55" }]}>
-                    <MaterialCommunityIcons name="diamond-stone" size={16} color={DIAMOND} />
+                <Image source={{ uri: banner.image }} style={s.tierBannerImg} resizeMode="cover" />
+                <LinearGradient
+                  colors={["transparent", "rgba(0,0,0,0.45)", "rgba(0,0,0,0.92)"] as const}
+                  start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+                  style={s.tierBannerOverlay}
+                />
+                <View style={s.tierBannerFooter}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.tierBannerTitle, { color: banner.accent }]}>{banner.title}</Text>
+                    <Text style={s.tierBannerSub}>{banner.sub}</Text>
                   </View>
-                  <Text style={[s.diamondMktTitle, { color: DIAMOND }]}>MARKETPLACE DIAMANTE</Text>
-                  <Ionicons name="chevron-forward" size={16} color={DIAMOND} />
+                  <View style={[s.tierBannerCta, { backgroundColor: banner.accent }]}>
+                    <Text style={s.tierBannerCtaTxt}>ENTRAR</Text>
+                    <Ionicons name="chevron-forward" size={14} color="#050505" />
+                  </View>
                 </View>
-                <Text style={s.diamondMktSub}>
-                  Ofertas exclusivas para membros Diamond.
-                </Text>
+              </TouchableOpacity>
+            );
+          })()}
 
-                {/* Carrossel horizontal de anúncios */}
-                {diamondAds.length > 0 ? (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ paddingTop: 14, gap: 10 }}
-                    nestedScrollEnabled
-                  >
-                    {diamondAds.slice(0, 6).map((ad) => (
-                      <TouchableOpacity
-                        key={ad.ad_id}
-                        style={s.adChip}
-                        onPress={() => router.push(`/ads/${ad.ad_id}` as any)}
-                        activeOpacity={0.85}
-                      >
-                        {ad.images && ad.images[0] ? (
-                          <Image source={{ uri: ad.images[0] }} style={s.adChipImg} resizeMode="cover" />
-                        ) : (
-                          <View style={[s.adChipImg, { backgroundColor: "#1A1A1A", alignItems: "center", justifyContent: "center" }]}>
-                            <Ionicons name="image-outline" size={20} color="#666" />
-                          </View>
-                        )}
-                        <Text style={s.adChipTitle} numberOfLines={1}>{ad.title}</Text>
-                        <Text style={[s.adChipPrice, { color: DIAMOND_LIGHT }]}>{formatBLX(Math.round(ad.price_full * 100))} BLX</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                ) : (
-                  <View style={s.adEmpty}>
-                    <Ionicons name="storefront-outline" size={26} color="#444" />
-                    <Text style={s.adEmptyTxt}>Toque para explorar o marketplace.</Text>
-                  </View>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-
-          {/* CENTRAL DE PERFORMANCE — para NÃO-Diamond aparece aqui (no topo); para Diamond renderiza embaixo. */}
-          {!isDiamond && renderCentralPerformance()}
+          {/* ============================================================
+              REMOVIDOS A PEDIDO DO USUÁRIO:
+              - Card BLEX TOKEN (saldo grande) → acesso via /wallet no TOPO
+              - Card MARKETPLACE DIAMANTE → substituído pelo tier banner acima
+              - Seção CENTRAL DE PERFORMANCE → removida
+              ============================================================ */}
 
           {/* ACESSO RÁPIDO — grid 2x4 em quadrados cinza (sem título) */}
           <View style={s.grid}>
@@ -409,8 +370,8 @@ export default function Home() {
             ))}
           </View>
 
-          {/* Para DIAMOND: Central de Performance fica AQUI no final (após os atalhos) */}
-          {isDiamond && renderCentralPerformance()}
+          {/* CENTRAL DE PERFORMANCE — REMOVIDA da Home a pedido do usuário.
+              Para acessar metas/progresso/dias, use o botão "Metas" do rodapé. */}
         </ScrollView>
     </View>
   );
@@ -479,6 +440,39 @@ const s = StyleSheet.create({
 
   // Greeting compacto (reduzido para não ocupar todo o topo)
   greet: { alignItems: "flex-start", paddingHorizontal: 16, marginTop: 6, marginBottom: 14 },
+
+  // ====================== TIER BANNER (Home) ======================
+  // Banner do plano do usuário (Diamante/Gold/Silver) — full-width clicável
+  // que substitui o card BLEX e o card MARKETPLACE DIAMANTE antigos.
+  tierBanner: {
+    marginHorizontal: 16,
+    marginBottom: 18,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "#0A0A0A",
+    aspectRatio: 16 / 9,
+    position: "relative",
+  },
+  tierBannerImg: { width: "100%", height: "100%" },
+  tierBannerOverlay: { ...StyleSheet.absoluteFillObject as any },
+  tierBannerFooter: {
+    position: "absolute",
+    left: 0, right: 0, bottom: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+    paddingTop: 10,
+  },
+  tierBannerTitle: { fontSize: 16, fontWeight: "900", letterSpacing: 1.2 },
+  tierBannerSub: { color: "#D7D7D7", fontSize: 11, fontWeight: "600", marginTop: 2 },
+  tierBannerCta: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 7,
+    borderRadius: 8,
+  },
+  tierBannerCtaTxt: { color: "#050505", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
   greetHello: { color: "#FFF", fontSize: 20, fontWeight: "900", letterSpacing: -0.3, lineHeight: 24 },
   greetSub: { color: "#8A8A8A", fontSize: 12, marginTop: 2, fontWeight: "500", letterSpacing: 0 },
 

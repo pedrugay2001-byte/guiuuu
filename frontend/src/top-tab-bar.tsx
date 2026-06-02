@@ -140,12 +140,11 @@ const st = StyleSheet.create({
     backgroundColor: "#101010",
   },
   avatarImg: { width: 34, height: 34, borderRadius: 17 },
-  // Wallet à direita — ícone em cima, saldo logo abaixo (formato compacto)
+  // Wallet à direita — ícone em cima, label "Carteira" CENTRALIZADO logo abaixo
   walletWrap: {
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "center",
     gap: 2,
-    paddingRight: 4,
     minWidth: 0,
     flexShrink: 1,
     width: "100%",
