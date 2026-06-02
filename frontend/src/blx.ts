@@ -4,27 +4,19 @@
  * Usar SEMPRE estas funções para formatar/parsear para evitar erro de ponto flutuante.
  */
 
-/** Formata centavos -> "1.234,56" (sempre 2 casas decimais). */
+/** Formata centavos -> "1.234" (apenas inteiro, SEM casas decimais — regra do BLACKSCLUB).
+ *  Exemplo: 150000 centavos -> "1.500" · 100050 centavos -> "1.000" (arredondado).
+ */
 export function formatBLX(cents: number | null | undefined): string {
   const c = Math.round(Number(cents || 0));
-  const abs = Math.abs(c);
-  const whole = Math.floor(abs / 100);
-  const dec = abs % 100;
-  const wholeStr = whole.toLocaleString("pt-BR");
-  const decStr = dec.toString().padStart(2, "0");
+  const whole = Math.round(Math.abs(c) / 100); // arredonda para inteiro mais próximo
   const sign = c < 0 ? "-" : "";
-  return `${sign}${wholeStr},${decStr}`;
+  return `${sign}${whole.toLocaleString("pt-BR")}`;
 }
 
-/** Formato compacto: esconde centavos se forem zero. "1.234" ou "1.234,56". */
+/** Formato compacto — agora idêntico ao formatBLX (sem decimais). */
 export function formatBLXShort(cents: number | null | undefined): string {
-  const c = Math.round(Number(cents || 0));
-  if (c % 100 === 0) {
-    const whole = Math.floor(Math.abs(c) / 100);
-    const sign = c < 0 ? "-" : "";
-    return `${sign}${whole.toLocaleString("pt-BR")}`;
-  }
-  return formatBLX(c);
+  return formatBLX(cents);
 }
 
 /** Converte string digitada (ex: "1.234,56" ou "1234.56") para centavos int. */

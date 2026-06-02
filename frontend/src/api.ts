@@ -942,11 +942,8 @@ Object.assign(api as any, {
 
 
 export function formatBRL(n: number) {
-  // Show without decimals when integer (premium minimal feel)
-  const isInt = Number.isFinite(n) && Math.abs(n - Math.round(n)) < 0.005;
-  const formatted = (isInt ? Math.round(n) : n).toLocaleString("pt-BR", {
-    minimumFractionDigits: isInt ? 0 : 2,
-    maximumFractionDigits: 2,
-  });
-  return `R$ ${formatted}`;
+  // Sem decimais — regra BLACKSCLUB: preços sempre como inteiros (premium feel).
+  // Ex: 1500.50 → "R$ 1.501", 1500 → "R$ 1.500"
+  const rounded = Math.round(Number.isFinite(n) ? n : 0);
+  return `R$ ${rounded.toLocaleString("pt-BR")}`;
 }
