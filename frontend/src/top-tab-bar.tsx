@@ -1,13 +1,10 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { Ionicons } from "./icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useGate } from "./gate";
 import { useMessageInbox } from "./message-inbox";
-import { useFocusEffect } from "expo-router";
-import { api } from "./api";
 import { BrandLogo } from "./brand";
-import { formatBLXShort } from "./blx";
 
 // Paleta por tier:
 // - diamond → azul-prateado (platinum) #C5D1DA / highlight #EAF1F6
@@ -36,23 +33,6 @@ export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
   const avatar = member?.avatar_base64;
   const isDiamond = member?.tier === "diamond";
   const ACCENT = isDiamond ? ACCENT_PLATINUM : ACCENT_GOLD;
-
-  const [balanceCentavos, setBalanceCentavos] = useState<number | null>(null);
-
-  // Atualiza saldo BLX a cada foco da tela e a cada 60s.
-  const refreshBalance = useCallback(async () => {
-    if (!member?.member_id) return;
-    try {
-      const w = await api.blxWallet(member.member_id);
-      setBalanceCentavos(w.balance_centavos ?? 0);
-    } catch { /* silent — não bloqueia render */ }
-  }, [member?.member_id]);
-  useFocusEffect(useCallback(() => { refreshBalance(); }, [refreshBalance]));
-  useEffect(() => {
-    if (!member?.member_id) return;
-    const t = setInterval(refreshBalance, 60_000);
-    return () => clearInterval(t);
-  }, [member?.member_id, refreshBalance]);
 
   // Detecta se estamos nas rotas de "member" ou "wallet" para destacar
   const currentRouteName = state.routes[state.index]?.name;
@@ -122,7 +102,7 @@ export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
             allowFontScaling={false}
             style={[st.balanceTxt, { color: isOnWallet ? ACCENT : "#C5C5C5" }]}
           >
-            {balanceCentavos === null ? "..." : formatBLXShort(balanceCentavos) + " BLX"}
+            Carteira
           </Text>
         </View>
       </TouchableOpacity>
