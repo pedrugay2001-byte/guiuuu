@@ -323,7 +323,7 @@ export default function Home() {
             return (
               <TouchableOpacity
                 style={s.tierBanner}
-                onPress={() => router.push(banner.route as any)}
+                onPress={() => router.push({ pathname: "/catalog/niches", params: { tier: tierKey } } as any)}
                 activeOpacity={0.9}
                 testID="home-tier-banner"
               >
