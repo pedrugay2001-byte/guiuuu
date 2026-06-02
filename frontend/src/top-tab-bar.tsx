@@ -1,145 +1,180 @@
-import React from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
-import { Ionicons, MaterialCommunityIcons } from "./icons";
+import { Ionicons } from "./icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useGate } from "./gate";
 import { useMessageInbox } from "./message-inbox";
+import { useFocusEffect } from "expo-router";
+import { api } from "./api";
+import { BrandLogo } from "./brand";
+import { formatBLXShort } from "./blx";
 
-// Paleta ativa por tier:
+// Paleta por tier:
 // - diamond → azul-prateado (platinum) #C5D1DA / highlight #EAF1F6
 // - demais → dourado luxo #F5C150
 const ACCENT_GOLD = "#F5C150";
 const ACCENT_PLATINUM = "#C5D1DA";
-const ACCENT_PLATINUM_LIGHT = "#EAF1F6";
 const INACTIVE = "#6E6E6E";
 const BG = "#050505";
 
-type IconCfg = { ion?: string; mat?: string };
-const ICONS: Record<string, { label: string; active: IconCfg; inactive: IconCfg; isAvatar?: boolean }> = {
-  // "member" ficou no lugar onde antes era "home" (primeira posição).
-  member:      { label: "Perfil", active: { ion: "person-circle" },        inactive: { ion: "person-circle-outline" }, isAvatar: true },
-  catalog:     { label: "Loja",   active: { ion: "storefront" },           inactive: { ion: "storefront-outline" } },
-  community:   { label: "Social", active: { ion: "people" },               inactive: { ion: "people-outline" } },
-  performance: { label: "Metas",  active: { mat: "chart-line-variant" },   inactive: { mat: "chart-line" } },
-  wallet:      { label: "Banco",  active: { ion: "wallet" },               inactive: { ion: "wallet-outline" } },
-};
-
 /**
- * Barra de navegação superior premium.
- * NÃO aplica SafeAreaView próprio — isso é responsabilidade do (tabs)/_layout.tsx,
- * que envolve toda a hierarquia num único SafeAreaView. Evita duplicação no iPhone.
+ * Barra superior premium — 3 elementos:
+ *   [Perfil (avatar)] ........... [BLACKSCLUB logo centralizado] ........... [Banco (wallet) + saldo BLX]
  *
- * Layout: [Perfil] [Loja] [Social] [Metas] [Banco]
- * O botão "Perfil" exibe o avatar real do usuário (foto) quando disponível.
- * Cor de destaque muda para azul-prateado (platinum) para membros DIAMOND.
+ * - Esquerda: avatar do membro (ou ícone person-circle como fallback). Toca → /member.
+ * - Centro: logo BLACKSCLUB (mesma família/estilo do rodapé antigo).
+ *           Toca → /home.
+ * - Direita: ícone de carteira + saldo BLX abreviado (ex: "1.5K BLX") logo abaixo.
+ *           Toca → /wallet.
+ *
+ * O componente recebe BottomTabBarProps porque o expo-router usa este tabBar
+ * como render slot — mas usamos navigation.navigate(routeName) diretamente.
  */
 export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
   const { member } = useGate();
   const inbox = useMessageInbox();
   const avatar = member?.avatar_base64;
   const isDiamond = member?.tier === "diamond";
-  const GOLD = isDiamond ? ACCENT_PLATINUM : ACCENT_GOLD;
+  const ACCENT = isDiamond ? ACCENT_PLATINUM : ACCENT_GOLD;
 
-  // Ordena: sempre member na primeira posição, depois o restante na ordem dada em ICONS
-  const ORDER = ["member", "catalog", "community", "performance", "wallet"];
-  const visibleRoutes = ORDER
-    .map((name) => state.routes.find((r) => r.name === name))
-    .filter(Boolean) as typeof state.routes;
+  const [balanceCentavos, setBalanceCentavos] = useState<number | null>(null);
+
+  // Atualiza saldo BLX a cada foco da tela e a cada 60s.
+  const refreshBalance = useCallback(async () => {
+    if (!member?.member_id) return;
+    try {
+      const w = await api.blxWallet(member.member_id);
+      setBalanceCentavos(w.balance_centavos ?? 0);
+    } catch { /* silent — não bloqueia render */ }
+  }, [member?.member_id]);
+  useFocusEffect(useCallback(() => { refreshBalance(); }, [refreshBalance]));
+  useEffect(() => {
+    if (!member?.member_id) return;
+    const t = setInterval(refreshBalance, 60_000);
+    return () => clearInterval(t);
+  }, [member?.member_id, refreshBalance]);
+
+  // Detecta se estamos nas rotas de "member" ou "wallet" para destacar
+  const currentRouteName = state.routes[state.index]?.name;
+  const isOnMember = currentRouteName === "member";
+  const isOnWallet = currentRouteName === "wallet";
+
+  // Helper para navegar até uma tab (usa o navigation do tabBar)
+  const goto = (routeName: string) => {
+    // Limpa notificações ao clicar em Perfil (igual versão antiga)
+    if (routeName === "member") {
+      inbox.markEverythingRead?.().catch(() => {});
+    }
+    const target = state.routes.find((r) => r.name === routeName);
+    if (target) {
+      const event = navigation.emit({
+        type: "tabPress",
+        target: target.key,
+        canPreventDefault: true,
+      });
+      if (!event.defaultPrevented) navigation.navigate(routeName as never);
+    }
+  };
 
   return (
     <View style={st.bar}>
-      {visibleRoutes.map((route) => {
-        const idx = state.routes.findIndex((r) => r.key === route.key);
-        const focused = state.index === idx;
-        const cfg = ICONS[route.name];
-        const col = focused ? GOLD : INACTIVE;
-        const onPress = () => {
-          // Ao tocar em PERFIL, limpa todas as notificações (DMs + sino + chat heads).
-          if (route.name === "member") {
-            inbox.markEverythingRead?.().catch(() => {});
-          }
-          const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
-          if (!focused && !event.defaultPrevented) navigation.navigate(route.name as never);
-        };
+      {/* ESQUERDA — Perfil (avatar do usuário) */}
+      <TouchableOpacity
+        style={st.side}
+        onPress={() => goto("member")}
+        activeOpacity={0.78}
+        testID="top-bar-profile"
+      >
+        <View style={[st.avatarRing, isOnMember && { borderColor: ACCENT, borderWidth: 2 }]}>
+          {avatar ? (
+            <Image source={{ uri: avatar }} style={st.avatarImg} />
+          ) : (
+            <Ionicons name="person-circle" size={34} color={isOnMember ? ACCENT : INACTIVE} />
+          )}
+        </View>
+      </TouchableOpacity>
 
-        return (
-          <TouchableOpacity
-            key={route.key}
-            style={st.item}
-            onPress={onPress}
-            activeOpacity={0.75}
-            testID={`top-tab-${route.name}`}
-            accessibilityRole="button"
-            accessibilityState={focused ? { selected: true } : {}}
+      {/* CENTRO — Logo BLACKSCLUB */}
+      <TouchableOpacity
+        style={st.center}
+        onPress={() => {
+          const home = state.routes.find((r) => r.name === "home");
+          if (home) navigation.navigate("home" as never);
+        }}
+        activeOpacity={0.85}
+        testID="top-bar-brand"
+        hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+      >
+        <BrandLogo size="sm" />
+      </TouchableOpacity>
+
+      {/* DIREITA — Banco (wallet) + saldo BLX abaixo */}
+      <TouchableOpacity
+        style={st.side}
+        onPress={() => goto("wallet")}
+        activeOpacity={0.78}
+        testID="top-bar-wallet"
+      >
+        <View style={st.walletWrap}>
+          <Ionicons name="wallet" size={22} color={isOnWallet ? ACCENT : "#E8E8E8"} />
+          <Text
+            numberOfLines={1}
+            allowFontScaling={false}
+            style={[st.balanceTxt, { color: isOnWallet ? ACCENT : "#C5C5C5" }]}
           >
-            {focused && <View style={[st.activeBar, { backgroundColor: GOLD }]} />}
-            {/* Se é "member" e temos avatar → mostra foto do usuário com anel colorido se focused */}
-            {cfg.isAvatar && avatar ? (
-              <View style={[st.avatarRing, focused && { borderColor: GOLD, borderWidth: 2 }]}>
-                <Image source={{ uri: avatar }} style={st.avatarImg} />
-              </View>
-            ) : cfg.active.ion ? (
-              <Ionicons
-                name={(focused ? cfg.active.ion : cfg.inactive.ion) as any}
-                size={22}
-                color={col}
-              />
-            ) : (
-              <MaterialCommunityIcons
-                name={(focused ? cfg.active.mat : cfg.inactive.mat) as any}
-                size={22}
-                color={col}
-              />
-            )}
-            <Text
-              numberOfLines={1}
-              allowFontScaling={false}
-              style={[st.lbl, { color: col, fontWeight: focused ? "800" : "600" }]}
-            >
-              {cfg.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+            {balanceCentavos === null ? "..." : formatBLXShort(balanceCentavos) + " BLX"}
+          </Text>
+        </View>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  safe: { backgroundColor: BG },
   bar: {
     flexDirection: "row",
     backgroundColor: BG,
-    paddingTop: 4,
-    paddingBottom: 4,
-    paddingHorizontal: 4,
+    paddingTop: 6,
+    paddingBottom: 6,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#0E0E0E",
   },
-  item: {
+  // Esquerda e direita ocupam o mesmo espaço; centro fica no meio absoluto.
+  side: {
     flex: 1,
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
+  center: {
+    flex: 1.2,
     alignItems: "center",
     justifyContent: "center",
-    gap: 2,
-    paddingVertical: 2,
   },
-  activeBar: {
-    position: "absolute",
-    top: 0,
-    width: 30,
-    height: 2,
-    borderRadius: 1,
-  },
-  lbl: {
-    fontSize: 10,
-    letterSpacing: 0,
-    marginTop: 1,
-    includeFontPadding: false as any,
-  },
-  // Avatar do perfil na tab bar — anel dourado/platinum quando selecionado.
   avatarRing: {
-    width: 24, height: 24, borderRadius: 12,
+    width: 38, height: 38, borderRadius: 19,
     alignItems: "center", justifyContent: "center",
     overflow: "hidden",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "#101010",
   },
-  avatarImg: { width: 22, height: 22, borderRadius: 11 },
+  avatarImg: { width: 34, height: 34, borderRadius: 17 },
+  // Wallet à direita — ícone em cima, saldo logo abaixo (formato compacto)
+  walletWrap: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+    gap: 2,
+    paddingRight: 4,
+    minWidth: 0,
+    flexShrink: 1,
+    width: "100%",
+  },
+  balanceTxt: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+    includeFontPadding: false as any,
+    marginTop: 1,
+  },
 });

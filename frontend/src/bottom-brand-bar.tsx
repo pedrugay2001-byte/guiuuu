@@ -1,14 +1,14 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { useRouter } from "expo-router";
-import { Ionicons } from "./icons";
-import { BrandLogo } from "./brand";
+import { useRouter, usePathname } from "expo-router";
+import { Ionicons, MaterialCommunityIcons } from "./icons";
 import { useGate } from "./gate";
 import { useMessageInbox } from "./message-inbox";
 
 // Paleta por tier
 const ACCENT_GOLD = "#F5C150";
 const ACCENT_PLATINUM = "#C5D1DA";
+const INACTIVE = "#7A7A7A";
 const BG = "#050505";
 
 type Props = {
@@ -17,47 +17,60 @@ type Props = {
 };
 
 /**
- * Barra de marca inferior premium.
+ * Barra de navegação INFERIOR (novo layout solicitado):
  *
- * LAYOUT:
- *   [Logo] ............. [Home ◉ (centro, destacado)] ............. [Chat] [Sino]
+ *   [Loja] ... [Metas] ... [Home ◉ (centro, destacado)] ... [Social] ... [Notificações]
  *
- * - O botão "Home" é o elemento principal e fica no CENTRO.
- * - Cor de destaque: dourada para tiers regulares; PRATEADA (azul-prateado)
- *   para membros DIAMOND, criando hierarquia visual de prestígio.
- * - Badges (chat e sino) mostram o NÚMERO de não-lidos em vermelho.
- *   Os valores vêm direto do MessageInboxProvider quando não passados via props.
+ * - 5 botões no rodapé, com o "Home/Menu" central destacado em círculo dourado.
+ * - O ícone de "chat/mensagem" foi REMOVIDO desta barra (saiu do projeto a pedido do usuário).
+ * - Acessível e responsivo: flex:1 em cada lateral para distribuir igualmente.
+ * - Badge vermelho com contador aparece em Notificações quando há não-lidos.
  */
-export default function BottomBrandBar({ unread, unreadMessages }: Props) {
+export default function BottomBrandBar({ unread, unreadMessages: _ignored }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const { member } = useGate();
   const inbox = useMessageInbox();
   const isDiamond = member?.tier === "diamond";
-  const GOLD = isDiamond ? ACCENT_PLATINUM : ACCENT_GOLD;
+  const ACCENT = isDiamond ? ACCENT_PLATINUM : ACCENT_GOLD;
 
-  // Usa props se vierem; senão pega do Provider (vivo entre telas)
-  const msgs = typeof unreadMessages === "number" ? unreadMessages : inbox.unreadMessages;
   const notifs = typeof unread === "number" ? unread : inbox.unreadNotifications;
+
+  // Helper para detectar rota ativa — comparação tolerante (startsWith)
+  const isActive = (route: string) => pathname === route || pathname.startsWith(route + "/");
+
+  // Helper de cor: dourado/platinum se ativo, cinza claro se inativo
+  const col = (route: string) => (isActive(route) ? ACCENT : INACTIVE);
 
   return (
     <View style={st.bar}>
-      {/* Esquerda — logo da marca */}
-      <View style={st.side}>
-        <TouchableOpacity
-          onPress={() => router.push("/(tabs)/home" as any)}
-          activeOpacity={0.85}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          testID="bottom-brand-logo"
-        >
-          <BrandLogo size="sm" />
-        </TouchableOpacity>
-      </View>
+      {/* 1) Loja */}
+      <TouchableOpacity
+        style={st.item}
+        onPress={() => router.push("/catalog" as any)}
+        activeOpacity={0.78}
+        testID="bottom-catalog"
+      >
+        <Ionicons name="storefront" size={22} color={col("/catalog")} />
+        <Text allowFontScaling={false} style={[st.lbl, { color: col("/catalog") }]}>Loja</Text>
+      </TouchableOpacity>
 
-      {/* Centro — botão principal HOME */}
-      <View style={st.center}>
+      {/* 2) Metas */}
+      <TouchableOpacity
+        style={st.item}
+        onPress={() => router.push("/performance" as any)}
+        activeOpacity={0.78}
+        testID="bottom-performance"
+      >
+        <MaterialCommunityIcons name="chart-line-variant" size={22} color={col("/performance")} />
+        <Text allowFontScaling={false} style={[st.lbl, { color: col("/performance") }]}>Metas</Text>
+      </TouchableOpacity>
+
+      {/* 3) HOME — centro, destacado */}
+      <View style={st.centerWrap}>
         <TouchableOpacity
-          style={[st.homeBtn, { backgroundColor: GOLD, shadowColor: GOLD }]}
-          onPress={() => router.push("/(tabs)/home" as any)}
+          style={[st.homeBtn, { backgroundColor: ACCENT, shadowColor: ACCENT }]}
+          onPress={() => router.push("/home" as any)}
           activeOpacity={0.88}
           testID="bottom-home"
         >
@@ -65,46 +78,37 @@ export default function BottomBrandBar({ unread, unreadMessages }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* Direita — chat + sino */}
-      <View style={st.side}>
-        <View style={st.right}>
-          <TouchableOpacity
-            style={st.iconBtn}
-            onPress={async () => {
-              // Limpa todas as notificações de mensagens (badge + chat heads) ao tocar
-              try { await inbox.markAllMessagesRead(); } catch {}
-              router.push("/community/messages" as any);
-            }}
-            activeOpacity={0.75}
-            testID="bottom-messages"
-          >
-            <Ionicons name="chatbubble-ellipses-outline" size={22} color="#D8D8D8" />
-            {msgs > 0 && (
-              <View style={st.numBadge}>
-                <Text style={st.numBadgeTxt}>{msgs > 9 ? "9+" : msgs}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+      {/* 4) Social */}
+      <TouchableOpacity
+        style={st.item}
+        onPress={() => router.push("/community" as any)}
+        activeOpacity={0.78}
+        testID="bottom-community"
+      >
+        <Ionicons name="people" size={22} color={col("/community")} />
+        <Text allowFontScaling={false} style={[st.lbl, { color: col("/community") }]}>Social</Text>
+      </TouchableOpacity>
 
-          <TouchableOpacity
-            style={st.iconBtn}
-            onPress={async () => {
-              // Limpa todas as notificações do sino ao tocar
-              try { await inbox.markAllNotificationsRead(); } catch {}
-              router.push("/notifications" as any);
-            }}
-            activeOpacity={0.75}
-            testID="bottom-notifications"
-          >
-            <Ionicons name="notifications-outline" size={22} color="#D8D8D8" />
-            {notifs > 0 && (
-              <View style={st.numBadge}>
-                <Text style={st.numBadgeTxt}>{notifs > 9 ? "9+" : notifs}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+      {/* 5) Notificações — com badge vermelho */}
+      <TouchableOpacity
+        style={st.item}
+        onPress={async () => {
+          try { await inbox.markAllNotificationsRead(); } catch {}
+          router.push("/notifications" as any);
+        }}
+        activeOpacity={0.78}
+        testID="bottom-notifications"
+      >
+        <View style={{ position: "relative" }}>
+          <Ionicons name="notifications-outline" size={22} color={col("/notifications")} />
+          {notifs > 0 && (
+            <View style={st.numBadge}>
+              <Text style={st.numBadgeTxt}>{notifs > 9 ? "9+" : notifs}</Text>
+            </View>
+          )}
         </View>
-      </View>
+        <Text allowFontScaling={false} style={[st.lbl, { color: col("/notifications") }]}>Avisos</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -113,22 +117,45 @@ const st = StyleSheet.create({
   bar: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: 8,
     backgroundColor: BG,
+    borderTopWidth: 1,
+    borderTopColor: "#0E0E0E",
   },
-  side: { flex: 1, flexDirection: "row", alignItems: "center" },
-  center: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
-  right: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 },
-
-  iconBtn: {
-    width: 36, height: 36, borderRadius: 18,
+  item: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    paddingVertical: 4,
+  },
+  lbl: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    marginTop: 1,
+    includeFontPadding: false as any,
+  },
+  // Container do botão central (mantém o flex:1 para alinhamento horizontal)
+  centerWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Botão Home central — círculo destacado em ouro/platinum
+  homeBtn: {
+    width: 48, height: 48, borderRadius: 24,
     alignItems: "center", justifyContent: "center",
-    position: "relative",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  // Badge numérico vermelho (substitui o ponto antigo)
+  // Badge numérico (vermelho) — em Notificações
   numBadge: {
-    position: "absolute", top: 2, right: 0,
+    position: "absolute", top: -4, right: -8,
     minWidth: 16, height: 16,
     paddingHorizontal: 4, borderRadius: 8,
     backgroundColor: "#FF3B30",
@@ -136,13 +163,4 @@ const st = StyleSheet.create({
     borderWidth: 1.2, borderColor: BG,
   },
   numBadgeTxt: { color: "#FFF", fontSize: 9, fontWeight: "900" },
-  // Botão Home central — grande, com glow sutil; cor vem do theme
-  homeBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: "center", justifyContent: "center",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 4,
-  },
 });
