@@ -211,61 +211,20 @@ export default function AdView() {
               </View>
               {effectiveDiscount > 0 && (
                 <Text style={s.priceOld}>
-                  Valor cheio {formatBLX(fullCents)} BLX · {opt.label.toLowerCase()} −{effectiveDiscount}%
+                  Valor cheio {formatBLX(fullCents)} BLX · seu plano −{effectiveDiscount}%
                 </Text>
               )}
             </View>
           </LinearGradient>
 
-          {/* Formas de pagamento — IGUAL Catálogo, só muda a cor */}
-          <Text style={s.sectionLbl}>FORMA DE PAGAMENTO</Text>
-          <View style={{ gap: 6 }}>
-            {PAY_OPTIONS.map(o => {
-              const discCents = Math.round(fullCents * (100 - effectiveDiscount) / 100);
-              const selected = pay === o.id;
-              return (
-                <TouchableOpacity
-                  key={o.id}
-                  style={[s.payOpt, selected && s.payOptActive]}
-                  onPress={() => setPay(o.id)}
-                  activeOpacity={0.85}
-                  testID={`ad-pay-${o.id}`}
-                >
-                  <View style={[s.payRadio, selected && { borderColor: DIAMOND }]}>
-                    {selected && <View style={[s.payRadioDot, { backgroundColor: DIAMOND }]} />}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.payLabel, selected && { color: "#FFF" }]}>{o.label}</Text>
-                    <Text style={s.paySub}>{o.sub}</Text>
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    {effectiveDiscount > 0 && (
-                      <View style={s.discPill}>
-                        <Text style={s.discPillTxt}>−{effectiveDiscount}%</Text>
-                      </View>
-                    )}
-                    <Text style={[s.payPrice, selected && { color: DIAMOND_LIGHT }]}>{formatBLX(discCents)} BLX</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {/* ====================================================================
+              SEÇÃO "FORMA DE PAGAMENTO" REMOVIDA a pedido do usuário.
+              Regra: o desconto vem do TIER do membro (Silver 0% / Gold 15% / Diamond 30%)
+              e o pagamento é sempre integral. Não há mais opções de entrada.
+              ==================================================================== */}
 
-          {/* Resumo — IGUAL Catálogo */}
+          {/* Resumo — apenas Total com economia (se houver desconto do tier) */}
           <View style={s.summaryBox}>
-            {pay !== "full" && (
-              <>
-                <View style={s.summaryRow}>
-                  <Text style={s.summaryLbl}>Entrada ({entryPct}%)</Text>
-                  <Text style={s.summaryVal}>{formatBLX(entryCents)} BLX</Text>
-                </View>
-                <View style={s.summaryRow}>
-                  <Text style={s.summaryLbl}>Saldo na entrega</Text>
-                  <Text style={s.summaryVal}>{formatBLX(remainingCents)} BLX</Text>
-                </View>
-                <View style={s.summaryDivider} />
-              </>
-            )}
             <View style={s.summaryRow}>
               <Text style={s.summaryLblBold}>Total</Text>
               <View style={{ alignItems: "flex-end" }}>
