@@ -456,7 +456,7 @@ const s = StyleSheet.create({
     aspectRatio: 16 / 9,
     position: "relative",
   },
-  tierBannerImg: { width: "100%", height: "100%" },
+  tierBannerImg: { ...StyleSheet.absoluteFillObject as any, width: "100%", height: "100%" },
   tierBannerOverlay: { ...StyleSheet.absoluteFillObject as any },
   tierBannerFooter: {
     position: "absolute",
