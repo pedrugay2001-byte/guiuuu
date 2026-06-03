@@ -216,13 +216,6 @@ export default function WalletScreen() {
             onPress={() => router.push("/blx/history" as any)}
             testID="blx-action-history"
           />
-          <ActionButton
-            icon="bag-handle-outline"
-            label="Compras"
-            sub="Pedidos"
-            onPress={() => router.push("/blx/orders" as any)}
-            testID="blx-action-orders"
-          />
         </View>
 
         {/* Ações premium — Adicionar BLX + Suporte */}

@@ -29,15 +29,15 @@ const CARD_BG = "#0C0C0C";
 const TILE_BG = "#0C0C0C";
 const INNER_CARD_BG = "#101010";
 
-type AreaId = "ai" | "community" | "marketplace" | "planos" | "wallet" | "performance" | "chat" | "profissionais";
-type Area = { id: AreaId; label: string; icon: { lib: "ion" | "mci"; name: string }; route: string };
+type AreaId = "ai" | "community" | "marketplace" | "planos" | "wallet" | "performance" | "chat" | "profissionais" | "compras";
+type Area = { id: AreaId; label: string; sub: string; icon: { lib: "ion" | "mci"; name: string }; route: string };
 
-// Grid de 3 atalhos em quadrados cinza (Planos, Suporte, Profissionais).
-// O botão "Carrinho" foi REMOVIDO da home a pedido do usuário.
+// Grid de 3 atalhos no padrão "Compras/Pedidos" (mesmo design da Carteira).
+// Suporte foi MOVIDO para a aba Carteira; Compras foi MOVIDO para o Home.
 const AREAS: Area[] = [
-  { id: "planos",        label: "Planos",        icon: { lib: "mci", name: "diamond-stone" },      route: "/(tabs)/catalog" },
-  { id: "chat",          label: "Suporte",       icon: { lib: "ion", name: "headset" },            route: "/chat" },
-  { id: "profissionais", label: "Profissionais", icon: { lib: "mci", name: "stethoscope" },        route: "/ai" },
+  { id: "planos",        label: "Planos",        sub: "Tier",          icon: { lib: "mci", name: "diamond-stone" },     route: "/(tabs)/catalog" },
+  { id: "compras",       label: "Compras",       sub: "Pedidos",       icon: { lib: "ion", name: "bag-handle-outline" }, route: "/blx/orders" },
+  { id: "profissionais", label: "Profissionais", sub: "Especialistas", icon: { lib: "mci", name: "stethoscope" },        route: "/ai" },
 ];
 
 function AreaIcon({ icon, size, color }: { icon: Area["icon"]; size: number; color: string }) {
@@ -352,7 +352,8 @@ export default function Home() {
               - Seção CENTRAL DE PERFORMANCE → removida
               ============================================================ */}
 
-          {/* ACESSO RÁPIDO — grid 2x4 em quadrados cinza (sem título) */}
+          {/* ACESSO RÁPIDO — grid 3 cards com design "Compras/Pedidos" da Carteira
+              (borda dourada gradient + ícone em oval slate + label + subtítulo) */}
           <View style={s.grid}>
             {AREAS.map((a) => (
               <TouchableOpacity
@@ -362,8 +363,20 @@ export default function Home() {
                 activeOpacity={0.85}
                 testID={`area-${a.id}`}
               >
-                <AreaIcon icon={a.icon} size={26} color="#F5F5F5" />
-                <Text style={s.tileLbl} numberOfLines={1}>{a.label}</Text>
+                <LinearGradient
+                  colors={[GOLD + "55", "transparent", "#C89A3A33"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={s.tileBorder}
+                >
+                  <View style={s.tileInner}>
+                    <View style={s.tileIconOval}>
+                      <AreaIcon icon={a.icon} size={22} color="#E0E8EF" />
+                    </View>
+                    <Text style={s.tileLbl} numberOfLines={1}>{a.label}</Text>
+                    <Text style={s.tileSub} numberOfLines={1}>{a.sub}</Text>
+                  </View>
+                </LinearGradient>
               </TouchableOpacity>
             ))}
           </View>
@@ -637,21 +650,35 @@ const s = StyleSheet.create({
   seeAllGrey: { color: "#888", fontSize: 11, fontWeight: "700" },
   seeAllGold: { color: GOLD, fontSize: 11, fontWeight: "800" },
 
-  // TILES 4 col — quadrados cinza (estilo referência do usuário)
+  // TILES 3 col — design espelhado da Carteira (borda gold gradient + ícone oval slate + label + sub)
   grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 8, justifyContent: "space-between", marginTop: 8 },
   tile: {
-    flexBasis: "23%",
+    flexBasis: "31.5%",
     aspectRatio: 0.95,
-    backgroundColor: "#0E0E0E",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-    alignItems: "center", justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 4,
   },
-  tileLbl: { color: "#E8E8E8", fontSize: 10, fontWeight: "800", textAlign: "center", letterSpacing: 0.8 },
+  tileBorder: {
+    flex: 1,
+    borderRadius: 14,
+    padding: 1,
+  },
+  tileInner: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 6,
+    backgroundColor: "#0B0D10",
+    borderRadius: 13,
+  },
+  tileIconOval: {
+    width: 54, height: 34, borderRadius: 17,
+    backgroundColor: "rgba(143,163,180,0.14)",
+    borderWidth: 1, borderColor: "#C89A3A55",
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 10,
+  },
+  tileLbl: { color: "#E0E8EF", fontSize: 12, fontWeight: "800", letterSpacing: 0.4, textAlign: "center" },
+  tileSub: { color: "#C89A3A", fontSize: 9.5, fontWeight: "700", marginTop: 3, letterSpacing: 0.3, textAlign: "center" },
 
   // Below-fold
   postCard: { width: 170, borderRadius: 14, backgroundColor: "#0E0E0E", borderWidth: 1, borderColor: "#1A1A1A", padding: 12 },
