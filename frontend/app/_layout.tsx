@@ -1,14 +1,44 @@
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider } from "../src/auth";
 import { CartProvider } from "../src/cart";
-import { GateProvider } from "../src/gate";
+import { GateProvider, useGate } from "../src/gate";
 import { ErrorBoundary } from "../src/error-boundary";
 import { MessageInboxProvider } from "../src/message-inbox";
 import ChatHeadsOverlay from "../src/chat-heads";
+import BottomBrandBar from "../src/bottom-brand-bar";
+
+// Rotas onde o menu inferior NÃO deve aparecer (auth, onboarding, staff backoffice).
+// Em todas as outras telas a barra fica visível conforme pedido do usuário.
+const HIDE_BAR_PATTERNS: RegExp[] = [
+  /^\/$/,
+  /^\/index$/,
+  /^\/welcome/,
+  /^\/login/,
+  /^\/forgot/,
+  /^\/enter/,
+  /^\/terms/,
+  /^\/onboarding/,
+  /^\/daily-message/,
+  /^\/staff/,
+];
+
+function GlobalBottomBar() {
+  const pathname = usePathname();
+  const { member } = useGate();
+  // Esconde se o usuário não estiver logado ou se estiver em rota de auth/onboarding.
+  if (!member) return null;
+  const shouldHide = HIDE_BAR_PATTERNS.some((p) => p.test(pathname || ""));
+  if (shouldHide) return null;
+  return (
+    <SafeAreaView edges={["bottom", "left", "right"]} style={{ backgroundColor: "#050505" }}>
+      <BottomBrandBar />
+    </SafeAreaView>
+  );
+}
 
 export default function RootLayout() {
   return (
@@ -21,6 +51,7 @@ export default function RootLayout() {
                 <MessageInboxProvider>
                 <StatusBar style="light" />
                 <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1 }}>
           <Stack
             screenOptions={{
               headerStyle: { backgroundColor: "#050505" },
@@ -76,6 +107,8 @@ export default function RootLayout() {
             <Stack.Screen name="wallet" options={{ headerShown: false }} />
             <Stack.Screen name="black-ai" options={{ headerShown: false }} />
           </Stack>
+                  </View>
+                  <GlobalBottomBar />
                 </View>
                 <ChatHeadsOverlay />
                 </MessageInboxProvider>

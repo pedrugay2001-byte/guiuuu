@@ -36,6 +36,10 @@ export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
 
   // Detecta se estamos nas rotas de "member" ou "wallet" para destacar
   const currentRouteName = state.routes[state.index]?.name;
+  // CABEÇALHO BLACKSCLUB + Perfil é exibido APENAS na Home a pedido do usuário.
+  // Demais abas (catalog/community/performance/wallet/member) renderizam null aqui
+  // — área útil maior e barra inferior continua sempre visível como menu principal.
+  if (currentRouteName !== "home") return null;
   const isOnMember = currentRouteName === "member";
   const isOnWallet = currentRouteName === "wallet";
 
