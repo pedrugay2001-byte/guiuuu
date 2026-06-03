@@ -336,7 +336,7 @@ export default function Home() {
                       ...(StyleSheet.absoluteFillObject as any),
                       backgroundImage: `url("${banner.image}")`,
                       backgroundSize: "cover",
-                      backgroundPosition: "72% center",
+                      backgroundPosition: "65% center",
                       backgroundRepeat: "no-repeat",
                     } as any}
                   />
