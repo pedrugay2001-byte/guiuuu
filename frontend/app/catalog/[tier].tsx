@@ -284,23 +284,6 @@ export default function Marketplace() {
         {/* ==================== DIAMOND VIEW — apenas anúncios curados ==================== */}
         {isDiamondView ? (
           <>
-            {/* Header premium Diamante */}
-            <View style={st.diamondHeroHead}>
-              <View style={st.diamondDivider}>
-                <View style={st.diamondDividerLine} />
-                <View style={st.diamondDividerBadge}>
-                  <Ionicons name="diamond" size={10} color={DIAMOND_BLUE} />
-                  <Text style={st.diamondDividerTxt}>CURADORIA OFICIAL</Text>
-                  <Ionicons name="diamond" size={10} color={DIAMOND_BLUE} />
-                </View>
-                <View style={st.diamondDividerLine} />
-              </View>
-              <Text style={st.diamondHeroTitle}>Anúncios Exclusivos Diamante</Text>
-              <Text style={st.diamondHeroSub}>
-                Seleção curada pelo time BlacksClub · Todos os itens verificados
-              </Text>
-            </View>
-
             {loading ? (
               <View style={{ padding: 32, alignItems: "center" }}>
                 <ActivityIndicator color={DIAMOND_BLUE} />
