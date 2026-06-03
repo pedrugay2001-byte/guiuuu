@@ -330,7 +330,19 @@ export default function Home() {
                 activeOpacity={0.9}
                 testID="home-tier-banner"
               >
-                <Image source={{ uri: banner.image }} style={s.tierBannerImg} resizeMode="cover" />
+                {Platform.OS === "web" ? (
+                  <View
+                    style={{
+                      ...(StyleSheet.absoluteFillObject as any),
+                      backgroundImage: `url("${banner.image}")`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "72% center",
+                      backgroundRepeat: "no-repeat",
+                    } as any}
+                  />
+                ) : (
+                  <Image source={{ uri: banner.image }} style={s.tierBannerImg} resizeMode="cover" />
+                )}
                 <LinearGradient
                   colors={["transparent", "rgba(0,0,0,0.45)", "rgba(0,0,0,0.92)"] as const}
                   start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
