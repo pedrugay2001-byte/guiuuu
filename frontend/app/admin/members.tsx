@@ -1,13 +1,14 @@
 import { useCallback, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "../../src/icons";
-import { api, AuthorizedEntry, setToken } from "../../src/api";
+import { api, AuthorizedEntry, setToken, HomeBanner, HomeBannerInput } from "../../src/api";
 import { theme, TIERS, TierId } from "../../src/theme";
+import AdminBannersManager from "../../src/admin-banners-manager";
 
 export default function AdminMembers() {
   const router = useRouter();
@@ -178,6 +179,10 @@ export default function AdminMembers() {
               })}
             </View>
           )}
+
+          {/* DIVISOR + Painel de Banners (Home rotating carousel) */}
+          <View style={[styles.divider, { marginTop: 24 }]} />
+          <AdminBannersManager />
         </ScrollView>
       </SafeAreaView>
     </KeyboardAvoidingView>

@@ -100,9 +100,38 @@ export type MemberData = {
   can_post_ads?: boolean; // membros com permissão de publicar anúncios
 };
 
-export type AuthorizedEntry = {
-  auth_id: string; name: string; phone: string; code: string;
+export type AuthorizedEntry = {  auth_id: string; name: string; phone: string; code: string;
   tier: TierId; parent_name?: string | null; created_at: string;
+};
+
+// Home rotating banners (painel rotativo da Home — Notícias, Promoções, Novidades)
+export type HomeBannerCategory = "novidade" | "noticia" | "promocao";
+export type HomeBanner = {
+  banner_id: string;
+  title: string;
+  subtitle?: string;
+  image_url?: string;
+  image_base64?: string;
+  cta_label?: string;
+  cta_route?: string;
+  accent_color?: string;
+  category: HomeBannerCategory | string;
+  active: boolean;
+  order: number;
+  created_at?: string;
+  updated_at?: string;
+};
+export type HomeBannerInput = {
+  title: string;
+  subtitle?: string;
+  image_url?: string;
+  image_base64?: string;
+  cta_label?: string;
+  cta_route?: string;
+  accent_color?: string;
+  category?: HomeBannerCategory | string;
+  active?: boolean;
+  order?: number;
 };
 
 export const api = {
@@ -255,6 +284,16 @@ export const api = {
     }),
   adminDeleteAuthorized: (auth_id: string) =>
     request<{ ok: boolean }>(`/admin/authorized/${auth_id}`, { method: "DELETE" }),
+
+  // ----- Home Rotating Banners (Painel rotativo / Notícias) -----
+  homeBanners: () => request<HomeBanner[]>("/home-banners"),
+  adminListHomeBanners: () => request<HomeBanner[]>("/admin/home-banners"),
+  adminCreateHomeBanner: (body: HomeBannerInput) =>
+    request<HomeBanner>("/admin/home-banners", { method: "POST", body: JSON.stringify(body) }),
+  adminUpdateHomeBanner: (banner_id: string, body: Partial<HomeBannerInput>) =>
+    request<HomeBanner>(`/admin/home-banners/${banner_id}`, { method: "PUT", body: JSON.stringify(body) }),
+  adminDeleteHomeBanner: (banner_id: string) =>
+    request<{ ok: boolean }>(`/admin/home-banners/${banner_id}`, { method: "DELETE" }),
 
   // ----- Community (MSN-style) -----
   updateProfile: (member_id: string, body: {

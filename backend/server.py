@@ -609,6 +609,112 @@ async def admin_delete_authorized(auth_id: str, staff: dict = Depends(require_st
     return {"ok": True}
 
 
+# -------------- Home Rotating Banners (Painel rotativo) --------------
+# Permite que o Master Admin cadastre Notícias, Promoções e Novidades exibidas
+# no painel rotativo da Home (abaixo dos cards Planos/Compras/Profissionais).
+class HomeBannerCreate(BaseModel):
+    title: str
+    subtitle: Optional[str] = ""
+    image_url: Optional[str] = ""
+    image_base64: Optional[str] = ""
+    cta_label: Optional[str] = ""
+    cta_route: Optional[str] = ""
+    accent_color: Optional[str] = "#C89A3A"
+    category: Optional[str] = "novidade"  # novidade | noticia | promocao
+    active: Optional[bool] = True
+    order: Optional[int] = 0
+
+
+class HomeBannerUpdate(BaseModel):
+    title: Optional[str] = None
+    subtitle: Optional[str] = None
+    image_url: Optional[str] = None
+    image_base64: Optional[str] = None
+    cta_label: Optional[str] = None
+    cta_route: Optional[str] = None
+    accent_color: Optional[str] = None
+    category: Optional[str] = None
+    active: Optional[bool] = None
+    order: Optional[int] = None
+
+
+def _serialize_banner(b: dict) -> dict:
+    """Normaliza o documento para JSON (remove _id, converte datas)."""
+    b.pop("_id", None)
+    for f in ("created_at", "updated_at"):
+        if isinstance(b.get(f), datetime):
+            b[f] = b[f].isoformat()
+    return b
+
+
+@api_router.get("/home-banners")
+async def list_active_home_banners():
+    """Retorna apenas os banners ATIVOS para o carrossel da Home (público para membros logados)."""
+    cursor = db.home_banners.find({"active": True}, {"_id": 0}).sort([("order", 1), ("created_at", -1)])
+    items = await cursor.to_list(length=50)
+    return [_serialize_banner(b) for b in items]
+
+
+@api_router.get("/admin/home-banners")
+async def admin_list_home_banners(staff: dict = Depends(require_staff)):
+    """Lista todos os banners (incluindo inativos) — uso na tela de gerenciamento."""
+    cursor = db.home_banners.find({}, {"_id": 0}).sort([("order", 1), ("created_at", -1)])
+    items = await cursor.to_list(length=200)
+    return [_serialize_banner(b) for b in items]
+
+
+@api_router.post("/admin/home-banners")
+async def admin_create_home_banner(data: HomeBannerCreate, staff: dict = Depends(require_staff)):
+    title = (data.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Título é obrigatório")
+    doc = {
+        "banner_id": f"banner_{uuid.uuid4().hex[:12]}",
+        "title": title,
+        "subtitle": (data.subtitle or "").strip(),
+        "image_url": (data.image_url or "").strip(),
+        "image_base64": (data.image_base64 or "").strip(),
+        "cta_label": (data.cta_label or "").strip(),
+        "cta_route": (data.cta_route or "").strip(),
+        "accent_color": (data.accent_color or "#C89A3A").strip(),
+        "category": (data.category or "novidade").strip().lower(),
+        "active": bool(data.active if data.active is not None else True),
+        "order": int(data.order or 0),
+        "created_by": staff.get("user_id") or staff.get("email"),
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+    }
+    await db.home_banners.insert_one(doc)
+    return _serialize_banner({**doc})
+
+
+@api_router.put("/admin/home-banners/{banner_id}")
+async def admin_update_home_banner(banner_id: str, data: HomeBannerUpdate, staff: dict = Depends(require_staff)):
+    existing = await db.home_banners.find_one({"banner_id": banner_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Banner não encontrado")
+    updates: dict = {"updated_at": datetime.now(timezone.utc)}
+    for field in ("title", "subtitle", "image_url", "image_base64", "cta_label", "cta_route", "accent_color", "category"):
+        v = getattr(data, field)
+        if v is not None:
+            updates[field] = v.strip() if isinstance(v, str) else v
+    if data.active is not None:
+        updates["active"] = bool(data.active)
+    if data.order is not None:
+        updates["order"] = int(data.order)
+    await db.home_banners.update_one({"banner_id": banner_id}, {"$set": updates})
+    doc = await db.home_banners.find_one({"banner_id": banner_id}, {"_id": 0})
+    return _serialize_banner(doc) if doc else {"ok": True}
+
+
+@api_router.delete("/admin/home-banners/{banner_id}")
+async def admin_delete_home_banner(banner_id: str, staff: dict = Depends(require_staff)):
+    r = await db.home_banners.delete_one({"banner_id": banner_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Banner não encontrado")
+    return {"ok": True}
+
+
 # -------------- Orders & Chat --------------
 class OrderItem(BaseModel):
     product_id: str

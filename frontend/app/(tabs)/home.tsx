@@ -11,6 +11,7 @@ import { api, GoalDashboard, BlxWallet, Ad } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { useTierAccent } from "../../src/use-tier-accent";
 import { formatBLX } from "../../src/blx";
+import HomeBannerCarousel from "../../src/home-banner-carousel";
 
 const DIAMOND_LIGHT = "#A8E4EF";
 const DIAMOND = "#7FD7E5";
@@ -392,6 +393,10 @@ export default function Home() {
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* PAINEL ROTATIVO — Notícias / Promoções / Novidades gerenciado pelo Admin Master.
+              Carrossel com troca automática a cada 10s + swipe manual. */}
+          <HomeBannerCarousel height={170} />
 
           {/* CENTRAL DE PERFORMANCE — REMOVIDA da Home a pedido do usuário.
               Para acessar metas/progresso/dias, use o botão "Metas" do rodapé. */}
