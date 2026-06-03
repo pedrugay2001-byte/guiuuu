@@ -16,7 +16,7 @@ const NICHES = [
   {
     id: "performance",
     label: "Performance\nHumana",
-    icon: "fitness-outline" as const,
+    icon: "barbell" as const,
     accent: "#E67A35", // laranja discreto
     bgImage: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=60",
   },

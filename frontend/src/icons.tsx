@@ -134,6 +134,8 @@ import {
   Apple,
   FlaskConical,
   Stethoscope,
+  Laptop,
+  Cpu,
   // Misc additions for MCI
   HandCoins,
 } from "lucide-react-native";
@@ -268,6 +270,16 @@ const IONICONS_MAP: Record<string, React.ComponentType<any>> = {
   "bulb-outline": Lightbulb,
   "compass": Compass,
   "bicycle-outline": Bike,
+  // Tech / Performance / Home — Niches screen icons
+  "laptop-outline": Laptop,
+  "laptop": Laptop,
+  "hardware-chip-outline": Cpu,
+  "hardware-chip": Cpu,
+  "fitness-outline": Dumbbell,
+  "fitness": Dumbbell,
+  "barbell": Dumbbell,
+  "barbell-outline": Dumbbell,
+  "home-outline": Home,
 };
 
 // =============================================================================
