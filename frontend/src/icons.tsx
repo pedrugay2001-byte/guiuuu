@@ -300,6 +300,7 @@ const MCI_MAP: Record<string, React.ComponentType<any>> = {
   "target": Target,
   "calendar-month": Calendar,
   "qrcode-scan": QrCode,
+  "stethoscope": Stethoscope,
 };
 
 // =============================================================================

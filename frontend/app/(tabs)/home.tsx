@@ -337,10 +337,6 @@ export default function Home() {
                   style={s.tierBannerOverlay}
                 />
                 <View style={s.tierBannerFooter}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.tierBannerTitle, { color: banner.accent }]}>{banner.title}</Text>
-                    <Text style={s.tierBannerSub}>{banner.sub}</Text>
-                  </View>
                   <View style={[s.tierBannerCta, { backgroundColor: banner.accent }]}>
                     <Text style={s.tierBannerCtaTxt}>ENTRAR</Text>
                     <Ionicons name="chevron-forward" size={14} color="#050505" />
@@ -463,6 +459,7 @@ const s = StyleSheet.create({
     left: 0, right: 0, bottom: 0,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-end",
     gap: 10,
     paddingHorizontal: 14,
     paddingBottom: 12,
