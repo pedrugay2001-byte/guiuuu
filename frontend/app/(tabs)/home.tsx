@@ -298,7 +298,7 @@ export default function Home() {
             const tierKey = (member?.tier || "silver").toLowerCase();
             // Banner único do Marketplace de Elite (BLACKSCLUB) — usado para todos os tiers.
             // Imagem oficial "Acesso as melhores marcas" com produtos premium em destaque.
-            const MKT_BANNER = "https://customer-assets.emergentagent.com/job_member-shop-2/artifacts/r7te1qfm_Performance%20Humana.png";
+            const MKT_BANNER = "https://customer-assets.emergentagent.com/job_member-shop-2/artifacts/apwwtp98_banner%20marketplace.png";
             const TIER_BANNER: Record<string, { image: string; title: string; sub: string; accent: string; route: string }> = {
               diamond: {
                 image: MKT_BANNER,
