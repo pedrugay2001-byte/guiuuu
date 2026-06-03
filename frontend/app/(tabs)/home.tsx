@@ -296,23 +296,26 @@ export default function Home() {
           {(() => {
             // Define imagem + cor de destaque do plano do usuário
             const tierKey = (member?.tier || "silver").toLowerCase();
+            // Banner único do Marketplace de Elite (BLACKSCLUB) — usado para todos os tiers.
+            // Imagem oficial "Acesso as melhores marcas" com produtos premium em destaque.
+            const MKT_BANNER = "https://customer-assets.emergentagent.com/job_member-shop-2/artifacts/r7te1qfm_Performance%20Humana.png";
             const TIER_BANNER: Record<string, { image: string; title: string; sub: string; accent: string; route: string }> = {
               diamond: {
-                image: "https://customer-assets.emergentagent.com/job_member-shop-2/artifacts/3rkrh49f_qqqqqqqqqqqqqqqq.png",
+                image: MKT_BANNER,
                 title: "PLANO DIAMANTE",
                 sub: "Acesso total · Marketplace completo",
                 accent: "#EAF1F6",
                 route: "/catalog/diamond",
               },
               gold: {
-                image: "https://customer-assets.emergentagent.com/job_member-shop-2/artifacts/uib3txco_20d0bf6b-3315-4f93-bb5e-94095fddb867%20%281%29.png",
+                image: MKT_BANNER,
                 title: "PLANO GOLD",
                 sub: "Acesso Premium · Ofertas exclusivas",
                 accent: "#F4D47A",
                 route: "/catalog/gold",
               },
               silver: {
-                image: "https://customer-assets.emergentagent.com/job_member-shop-2/artifacts/54hcb9bu_iuuuuuuuuuuuuuuuuuu.png",
+                image: MKT_BANNER,
                 title: "PLANO SILVER",
                 sub: "Acesso Inicial · Linha essencial",
                 accent: "#E8E8E8",
