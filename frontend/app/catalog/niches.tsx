@@ -35,15 +35,15 @@ const NICHES = [
     bgImage: "https://images.unsplash.com/photo-1522335789203-aaa2db6bd0f1?w=600&q=60",
   },
   {
-    id: "casa",
-    label: "Casa & Lifestyle",
+    id: "semi-novos",
+    label: "Semi novos e Usados",
     icon: "home-outline" as const,
     accent: "#4FD1C5", // turquesa
     bgImage: "https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?w=600&q=60",
   },
   {
     id: "lazer",
-    label: "Lazer, Hobby & Camp",
+    label: "Lazer, Hobby e Camp",
     icon: "bicycle-outline" as const,
     accent: "#9CAF55", // verde-oliva
     bgImage: "https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=600&q=60",

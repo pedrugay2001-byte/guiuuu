@@ -332,11 +332,12 @@ export const api = {
     request<{ ok: boolean; plan: string }>(`/admin/members/${member_id}/plan`, {
       method: "PUT", body: JSON.stringify({ plan }),
     }),
-  listAds: (params?: { category?: string; q?: string; tier?: string }) => {
+  listAds: (params?: { category?: string; q?: string; tier?: string; niche?: string }) => {
     const qs = new URLSearchParams();
     if (params?.category && params.category !== "all") qs.set("category", params.category);
     if (params?.q) qs.set("q", params.q);
     if (params?.tier) qs.set("tier", params.tier);
+    if (params?.niche && params.niche !== "all") qs.set("niche", params.niche);
     const s = qs.toString();
     return request<Ad[]>(`/ads${s ? "?" + s : ""}`);
   },
@@ -684,6 +685,7 @@ export type Ad = {
   title: string;
   description: string;
   price_full: number;
+  niche?: string;
   category: string;
   ad_tier?: "silver" | "gold" | "diamond";
   images: string[];
@@ -696,6 +698,7 @@ export type AdCreatePayload = {
   title: string;
   description: string;
   price_full: number;
+  niche: string;
   category: string;
   images: string[];
   stock: number;

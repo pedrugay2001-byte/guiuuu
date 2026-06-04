@@ -55,8 +55,12 @@ export default function Marketplace() {
   const router = useRouter();
   const { member } = useGate();
   const { user } = useAuth();
-  const { tier: tierParam } = useLocalSearchParams<{ tier: string }>();
+  const { tier: tierParam, niche: nicheParam } = useLocalSearchParams<{ tier: string; niche?: string }>();
   const paramTier = (String(tierParam || "").toLowerCase()) as "silver" | "gold" | "diamond";
+  // Nicho selecionado (vem da tela /catalog/niches). Se vazio, marketplace mostra todos.
+  // "casa" antigo é migrado automaticamente para "semi-novos" (mantém compatibilidade).
+  const rawNiche = (nicheParam || "").toString().toLowerCase();
+  const paramNiche = rawNiche === "casa" ? "semi-novos" : rawNiche;
   const tierMeta = TIER_META[paramTier];
   const myTier = (member?.tier || "black").toLowerCase();
   const isDiamond = myTier === "diamond";
@@ -97,8 +101,8 @@ export default function Marketplace() {
         catsPromise,
         // FILTRO ESTRITO POR TIER — ao entrar em /catalog/gold, só produtos Gold
         api.listProducts({ category: cat, q, member_id: member.member_id, tier: paramTier }).catch(() => []),
-        // Anúncios também filtrados estritamente pelo tier da URL
-        api.listAds({ tier: paramTier }).catch(() => []),
+        // Anúncios filtrados estritamente pelo tier E nicho da URL
+        api.listAds({ tier: paramTier, niche: paramNiche || undefined }).catch(() => []),
       ]);
       if (!catsFresh) { _catCache.data = cats as Category[]; _catCache.ts = Date.now(); }
       setCategories(cats as Category[]);
@@ -106,7 +110,7 @@ export default function Marketplace() {
       setAds(aa);  // mostra TODOS os anúncios filtrados (paginação faz a divisão depois)
       setAdsPage(1);  // reseta pra primeira página em qualquer reload
     } finally { setLoading(false); }
-  }, [cat, q, member, hasMarketplaceAccess, paramTier]);
+  }, [cat, q, member, hasMarketplaceAccess, paramTier, paramNiche]);
 
   // Carrega no foco E debounce quando muda categoria/busca — sem duplicar
   useFocusEffect(useCallback(() => { load(); }, [hasMarketplaceAccess, member?.member_id]));

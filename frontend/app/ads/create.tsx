@@ -10,16 +10,18 @@ import { useGate } from "../../src/gate";
 import { useAuth } from "../../src/auth";
 import { pickCompressedImage } from "../../src/imagepicker";
 import ScreenHeader from "../../src/screen-header";
+import { NICHE_SUBCATS, NICHE_LABEL } from "../../src/niche-subcats";
 
-const CATS = [
-  { id: "metabolicos", name: "🔥 Emagrecedores" },
-  { id: "performance", name: "💪 Força e Massa" },
-  { id: "regeneracao", name: "🩹 Recuperação" },
-  { id: "estetica",    name: "✨ Estética" },
-  { id: "foco",        name: "🧠 Foco" },
-  { id: "funcionais",  name: "⚡ Energia" },
-  { id: "oportunidades", name: "🚀 Oportunidades" },
-];
+// Nichos (bancos de dados separados) — produtos NÃO compartilham entre categorias.
+// Ordem espelha a tela /catalog/niches.
+const NICHES = [
+  { id: "black",       label: "Exclusivos Black",          icon: "diamond",         color: "#A8C5E5" },
+  { id: "tech",        label: "Tecnologia & Eletrônicos",  icon: "laptop",          color: "#5BA8F0" },
+  { id: "performance", label: "Performance Humana",        icon: "dumbbell",        color: "#E67A35" },
+  { id: "beleza",      label: "Moda, Saúde & Beleza",      icon: "sparkles",        color: "#B570D9" },
+  { id: "semi-novos",  label: "Semi novos e Usados",       icon: "home-variant",    color: "#4FD1C5" },
+  { id: "lazer",       label: "Lazer, Hobby e Camp",       icon: "bike",            color: "#9CAF55" },
+] as const;
 
 // Tema visual de cada marketplace — aplicado ao card do anúncio
 type AdTier = "diamond" | "gold" | "silver";
@@ -39,11 +41,25 @@ export default function CreateAd() {
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [price, setPrice] = useState("");
-  const [cat, setCat] = useState("metabolicos");
+  const [niche, setNiche] = useState<string>("performance");
+  const [cat, setCat] = useState("all");
   const [stock, setStock] = useState("1");
   const [images, setImages] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [loadingAd, setLoadingAd] = useState(isEdit);
+
+  // Subcategorias do nicho atual (carrega de NICHE_SUBCATS, exclui o "all")
+  const subcats = useMemo(() => {
+    const list = NICHE_SUBCATS[niche] || [];
+    return list.filter((s) => s.id !== "all");
+  }, [niche]);
+
+  // Sempre que o nicho mudar, reseta a categoria para a primeira disponível
+  useEffect(() => {
+    if (subcats.length > 0 && !subcats.find((s) => s.id === cat)) {
+      setCat(subcats[0].id);
+    }
+  }, [niche, subcats]);
   // Tier do anúncio — Staff pode escolher; default vem da URL (?tier=) ou "diamond"
   const initialTier = (String(tierParam || "diamond").toLowerCase()) as AdTier;
   const [adTier, setAdTier] = useState<AdTier>(
@@ -76,7 +92,11 @@ export default function CreateAd() {
         setTitle(ad.title || "");
         setDesc(ad.description || "");
         setPrice(String(ad.price_full ?? ""));
-        setCat(ad.category || "metabolicos");
+        // Migra "casa" → "semi-novos" para anúncios antigos
+        const adNiche = (ad as any).niche;
+        if (adNiche === "casa") setNiche("semi-novos");
+        else if (adNiche) setNiche(adNiche);
+        setCat(ad.category || "all");
         setStock(String(ad.stock ?? 1));
         setImages(ad.images || []);
         if (ad.ad_tier && ["silver", "gold", "diamond"].includes(ad.ad_tier)) {
@@ -136,7 +156,7 @@ export default function CreateAd() {
         await api.updateAd(String(editId), {
           seller_id: member!.member_id,
           title: title.trim(), description: desc.trim(),
-          price_full: p, category: cat, stock: parseInt(stock || "1", 10) || 1,
+          price_full: p, niche, category: cat, stock: parseInt(stock || "1", 10) || 1,
           images, ad_tier: adTier,
         });
         Alert.alert("Anúncio atualizado!", "As alterações foram salvas.", [
@@ -146,7 +166,7 @@ export default function CreateAd() {
         await api.createAd({
           seller_id: member!.member_id,
           title: title.trim(), description: desc.trim(),
-          price_full: p, category: cat, stock: parseInt(stock || "1", 10) || 1,
+          price_full: p, niche, category: cat, stock: parseInt(stock || "1", 10) || 1,
           images,
           ad_tier: adTier,
         });
@@ -229,9 +249,31 @@ export default function CreateAd() {
         <Text style={styles.lbl}>DESCRIÇÃO</Text>
         <TextInput style={[styles.input, { minHeight: 90, textAlignVertical: "top" }]} value={desc} onChangeText={setDesc} placeholder="Detalhes, validade, condição..." placeholderTextColor="#555" multiline />
 
+        <Text style={styles.lbl}>NICHO *</Text>
+        <Text style={styles.hint}>Cada nicho tem um banco separado. Produtos não compartilham entre categorias.</Text>
+        <View style={styles.catRow}>
+          {NICHES.map((n) => {
+            const active = niche === n.id;
+            return (
+              <TouchableOpacity
+                key={n.id}
+                onPress={() => setNiche(n.id)}
+                style={[
+                  styles.catBtn,
+                  active && { backgroundColor: n.color, borderColor: n.color },
+                ]}
+                testID={`niche-${n.id}`}
+              >
+                <MaterialCommunityIcons name={n.icon as any} size={12} color={active ? "#0A0A0A" : n.color} />
+                <Text style={[styles.catTxt, active && { color: "#0A0A0A" }]}>{n.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         <Text style={styles.lbl}>CATEGORIA</Text>
         <View style={styles.catRow}>
-          {CATS.map((c) => {
+          {subcats.map((c) => {
             const active = cat === c.id;
             return (
               <TouchableOpacity
@@ -241,8 +283,9 @@ export default function CreateAd() {
                   styles.catBtn,
                   active && { backgroundColor: theme.color, borderColor: theme.color },
                 ]}
+                testID={`subcat-${c.id}`}
               >
-                <Text style={[styles.catTxt, active && { color: "#0A0A0A" }]}>{c.name}</Text>
+                <Text style={[styles.catTxt, active && { color: "#0A0A0A" }]}>{c.label}</Text>
               </TouchableOpacity>
             );
           })}

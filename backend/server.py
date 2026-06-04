@@ -2842,6 +2842,7 @@ class AdCreate(BaseModel):
     title: str
     description: str
     price_full: float  # preço cheio, desconto aplicado automaticamente na compra
+    niche: str  # tech | performance | beleza | semi-novos | lazer | black (obrigatório a partir do redesign de nichos)
     category: str
     images: List[str] = []  # base64
     stock: int = 1
@@ -2849,10 +2850,23 @@ class AdCreate(BaseModel):
 
 
 @api_router.get("/ads")
-async def list_ads(category: Optional[str] = None, q: Optional[str] = None, tier: Optional[str] = None):
+async def list_ads(
+    category: Optional[str] = None,
+    niche: Optional[str] = None,
+    q: Optional[str] = None,
+    tier: Optional[str] = None,
+):
+    """
+    Lista anúncios ativos com filtros opcionais. Os filtros são ESTRITOS — cada
+    anúncio só aparece se corresponder ao nicho E categoria selecionados.
+    Bancos de dados separados por nicho garantem que produtos não vazem entre
+    categorias (regra de negócio do redesign de nichos).
+    """
     query: Dict[str, Any] = {"active": True}
     if category and category != "all":
         query["category"] = category
+    if niche and niche != "all":
+        query["niche"] = niche
     # FILTRO ESTRITO POR TIER (para marketplaces segmentados)
     if tier and tier.lower() in ("silver", "gold", "diamond"):
         tier_lc = tier.lower()
@@ -3072,12 +3086,26 @@ async def create_ad(data: AdCreate, request: Request):
                 detail=f"Você só pode publicar no marketplace {seller_tier} ou inferior.",
             )
 
+    # Validação e normalização do nicho — bancos de dados separados por nicho
+    # (regra de negócio: produtos não podem vazar entre categorias).
+    NICHES_VALIDOS = {"tech", "performance", "beleza", "semi-novos", "lazer", "black"}
+    niche_norm = (data.niche or "").strip().lower()
+    # Migração: "casa" antigo agora é "semi-novos"
+    if niche_norm == "casa":
+        niche_norm = "semi-novos"
+    if niche_norm not in NICHES_VALIDOS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Nicho inválido. Use um dos: {', '.join(sorted(NICHES_VALIDOS))}",
+        )
+
     ad = {
         "ad_id": f"ad_{uuid.uuid4().hex[:12]}",
         "seller_id": data.seller_id,
         "title": data.title[:120],
         "description": data.description[:2000],
         "price_full": float(data.price_full),
+        "niche": niche_norm,
         "category": data.category,
         "ad_tier": requested_tier,
         "images": [img for img in (data.images or []) if isinstance(img, str)][:6],
@@ -3204,6 +3232,7 @@ class AdUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     price_full: Optional[float] = None
+    niche: Optional[str] = None
     category: Optional[str] = None
     images: Optional[List[str]] = None
     stock: Optional[int] = None
@@ -3247,6 +3276,14 @@ async def update_ad(ad_id: str, data: AdUpdate, request: Request):
         updates["price_full"] = float(data.price_full)
     if data.category is not None:
         updates["category"] = data.category
+    if data.niche is not None:
+        # Validação + migração casa → semi-novos
+        NICHES_VALIDOS = {"tech", "performance", "beleza", "semi-novos", "lazer", "black"}
+        n = (data.niche or "").strip().lower()
+        if n == "casa":
+            n = "semi-novos"
+        if n and n in NICHES_VALIDOS:
+            updates["niche"] = n
     if data.images is not None:
         updates["images"] = [img for img in data.images if isinstance(img, str)][:6]
     if data.stock is not None:
