@@ -181,10 +181,9 @@ export default function StaffDashboard() {
                 <Ionicons name="person-add" size={18} color={theme.colors.white} />
                 <Text style={[styles.actionText, { color: theme.colors.white }]}>CADASTRAR NOVO MEMBRO</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, styles.actionGhost]} onPress={() => router.push("/admin/edit")}>
-                <Ionicons name="pricetags" size={18} color={theme.colors.white} />
-                <Text style={[styles.actionText, { color: theme.colors.white }]}>GERENCIAR CATÁLOGO</Text>
-              </TouchableOpacity>
+              {/* Botão "GERENCIAR CATÁLOGO" REMOVIDO a pedido do usuário — função
+                  descontinuada (não usamos mais o catálogo legacy /admin/edit).
+                  Marketplace P2P em /ads é a fonte de verdade. */}
               <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: "#2ECC71", borderColor: "#2ECC71" }]}
                 onPress={() => router.push("/admin/wallet" as any)}

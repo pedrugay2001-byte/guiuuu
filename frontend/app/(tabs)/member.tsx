@@ -510,34 +510,9 @@ export default function Member() {
             </TouchableOpacity>
           </View>
 
-          {/* Catálogo — mantém abaixo dos atalhos principais */}
-          <View style={[styles.adminHeader, { marginTop: 22 }]}>
-            <Text style={styles.sectionTitle}>GERENCIAR CATÁLOGO</Text>
-            <TouchableOpacity style={styles.addBtn} onPress={() => router.push("/admin/edit")} testID="admin-add-product">
-              <Ionicons name="add" size={16} color={theme.colors.bg} />
-              <Text style={styles.addBtnText}>NOVO</Text>
-            </TouchableOpacity>
-          </View>
-
-          {loading ? <ActivityIndicator color={theme.colors.white} style={{ marginTop: 20 }} /> : (
-            <View style={{ gap: theme.spacing.sm }}>
-              {adminProducts.slice(0, 5).map((p) => (
-                <View key={p.product_id} style={styles.adminRow}>
-                  <Image source={{ uri: p.image_url }} style={styles.adminThumb} />
-                  <View style={{ flex: 1 }}>
-                    <Text numberOfLines={1} style={styles.adminName}>{p.name}</Text>
-                    <Text style={styles.adminMeta}>{formatBRL(p.member_price)} · Estoque {p.stock}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => router.push({ pathname: "/admin/edit", params: { id: p.product_id } })} style={styles.iconBtn}>
-                    <Ionicons name="create-outline" size={18} color={theme.colors.white} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => deleteProduct(p.product_id, p.name)} style={styles.iconBtn}>
-                    <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
+          {/* Bloco "GERENCIAR CATÁLOGO" REMOVIDO a pedido do usuário — função
+              descontinuada (não usamos mais o catálogo legacy /admin/edit).
+              O marketplace P2P (/ads) é a fonte de verdade. */}
         </View>
         )}
 

@@ -21,6 +21,9 @@ export default function QuoteScreen() {
   const [assets, setAssets] = useState<PickedAsset[]>([]);
   const [loading, setLoading] = useState(false);
   const [quotes, setQuotes] = useState<any[]>([]);
+  // Feedback inline (substitui Alert.alert que não funciona confiavelmente no build web).
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const loadHistory = useCallback(async () => {
     if (!member) return;
@@ -40,12 +43,18 @@ export default function QuoteScreen() {
   const removeAsset = (i: number) => setAssets((prev) => prev.filter((_, idx) => idx !== i));
 
   const submit = async () => {
-    if (!member) return;
+    if (!member) {
+      setErrorMsg("Você precisa estar logado para abrir um chamado.");
+      return;
+    }
     if (description.trim().length < 10) {
-      Alert.alert("Descrição curta", "Descreva o produto/serviço com mais detalhes.");
+      setErrorMsg("Descreva o que você precisa com mais detalhes (mínimo 10 caracteres).");
+      setSuccessMsg(null);
       return;
     }
     setLoading(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
     try {
       await api.requestQuote({
         member_id: member.member_id,
@@ -55,11 +64,15 @@ export default function QuoteScreen() {
       });
       setDescription(""); setBudget(""); setAssets([]);
       await loadHistory();
-      Alert.alert("Chamado aberto", "Acompanhe a resposta no chat de suporte.",
-        [{ text: "Abrir chat", onPress: () => router.push("/chat") }, { text: "OK" }]);
+      // Feedback inline visível (Alert.alert não funciona confiável no web build).
+      // Mostra confirmação por 4s e oferece redirecionamento para o chat.
+      setSuccessMsg("Chamado aberto com sucesso. Acompanhe a resposta no chat de suporte.");
+      setTimeout(() => setSuccessMsg(null), 6000);
     } catch (e: any) {
-      Alert.alert("Erro", e.message || "Não foi possível enviar.");
-    } finally { setLoading(false); }
+      setErrorMsg(e?.message || "Não foi possível enviar. Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -77,6 +90,25 @@ export default function QuoteScreen() {
             Descreva livremente o que você precisa. Anexe fotos se quiser. Nossa equipe retorna pelo chat.
           </Text>
 
+          {/* Feedback inline — substitui Alert.alert que não dispara no web build */}
+          {successMsg && (
+            <View style={styles.successBanner} testID="quote-success">
+              <Ionicons name="checkmark-circle" size={18} color="#4FD1C5" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.successTitle}>Chamado aberto!</Text>
+                <Text style={styles.successText}>{successMsg}</Text>
+              </View>
+              <TouchableOpacity style={styles.successBtn} onPress={() => router.push("/chat")}>
+                <Text style={styles.successBtnTxt}>ABRIR CHAT</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {errorMsg && (
+            <View style={styles.errorBanner} testID="quote-error">
+              <Ionicons name="alert-circle" size={18} color="#E74C3C" />
+              <Text style={styles.errorText}>{errorMsg}</Text>
+            </View>
+          )}
           <View style={styles.field}>
             <Text style={styles.label}>SUA SOLICITAÇÃO</Text>
             <TextInput
@@ -224,4 +256,35 @@ const styles = StyleSheet.create({
   qStatusTxt: { color: "#4EE07F", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   qDesc: { color: theme.colors.text, fontSize: 13, lineHeight: 19 },
   qDate: { color: theme.colors.textMuted, fontSize: 11, marginTop: 4 },
+  // Inline feedback banners — substituem Alert.alert (que falha no web build)
+  successBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    backgroundColor: "rgba(79, 209, 197, 0.12)",
+    borderWidth: 1,
+    borderColor: "#4FD1C566",
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  successTitle: { color: "#4FD1C5", fontSize: 12, fontWeight: "900", letterSpacing: 1 },
+  successText: { color: theme.colors.text, fontSize: 12, marginTop: 2, lineHeight: 16 },
+  successBtn: {
+    backgroundColor: "#4FD1C5",
+    paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6,
+  },
+  successBtnTxt: { color: "#0A0A0A", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    backgroundColor: "rgba(231, 76, 60, 0.12)",
+    borderWidth: 1,
+    borderColor: "#E74C3C66",
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  errorText: { color: "#FFB3AA", fontSize: 12, flex: 1, lineHeight: 16 },
 });
