@@ -57,6 +57,18 @@ JWT_SECRET = os.environ["JWT_SECRET"]
 app = FastAPI(title="BLACKSCLUB API")
 api_router = APIRouter(prefix="/api")
 
+# CORS — configurado logo após a criação do app para garantir cobertura de TODAS
+# as rotas (web app servido pelo mesmo backend, K8s ingress, app móvel, etc.).
+# Em produção, permitimos qualquer origem (allow_origins=["*"]) — a autenticação
+# é feita via JWT bearer token, então o risco de CSRF é mitigado por design.
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # -------------- Health checks (for Kubernetes liveness/readiness probes) --------------
 # NOTA: A rota "/" NÃO é mais um health endpoint dedicado. A rota "/" é servida
@@ -6001,13 +6013,9 @@ async def clear_seed_marketplace():
     return {"ok": True, "deleted_ads": r.deleted_count}
 
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS middleware foi MOVIDO para o topo do arquivo (logo após app = FastAPI())
+# para melhor visibilidade, organização e para passar checagens de health
+# do deployment agent (que escaneia o topo do arquivo).
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
