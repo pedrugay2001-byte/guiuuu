@@ -1106,30 +1106,46 @@ async def admin_metrics(staff: dict = Depends(require_staff)):
         {"$limit": 10},
     ]).to_list(length=10)
 
-    # Enriquecer com nome/avatar/rating médio
-    top_sellers = []
-    for row in top_agg:
-        seller_id = row["_id"]
-        m = await db.members.find_one({"member_id": seller_id}, {"_id": 0, "member_id": 1, "name": 1, "nickname": 1, "tier": 1, "avatar_base64": 1})
-        if not m:
-            continue
-        # rating médio
-        rating_agg = await db.blx_ratings.aggregate([
-            {"$match": {"seller_id": seller_id}},
-            {"$group": {"_id": None, "avg": {"$avg": "$stars"}, "count": {"$sum": 1}}},
-        ]).to_list(length=1)
-        rating = rating_agg[0] if rating_agg else {}
-        top_sellers.append({
-            "member_id": seller_id,
-            "name": m.get("name") or m.get("nickname") or "Membro",
-            "nickname": m.get("nickname"),
-            "tier": m.get("tier", "silver"),
-            "avatar_base64": m.get("avatar_base64"),
-            "total_cents": int(row.get("total_cents") or 0),
-            "sales_count": int(row.get("sales_count") or 0),
-            "rating_avg": round(float(rating.get("avg") or 0), 2),
-            "rating_count": int(rating.get("count") or 0),
-        })
+    # Enriquecer com nome/avatar/rating médio — OTIMIZADO (2 queries em vez de N+1).
+    # Antes: para cada um dos top 10 vendedores, 2 queries (members.find_one + ratings.aggregate)
+    #        = 20+ queries → lento e arriscava timeout em produção.
+    # Agora: 1 bulk find em members + 1 aggregate group em blx_ratings → 2 queries totais.
+    top_sellers: list = []
+    seller_ids = [row["_id"] for row in top_agg if row.get("_id")]
+    if seller_ids:
+        # Bulk fetch dos perfis dos vendedores
+        members_cursor = db.members.find(
+            {"member_id": {"$in": seller_ids}},
+            {"_id": 0, "member_id": 1, "name": 1, "nickname": 1, "tier": 1, "avatar_base64": 1},
+        )
+        members_list = await members_cursor.to_list(length=len(seller_ids))
+        members_by_id = {m["member_id"]: m for m in members_list}
+
+        # Bulk aggregate dos ratings (agrupados por seller_id)
+        ratings_agg = await db.blx_ratings.aggregate([
+            {"$match": {"seller_id": {"$in": seller_ids}}},
+            {"$group": {"_id": "$seller_id", "avg": {"$avg": "$stars"}, "count": {"$sum": 1}}},
+        ]).to_list(length=len(seller_ids))
+        ratings_by_id = {r["_id"]: r for r in ratings_agg}
+
+        # Monta a resposta usando os lookup maps em memória (zero queries adicionais)
+        for row in top_agg:
+            seller_id = row["_id"]
+            m = members_by_id.get(seller_id)
+            if not m:
+                continue
+            rating = ratings_by_id.get(seller_id, {})
+            top_sellers.append({
+                "member_id": seller_id,
+                "name": m.get("name") or m.get("nickname") or "Membro",
+                "nickname": m.get("nickname"),
+                "tier": m.get("tier", "silver"),
+                "avatar_base64": m.get("avatar_base64"),
+                "total_cents": int(row.get("total_cents") or 0),
+                "sales_count": int(row.get("sales_count") or 0),
+                "rating_avg": round(float(rating.get("avg") or 0), 2),
+                "rating_count": int(rating.get("count") or 0),
+            })
 
     # --- Orders stats ---
     orders_open = await db.orders.count_documents({"status": {"$in": ["pending", "escrow", "open"]}})
