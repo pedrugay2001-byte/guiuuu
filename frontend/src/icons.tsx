@@ -439,6 +439,8 @@ const MCI_MAP: Record<string, React.ComponentType<any>> = {
   "shield-checkmark": ShieldCheck,
   "home": Home,
   "laptop": Laptop,
+  "repeat": Repeat,
+  "repeat-variant": Repeat,
 };
 
 // =============================================================================
