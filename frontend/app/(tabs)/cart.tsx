@@ -39,22 +39,26 @@ export default function Cart() {
     }
   };
 
+  // Tier atual do membro para construir a URL de nichos (default silver se ausente)
+  const tier = (member?.tier || "silver").toLowerCase();
+
   if (items.length === 0) {
     return (
       <View style={[styles.container, { flex: 1 }]} testID="cart-empty">
         <View style={styles.empty}>
           <View style={styles.emptyIcon}>
-            <Ionicons name="bag-handle-outline" size={48} color="#D4AF37" />
+            <Ionicons name="grid-outline" size={48} color="#D4AF37" />
           </View>
           <Text style={styles.emptyTitle}>Seu carrinho está vazio</Text>
-          <Text style={styles.emptyText}>Adicione produtos para começar.</Text>
+          <Text style={styles.emptyText}>Explore os nichos para encontrar produtos.</Text>
           <TouchableOpacity
             style={styles.primaryBtn}
-            onPress={() => router.push("/(tabs)/catalog" as any)}
+            onPress={() => router.push(`/catalog/niches?tier=${tier}` as any)}
             activeOpacity={0.85}
+            testID="cart-go-niches"
           >
-            <Ionicons name="storefront" size={16} color="#000" />
-            <Text style={styles.primaryText}>IR PARA A LOJA</Text>
+            <Ionicons name="grid-outline" size={16} color="#000" />
+            <Text style={styles.primaryText}>ESCOLHER NICHO</Text>
           </TouchableOpacity>
         </View>
       </View>

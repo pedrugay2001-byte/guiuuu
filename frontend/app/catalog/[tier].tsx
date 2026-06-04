@@ -248,12 +248,12 @@ export default function Marketplace() {
           </View>
 
           <TouchableOpacity
-            onPress={() => router.push("/cart" as any)}
+            onPress={() => router.push(`/catalog/niches?tier=${paramTier || 'silver'}` as any)}
             style={st.topCartBtn}
             hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             testID="marketplace-cart"
           >
-            <Ionicons name="bag-handle-outline" size={20} color="#EEE" />
+            <Ionicons name="grid-outline" size={20} color="#EEE" />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
