@@ -448,8 +448,11 @@ function AdCard({ ad, onPress }: { ad: Ad; onPress: () => void }) {
           </View>
         )}
       </View>
-      <Text style={st.adName} numberOfLines={2}>{ad.title}</Text>
-      <Text style={st.adPrice}>{formatBLX(Math.round(ad.price_full * 100))} BLX</Text>
+      <Text style={st.adName} numberOfLines={2}>{toTitleCase(ad.title)}</Text>
+      <Text style={st.adPrice}>
+        {formatBLX(Math.round(ad.price_full * 100))}
+        <Text style={st.adPriceUnit}> BLX</Text>
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -478,13 +481,32 @@ function AdGridCard({ ad, onPress }: { ad: Ad; onPress: () => void }) {
           <Text style={st.adGridVerifiedTxt}>VERIFICADO</Text>
         </View>
       </View>
-      <Text style={st.adGridTitle} numberOfLines={2}>{ad.title}</Text>
+      <Text style={st.adGridTitle} numberOfLines={2}>{toTitleCase(ad.title)}</Text>
       <View style={st.adGridPriceRow}>
         <Ionicons name="diamond" size={11} color={DIAMOND_BLUE} />
-        <Text style={st.adGridPrice}>{formatBLX(Math.round(ad.price_full * 100))} BLX</Text>
+        <Text style={st.adGridPrice}>
+          {formatBLX(Math.round(ad.price_full * 100))}
+          <Text style={st.adGridPriceUnit}> BLX</Text>
+        </Text>
       </View>
     </TouchableOpacity>
   );
+}
+
+// Converte "PRODUTO PREMIUM TOP" / "produto premium top" → "Produto Premium Top"
+// Preserva siglas curtas (até 3 letras maiúsculas) e palavras com hífen/abreviações.
+function toTitleCase(input: string): string {
+  if (!input) return "";
+  return input
+    .toLowerCase()
+    .split(/(\s+)/)
+    .map((seg) => {
+      if (!seg.trim()) return seg;
+      // Preserva strings com números/siglas como "S10", "MX532LL/A"
+      if (/\d/.test(seg) || /[\/-]/.test(seg)) return seg.toUpperCase();
+      return seg.charAt(0).toUpperCase() + seg.slice(1);
+    })
+    .join("");
 }
 
 const st = StyleSheet.create({
@@ -683,8 +705,9 @@ const st = StyleSheet.create({
   adCard: { width: 150, backgroundColor: "#0E0E0E", borderWidth: 1, borderColor: "#1A1A1A", borderRadius: 12, padding: 8 },
   adImgWrap: { width: "100%", aspectRatio: 1.1, borderRadius: 8, overflow: "hidden" },
   adImg: { width: "100%", height: "100%", backgroundColor: "#141414" },
-  adName: { color: "#EEE", fontSize: 11.5, fontWeight: "700", marginTop: 6, minHeight: 30 },
-  adPrice: { color: "#7FD7E5", fontSize: 12.5, fontWeight: "900", marginTop: 2 },
+  adName: { color: "#EEE", fontSize: 12, fontWeight: "400", marginTop: 6, minHeight: 30 },
+  adPrice: { color: "#7FD7E5", fontSize: 13, fontWeight: "900", marginTop: 2 },
+  adPriceUnit: { color: "#7FD7E5", fontSize: 9.5, fontWeight: "700", letterSpacing: 0.4 },
 
   // Lock screen
   lockTopBar: { paddingHorizontal: 8, paddingVertical: 6 },
@@ -798,15 +821,19 @@ const st = StyleSheet.create({
     letterSpacing: 1,
   },
   adGridTitle: {
-    color: "#EAF1F6", fontSize: 13, fontWeight: "700",
+    color: "#EAF1F6", fontSize: 13.5, fontWeight: "400",
     marginTop: 10, minHeight: 34,
   },
   adGridPriceRow: {
     flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4,
   },
   adGridPrice: {
-    color: DIAMOND_BLUE, fontSize: 14.5, fontWeight: "900",
+    color: DIAMOND_BLUE, fontSize: 15, fontWeight: "900",
     letterSpacing: 0.3,
+  },
+  adGridPriceUnit: {
+    color: DIAMOND_BLUE, fontSize: 10, fontWeight: "700",
+    letterSpacing: 0.4,
   },
 
   // === Header premium do marketplace (título + carrinho) ===
