@@ -258,7 +258,10 @@ export default function Marketplace() {
         </View>
       </SafeAreaView>
 
-      {/* CATEGORIAS — fixadas LOGO ABAIXO da busca (sem sobreposição) */}
+      {/* CATEGORIAS — fixadas LOGO ABAIXO da busca (sem sobreposição).
+          Se a tela foi aberta via /catalog/niches → /catalog/[tier]?niche=X,
+          renderiza a barra de SUBCATEGORIAS do nicho (NICHE_SUBCATS).
+          Caso contrário, renderiza as categorias legadas do banco (/api/categories). */}
       <View style={st.catContainer}>
         <ScrollView
           horizontal
@@ -266,20 +269,35 @@ export default function Marketplace() {
           contentContainerStyle={st.catRowTop}
           keyboardShouldPersistTaps="handled"
         >
-          <CatChip active={cat === "all"} onPress={() => setCat("all")} label="Todos" emoji="🛍️" color={tierMeta.accent} />
-          {publicCats.map((c) => {
-            const meta = CAT_META[c.id] || { label: c.name, emoji: "📦", color: "#888" };
-            return (
+          {paramNiche && NICHE_SUBCATS[paramNiche] ? (
+            // Barra de subcategorias do nicho selecionado (sem emojis — visual premium minimalista)
+            NICHE_SUBCATS[paramNiche].map((s) => (
               <CatChip
-                key={c.id}
-                active={cat === c.id}
-                onPress={() => setCat(c.id)}
-                label={meta.label}
-                emoji={meta.emoji}
-                color={meta.color}
+                key={s.id}
+                active={cat === s.id}
+                onPress={() => setCat(s.id)}
+                label={s.label}
+                color={tierMeta.accent}
               />
-            );
-          })}
+            ))
+          ) : (
+            <>
+              <CatChip active={cat === "all"} onPress={() => setCat("all")} label="Todos" emoji="🛍️" color={tierMeta.accent} />
+              {publicCats.map((c) => {
+                const meta = CAT_META[c.id] || { label: c.name, emoji: "📦", color: "#888" };
+                return (
+                  <CatChip
+                    key={c.id}
+                    active={cat === c.id}
+                    onPress={() => setCat(c.id)}
+                    label={meta.label}
+                    emoji={meta.emoji}
+                    color={meta.color}
+                  />
+                );
+              })}
+            </>
+          )}
         </ScrollView>
       </View>
 
@@ -425,7 +443,9 @@ export default function Marketplace() {
   );
 }
 
-function CatChip({ active, onPress, label, emoji, color }: { active: boolean; onPress: () => void; label: string; emoji: string; color: string }) {
+import { NICHE_SUBCATS, NICHE_LABEL } from "../../src/niche-subcats";
+
+function CatChip({ active, onPress, label, emoji, color }: { active: boolean; onPress: () => void; label: string; emoji?: string; color: string }) {
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -435,7 +455,7 @@ function CatChip({ active, onPress, label, emoji, color }: { active: boolean; on
       ]}
       activeOpacity={0.85}
     >
-      <Text style={st.chipEmoji}>{emoji}</Text>
+      {!!emoji && <Text style={st.chipEmoji}>{emoji}</Text>}
       <Text style={[st.chipTxt, active && { color: "#FFF", fontWeight: "900" }]}>{label}</Text>
     </TouchableOpacity>
   );
