@@ -650,33 +650,57 @@ class HomeBannerUpdate(BaseModel):
     order: Optional[int] = None
 
 
-def _serialize_banner(b: dict) -> dict:
-    """Normaliza o documento para JSON (remove _id, converte datas)."""
+def _serialize_banner(b: dict, request_base_url: Optional[str] = None) -> dict:
+    """Normaliza o documento para JSON (remove _id, converte datas, força URLs absolutas).
+
+    `request_base_url` opcional permite prefixar URLs relativas (ex.: `/uploads/...`)
+    com o host da requisição — útil para imagens hospedadas no próprio backend.
+    """
     b.pop("_id", None)
     for f in ("created_at", "updated_at"):
         if isinstance(b.get(f), datetime):
             b[f] = b[f].isoformat()
+    # Garante que image_url seja sempre absoluta (corrige problema de CORS/relativo
+    # quando o frontend é servido em domínio diferente — ex.: Netlify).
+    raw_url = (b.get("image_url") or "").strip()
+    if raw_url and not raw_url.startswith(("http://", "https://", "data:")):
+        if raw_url.startswith("/") and request_base_url:
+            b["image_url"] = f"{request_base_url.rstrip('/')}{raw_url}"
+        elif raw_url.startswith("/"):
+            # Sem base — mantém relativo (frontend resolve via EXPO_PUBLIC_BACKEND_URL)
+            pass
+        else:
+            # Caminho sem prefixo "/" — assume relativo a /uploads/
+            if request_base_url:
+                b["image_url"] = f"{request_base_url.rstrip('/')}/uploads/{raw_url}"
     return b
 
 
+def _get_base_url(request: Request) -> str:
+    """Reconstrói a base URL absoluta da requisição (esquema://host)."""
+    return f"{request.url.scheme}://{request.url.netloc}"
+
+
 @api_router.get("/home-banners")
-async def list_active_home_banners():
+async def list_active_home_banners(request: Request):
     """Retorna apenas os banners ATIVOS para o carrossel da Home (público para membros logados)."""
     cursor = db.home_banners.find({"active": True}, {"_id": 0}).sort([("order", 1), ("created_at", -1)])
     items = await cursor.to_list(length=50)
-    return [_serialize_banner(b) for b in items]
+    base = _get_base_url(request)
+    return [_serialize_banner(b, base) for b in items]
 
 
 @api_router.get("/admin/home-banners")
-async def admin_list_home_banners(staff: dict = Depends(require_staff)):
+async def admin_list_home_banners(request: Request, staff: dict = Depends(require_staff)):
     """Lista todos os banners (incluindo inativos) — uso na tela de gerenciamento."""
     cursor = db.home_banners.find({}, {"_id": 0}).sort([("order", 1), ("created_at", -1)])
     items = await cursor.to_list(length=200)
-    return [_serialize_banner(b) for b in items]
+    base = _get_base_url(request)
+    return [_serialize_banner(b, base) for b in items]
 
 
 @api_router.post("/admin/home-banners")
-async def admin_create_home_banner(data: HomeBannerCreate, staff: dict = Depends(require_staff)):
+async def admin_create_home_banner(data: HomeBannerCreate, request: Request, staff: dict = Depends(require_staff)):
     title = (data.title or "").strip()
     if not title:
         raise HTTPException(status_code=400, detail="Título é obrigatório")
@@ -697,11 +721,11 @@ async def admin_create_home_banner(data: HomeBannerCreate, staff: dict = Depends
         "updated_at": datetime.now(timezone.utc),
     }
     await db.home_banners.insert_one(doc)
-    return _serialize_banner({**doc})
+    return _serialize_banner({**doc}, _get_base_url(request))
 
 
 @api_router.put("/admin/home-banners/{banner_id}")
-async def admin_update_home_banner(banner_id: str, data: HomeBannerUpdate, staff: dict = Depends(require_staff)):
+async def admin_update_home_banner(banner_id: str, data: HomeBannerUpdate, request: Request, staff: dict = Depends(require_staff)):
     existing = await db.home_banners.find_one({"banner_id": banner_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Banner não encontrado")
@@ -716,7 +740,7 @@ async def admin_update_home_banner(banner_id: str, data: HomeBannerUpdate, staff
         updates["order"] = int(data.order)
     await db.home_banners.update_one({"banner_id": banner_id}, {"$set": updates})
     doc = await db.home_banners.find_one({"banner_id": banner_id}, {"_id": 0})
-    return _serialize_banner(doc) if doc else {"ok": True}
+    return _serialize_banner(doc, _get_base_url(request)) if doc else {"ok": True}
 
 
 @api_router.delete("/admin/home-banners/{banner_id}")

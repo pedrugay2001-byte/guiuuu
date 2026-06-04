@@ -181,11 +181,25 @@ type BannerCardProps = {
 
 function BannerCard({ item, width, height, onPress }: BannerCardProps) {
   const meta = CATEGORY_META[(item.category || "novidade").toLowerCase()] || CATEGORY_META.novidade;
-  const imgSource = item.image_base64
-    ? { uri: `data:image/jpeg;base64,${item.image_base64}` }
-    : item.image_url
-    ? { uri: item.image_url }
-    : null;
+  // Resolve a URI da imagem em ordem de preferência:
+  // 1. image_base64 → data URI (inline, sem CORS)
+  // 2. image_url → URL absoluta (Unsplash, S3, etc.). Se vier relativa, prefixa
+  //    com o EXPO_PUBLIC_BACKEND_URL para garantir absoluta na Web.
+  let imgUri: string | null = null;
+  if (item.image_base64) {
+    imgUri = `data:image/jpeg;base64,${item.image_base64}`;
+  } else if (item.image_url) {
+    const raw = item.image_url.trim();
+    if (raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("data:")) {
+      imgUri = raw;
+    } else if (raw.startsWith("/")) {
+      // Caminho relativo — prefixa com o backend para virar absoluto
+      const backend = (process.env.EXPO_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
+      imgUri = `${backend}${raw}`;
+    } else {
+      imgUri = raw;
+    }
+  }
   const hasCta = !!(item.cta_label && item.cta_route);
   const accent = item.accent_color || "#C89A3A";
 
@@ -195,23 +209,15 @@ function BannerCard({ item, width, height, onPress }: BannerCardProps) {
       onPress={onPress}
       style={[s.card, { width: width - CARD_GAP * 2, height, marginHorizontal: CARD_GAP }]}
     >
-      {/* Background image OU gradiente sólido */}
-      {imgSource ? (
-        Platform.OS === "web" ? (
-          <View
-            style={
-              {
-                ...(StyleSheet.absoluteFillObject as any),
-                backgroundImage: `url("${imgSource.uri}")`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-                backgroundRepeat: "no-repeat",
-              } as any
-            }
-          />
-        ) : (
-          <Image source={imgSource} style={s.bgImg} resizeMode="cover" />
-        )
+      {/* Background image — usa <Image> em TODAS plataformas (Web inclui static build do Netlify).
+          Antes usávamos backgroundImage CSS via View em Web, mas o StyleSheet serializer
+          do react-native-web pode descartar esse estilo no bundle de produção. */}
+      {imgUri ? (
+        <Image
+          source={{ uri: imgUri }}
+          style={s.bgImg}
+          resizeMode="cover"
+        />
       ) : (
         <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#0A0A0A" }]} />
       )}
