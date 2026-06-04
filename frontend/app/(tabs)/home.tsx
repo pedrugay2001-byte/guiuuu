@@ -30,13 +30,14 @@ const CARD_BG = "#0C0C0C";
 const TILE_BG = "#0C0C0C";
 const INNER_CARD_BG = "#101010";
 
-type AreaId = "ai" | "community" | "marketplace" | "planos" | "wallet" | "performance" | "chat" | "profissionais" | "compras";
+type AreaId = "ai" | "community" | "marketplace" | "planos" | "wallet" | "performance" | "chat" | "profissionais" | "compras" | "quote";
 type Area = { id: AreaId; label: string; sub: string; icon: { lib: "ion" | "mci"; name: string }; route: string };
 
 // Grid de 3 atalhos no padrão "Compras/Pedidos" (mesmo design da Carteira).
-// Suporte foi MOVIDO para a aba Carteira; Compras foi MOVIDO para o Home.
+// "Planos" foi SUBSTITUÍDO por "Orçamento" (mesma função do botão "Solicitar
+// orçamento" do Perfil → rota /quote). O atalho do perfil continua existindo.
 const AREAS: Area[] = [
-  { id: "planos",        label: "Planos",        sub: "Tier",          icon: { lib: "mci", name: "diamond-stone" },     route: "/(tabs)/catalog" },
+  { id: "quote",         label: "Orçamento",     sub: "Solicitar",     icon: { lib: "ion", name: "sparkles-outline" }, route: "/quote" },
   { id: "compras",       label: "Compras",       sub: "Pedidos",       icon: { lib: "ion", name: "bag-handle-outline" }, route: "/blx/orders" },
   { id: "profissionais", label: "Profissionais", sub: "Especialistas", icon: { lib: "mci", name: "stethoscope" },        route: "/ai" },
 ];
