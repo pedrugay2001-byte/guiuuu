@@ -1,0 +1,8 @@
+# Netlify SPA redirects — necessário para roteamento client-side do Expo Router na Web.
+# Todas as URLs (ex.: /catalog/diamond, /wallet/topup, etc.) caem no index.html
+# e o React Router resolve a rota no cliente. Status 200 (não 301/302) para que
+# o navegador não detecte como redirecionamento e mantenha a URL original.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
