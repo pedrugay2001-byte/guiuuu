@@ -155,9 +155,13 @@ export default function Cart() {
             <View style={styles.emptyBox}>
               <Ionicons name="bag-outline" size={48} color="#2E2E2E" />
               <Text style={styles.emptyTitle}>Seu carrinho está vazio</Text>
-              <Text style={styles.emptyText}>Explore o catálogo e o Círculo Diamante e adicione itens aqui.</Text>
-              <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push("/(tabs)/catalog" as any)}>
-                <Text style={styles.emptyBtnTxt}>EXPLORAR LOJA</Text>
+              <Text style={styles.emptyText}>Explore os nichos e adicione produtos aqui.</Text>
+              <TouchableOpacity
+                style={styles.emptyBtn}
+                onPress={() => router.push(`/catalog/niches?tier=${(member?.tier || "silver").toLowerCase()}` as any)}
+                testID="cart-go-niches"
+              >
+                <Text style={styles.emptyBtnTxt}>ESCOLHER NICHO</Text>
               </TouchableOpacity>
             </View>
           )}
