@@ -28,6 +28,7 @@ export default function Orders() {
 
   const load = useCallback(async () => {
     if (!member) return;
+    setLoading(true);  // mostra spinner enquanto carrega — evita mostrar "empty state" durante troca de aba
     try {
       const list = await api.blxOrders(member.member_id, tab);
       setOrders(list);
@@ -128,17 +129,31 @@ export default function Orders() {
           }
           contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
         >
-          {orders.length === 0 && (
+          {/* Loading state — mostrado durante troca de aba para evitar piscar
+              o empty state com botão de marketplace momentaneamente. */}
+          {loading && orders.length === 0 ? (
+            <View style={[styles.emptyBox, { paddingVertical: 50 }]}>
+              <ActivityIndicator color="#C5D1DA" size="small" />
+              <Text style={[styles.emptyText, { marginTop: 12 }]}>Carregando...</Text>
+            </View>
+          ) : orders.length === 0 ? (
             <View style={styles.emptyBox}>
               <Ionicons name="receipt-outline" size={40} color="#2E2E2E" />
               <Text style={styles.emptyText}>
                 {tab === "buyer" ? "Você ainda não fez compras no Marketplace." : "Você ainda não vendeu nada no Marketplace."}
               </Text>
-              <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push("/(tabs)/catalog" as any)}>
+              {/* Redireciona para a tela de ESCOLHA DE NICHOS (não mais para o
+                  catálogo legado /(tabs)/catalog que mostrava a antiga tela de
+                  tiers/planos). */}
+              <TouchableOpacity
+                style={styles.emptyBtn}
+                onPress={() => router.push(`/catalog/niches?tier=${(member?.tier || "silver").toLowerCase()}` as any)}
+                testID="orders-empty-niches"
+              >
                 <Text style={styles.emptyBtnTxt}>IR AO MARKETPLACE</Text>
               </TouchableOpacity>
             </View>
-          )}
+          ) : null}
 
           {orders.map((o) => <OrderRow key={o.tx_id} order={o} onConfirm={setConfirmTx} onRate={setRatingTx} onChat={(id) => router.push(`/community/dm/${id}` as any)} onOpen={(oid) => router.push(`/order/${oid}` as any)} />)}
         </ScrollView>
