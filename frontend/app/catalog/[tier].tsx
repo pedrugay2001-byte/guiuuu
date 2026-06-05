@@ -186,6 +186,63 @@ export default function Marketplace() {
     );
   }
 
+  // ============================================================================
+  // GATES POR NICHO — restrições específicas:
+  // - "black"       → exclusivo para tier DIAMOND
+  // - "performance" → exclusivo para membros com acesso aprovado pela admin
+  //   (master admin Guilherme bypassa via staff_user.role === 'admin')
+  // ============================================================================
+  const isMasterAdmin = !!(member as any)?.staff_user && (member as any).staff_user.role === "admin";
+  const hasPerformanceAccess = isMasterAdmin || !!(member as any)?.performance_access;
+  const blackBlocked = paramNiche === "black" && myTier !== "diamond";
+  const performanceBlocked = paramNiche === "performance" && !hasPerformanceAccess;
+
+  if (blackBlocked || performanceBlocked) {
+    const nicheLabel = paramNiche === "black" ? "EXCLUSIVOS BLACK" : "PERFORMANCE HUMANA";
+    const accentColor = paramNiche === "black" ? "#A8C5E5" : "#E67A35";
+    const titleMsg = paramNiche === "black"
+      ? "Conteúdo restrito ao tier Diamante"
+      : "Conteúdo restrito · Acesso liberado pela administração";
+    const subMsg = paramNiche === "black"
+      ? `Seu plano atual é MEMBRO ${myTier.toUpperCase()}. Apenas membros DIAMOND acessam esse nicho. Faça upgrade para liberar.`
+      : "Esse nicho exige liberação manual pela administração BlacksClub. Solicite seu acesso abaixo e nossa equipe analisará seu perfil.";
+    const ctaLabel = paramNiche === "black" ? "FALAR COM SUPORTE" : "SOLICITAR ACESSO";
+    const ctaRoute = paramNiche === "black" ? "/chat" : "/quote";
+
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
+          <View style={st.lockTopBar}>
+            <TouchableOpacity onPress={() => router.back()} style={st.lockBack} testID="niche-locked-back">
+              <Ionicons name="chevron-back" size={22} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+          <View style={st.lockWrap}>
+            <View style={[st.lockIcon, { backgroundColor: accentColor + "14", borderColor: accentColor + "55" }]}>
+              <Ionicons name="lock-closed" size={36} color={accentColor} />
+            </View>
+            <Text style={[st.lockTitle, { color: accentColor }]}>ACESSO EXCLUSIVO</Text>
+            <Text style={st.lockMsg}>
+              {nicheLabel}{"\n"}
+              <Text style={{ color: accentColor, fontWeight: "900" }}>{titleMsg}</Text>
+            </Text>
+            <Text style={st.lockSub}>{subMsg}</Text>
+            <TouchableOpacity
+              style={[st.lockBtn, { backgroundColor: accentColor }]}
+              onPress={() => router.push(ctaRoute as any)}
+              activeOpacity={0.85}
+              testID="niche-locked-cta"
+            >
+              <Ionicons name={paramNiche === "black" ? "headset" : "sparkles-outline"} size={16} color="#000" />
+              <Text style={st.lockBtnTxt}>{ctaLabel}</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
   // Separa categorias públicas das de saúde
   const publicCats = categories.filter(c => (c as any).group !== "saude");
   const healthCats = categories.filter(c => (c as any).group === "saude");
