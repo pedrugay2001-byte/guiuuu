@@ -751,68 +751,8 @@ async def admin_delete_home_banner(banner_id: str, staff: dict = Depends(require
     return {"ok": True}
 
 
-# ============================================================================
-# ONE-TIME MIGRATION ENDPOINT — Import ads from JSON file
-# Usado para migrar anúncios do preview para produção. O arquivo
-# `backend/data/ads_export.json` é enviado via deploy. Use UPSERT por
-# ad_id — chamadas repetidas não duplicam.
-#
-# Auth: require_admin (apenas master admin Guilherme pode disparar).
-# Remover este endpoint após a migração ser concluída.
-# ============================================================================
-@api_router.post("/admin/migrate/ads-from-json")
-async def admin_migrate_ads_from_json(admin: dict = Depends(require_admin)):
-    from pathlib import Path as _Path
-    json_path = _Path(__file__).parent / "data" / "ads_export.json"
-    if not json_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Arquivo não encontrado em {json_path}. Verifique o deploy.",
-        )
-
-    import json as _json
-    with json_path.open("r", encoding="utf-8") as f:
-        ads = _json.load(f)
-
-    created, updated, skipped = 0, 0, 0
-    for raw_ad in ads:
-        ad = dict(raw_ad)
-        ad_id = ad.get("ad_id")
-        if not ad_id:
-            skipped += 1
-            continue
-        # Restaura datas ISO → datetime real do BSON
-        for f in ("created_at", "updated_at"):
-            v = ad.get(f)
-            if isinstance(v, str):
-                try:
-                    ad[f] = datetime.fromisoformat(v.replace("Z", "+00:00"))
-                except Exception:
-                    pass
-        result = await db.ads.update_one(
-            {"ad_id": ad_id},
-            {"$set": ad},
-            upsert=True,
-        )
-        if result.upserted_id:
-            created += 1
-        else:
-            updated += 1
-
-    total = await db.ads.count_documents({})
-    pipeline = [{"$group": {"_id": "$niche", "count": {"$sum": 1}}}]
-    by_niche = await db.ads.aggregate(pipeline).to_list(length=20)
-
-    return {
-        "ok": True,
-        "json_path": str(json_path),
-        "json_ads_count": len(ads),
-        "created": created,
-        "updated": updated,
-        "skipped": skipped,
-        "total_in_db": total,
-        "by_niche": {b["_id"]: b["count"] for b in by_niche},
-    }
+# Migration endpoint REMOVIDO após uso bem-sucedido (74 ads migrados em 05/jun/2026).
+# Arquivo backend/data/ads_export.json também removido para não inflar o bundle.
 
 
 # -------------- Orders & Chat --------------
