@@ -1056,6 +1056,61 @@ async def admin_reset_member_password(member_id: str, data: MemberPasswordReset,
     return {"ok": True, "member_id": member_id, "email": member.get("email")}
 
 
+# ============================================================================
+# NICHE ACCESS GRANT — concede/revoga acesso ao nicho Performance Humana
+# (nicho restrito que exige aprovação manual da administração BlacksClub).
+# Identifier pode ser member_id, email OU código do membro (#XXXX).
+# Auth: require_staff (admins e suporte podem gerenciar).
+# ============================================================================
+class NicheAccessGrant(BaseModel):
+    identifier: str   # member_id, email ou código (ex: "10006")
+    niche: str = "performance"  # atualmente só performance, mas extensível
+    grant: bool = True   # True = libera, False = revoga
+
+
+@api_router.post("/admin/members/grant-niche-access")
+async def admin_grant_niche_access(data: NicheAccessGrant, staff: dict = Depends(require_staff)):
+    NICHES_RESTRITOS = {"performance"}
+    niche = (data.niche or "").strip().lower()
+    if niche not in NICHES_RESTRITOS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Nicho '{niche}' não é restrito. Apenas: {', '.join(sorted(NICHES_RESTRITOS))}",
+        )
+
+    ident = (data.identifier or "").strip()
+    if not ident:
+        raise HTTPException(status_code=400, detail="Informe member_id, email ou código")
+
+    # Lookup flexível — member_id, email ou código
+    query: Dict[str, Any] = {
+        "$or": [
+            {"member_id": ident},
+            {"email": ident.lower()},
+            {"code": ident},
+        ]
+    }
+    member = await db.members.find_one(query, {"_id": 0, "password_hash": 0})
+    if not member:
+        raise HTTPException(status_code=404, detail=f"Membro não encontrado: '{ident}'")
+
+    field = f"{niche}_access"  # ex: "performance_access"
+    await db.members.update_one(
+        {"member_id": member["member_id"]},
+        {"$set": {field: bool(data.grant)}},
+    )
+
+    return {
+        "ok": True,
+        "member_id": member["member_id"],
+        "name": member.get("name"),
+        "email": member.get("email"),
+        "code": member.get("code"),
+        "niche": niche,
+        "granted": bool(data.grant),
+    }
+
+
 @api_router.delete("/admin/members/{member_id}")
 async def admin_delete_member(member_id: str, admin: dict = Depends(require_admin)):
     await db.members.delete_one({"member_id": member_id})

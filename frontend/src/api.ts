@@ -285,6 +285,13 @@ export const api = {
   adminDeleteAuthorized: (auth_id: string) =>
     request<{ ok: boolean }>(`/admin/authorized/${auth_id}`, { method: "DELETE" }),
 
+  // ----- Niche access grant (Performance restrito) -----
+  adminGrantNicheAccess: (body: { identifier: string; niche?: string; grant?: boolean }) =>
+    request<{ ok: boolean; member_id: string; name: string; email: string; niche: string; granted: boolean }>(
+      "/admin/members/grant-niche-access",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
   // ----- Home Rotating Banners (Painel rotativo / Notícias) -----
   homeBanners: () => request<HomeBanner[]>("/home-banners"),
   adminListHomeBanners: () => request<HomeBanner[]>("/admin/home-banners"),
