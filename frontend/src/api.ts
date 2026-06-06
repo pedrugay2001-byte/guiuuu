@@ -286,6 +286,7 @@ export const api = {
     request<{ ok: boolean }>(`/admin/authorized/${auth_id}`, { method: "DELETE" }),
 
   // ----- Niche access grant (Performance restrito) -----
+  adminListMembers: () => request<any[]>("/admin/members"),
   adminGrantNicheAccess: (body: { identifier: string; niche?: string; grant?: boolean }) =>
     request<{ ok: boolean; member_id: string; name: string; email: string; niche: string; granted: boolean }>(
       "/admin/members/grant-niche-access",

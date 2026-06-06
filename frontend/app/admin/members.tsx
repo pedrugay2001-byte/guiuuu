@@ -9,6 +9,7 @@ import { Ionicons } from "../../src/icons";
 import { api, AuthorizedEntry, setToken, HomeBanner, HomeBannerInput } from "../../src/api";
 import { theme, TIERS, TierId } from "../../src/theme";
 import AdminBannersManager from "../../src/admin-banners-manager";
+import AdminPerformanceAccessManager from "../../src/admin-performance-access";
 
 export default function AdminMembers() {
   const router = useRouter();
@@ -183,6 +184,10 @@ export default function AdminMembers() {
           {/* DIVISOR + Painel de Banners (Home rotating carousel) */}
           <View style={[styles.divider, { marginTop: 24 }]} />
           <AdminBannersManager />
+
+          {/* DIVISOR + Painel de Acesso Performance Humana */}
+          <View style={[styles.divider, { marginTop: 24 }]} />
+          <AdminPerformanceAccessManager />
         </ScrollView>
       </SafeAreaView>
     </KeyboardAvoidingView>
