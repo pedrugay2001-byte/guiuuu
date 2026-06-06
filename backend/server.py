@@ -2484,6 +2484,9 @@ def _public_member(m: Dict[str, Any], online_cutoff: datetime) -> Dict[str, Any]
         "bio": m.get("bio"),
         "is_online": is_online,
         "can_post_ads": bool(m.get("can_post_ads")),
+        # Niche access flags (não-sensíveis — necessários para o gate de Performance
+        # Humana atualizar sem exigir logout/login após o admin liberar o acesso).
+        "performance_access": bool(m.get("performance_access")),
     }
 
 

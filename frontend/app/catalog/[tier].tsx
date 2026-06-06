@@ -53,7 +53,7 @@ const TIER_META: Record<string, { label: string; color: string; accent: string; 
 
 export default function Marketplace() {
   const router = useRouter();
-  const { member } = useGate();
+  const { member, refreshMember } = useGate();
   const { user } = useAuth();
   const { tier: tierParam, niche: nicheParam } = useLocalSearchParams<{ tier: string; niche?: string }>();
   const paramTier = (String(tierParam || "").toLowerCase()) as "silver" | "gold" | "diamond";
@@ -132,6 +132,16 @@ export default function Marketplace() {
   // CRITICAL: este useEffect deve ficar ANTES dos early returns para
   // respeitar Rules of Hooks (mesma quantidade de hooks em todos os renders).
   useEffect(() => { setAdsPage(1); }, [cat, q]);
+
+  // Força refresh do membro ao abrir um nicho restrito — garante que mudanças
+  // recentes do admin (ex.: liberação de Performance) sejam refletidas
+  // imediatamente, sem exigir logout/login. TAMBÉM precisa estar antes dos
+  // early returns para respeitar Rules of Hooks.
+  useEffect(() => {
+    if (paramNiche === "performance" || paramNiche === "black") {
+      refreshMember(true).catch(() => {});
+    }
+  }, [paramNiche, refreshMember]);
 
   // Validação do tier_param da URL — se é um tier válido
   if (!tierMeta) {
