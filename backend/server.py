@@ -5149,11 +5149,23 @@ async def list_stories():
         {"_id": 0, "image_base64": 0}
     ).sort("created_at", -1).limit(200)
     items = await cur.to_list(length=200)
+
+    # Batch member lookup (evita N+1 queries)
+    member_ids = list({s["member_id"] for s in items})
+    member_map: Dict[str, Any] = {}
+    if member_ids:
+        cur_members = db.members.find(
+            {"member_id": {"$in": member_ids}},
+            {"_id": 0, "member_id": 1, "nickname": 1, "name": 1, "tier": 1, "avatar_base64": 1},
+        )
+        members_list = await cur_members.to_list(length=len(member_ids))
+        member_map = {m["member_id"]: m for m in members_list}
+
     grouped: Dict[str, Any] = {}
     for s in items:
         mid = s["member_id"]
         if mid not in grouped:
-            m = await db.members.find_one({"member_id": mid}, {"_id": 0, "nickname": 1, "name": 1, "tier": 1, "avatar_base64": 1})
+            m = member_map.get(mid)
             grouped[mid] = {
                 "member_id": mid,
                 "nickname": (m or {}).get("nickname") or ((m or {}).get("name", "Membro").split(" ")[0] if m else "Membro"),
