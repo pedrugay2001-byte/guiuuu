@@ -3522,10 +3522,10 @@ async def wallet_topup(data: TopupRequest, staff: dict = Depends(require_staff))
 
 # Dados fixos do PIX (ajustáveis depois, por enquanto hardcoded conforme cliente)
 PIX_INFO: Dict[str, Any] = {
-    "beneficiario": "BRLA Digital Ltda",
-    "cnpj_masked": "50.***.***/0001-7*",
-    "instituicao": "STARK BANK S.A. - IP",
-    "pix_code": "00020126870014br.gov.bcb.pix0136011e1c39-ac85-45a0-b13e-01a4541ed9a10225LUIS_GUILHERME_DE_JESUS_S5204000053039865802BR5909Kast_Card6009Sao Paulo621505110005WD3560063048A85",
+    "beneficiario": "BRAZA BANK S.A. BANCO DE CAMBIO",
+    "cnpj_masked": "—",
+    "instituicao": "BRAZA BANK S.A.",
+    "pix_code": "00020101021226880014br.gov.bcb.pix2566qrcode.bbrlpay.com.br/dynamic/f5ccdd99-e997-44bc-bd4b-6385d380f2ad5204000053039865802BR5912BRAZA CAMBIO6009Sao Paulo62070503***63047340",
     "fee_pct": 1.0,                # 1% de taxa de processamento
     "rate_brl_to_blx": 1.0,        # 1 BRL = 1 BLX (antes da taxa)
     "min_brl": 10.0,
