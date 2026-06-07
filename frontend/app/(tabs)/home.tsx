@@ -13,6 +13,11 @@ import { useTierAccent } from "../../src/use-tier-accent";
 import { formatBLX } from "../../src/blx";
 import HomeBannerCarousel from "../../src/home-banner-carousel";
 
+// Banner do Marketplace de Elite (BLACKSCLUB) — versão limpa SEM o texto "O MARKETPLACE DE ELITE"
+// (gerado a partir do banner oficial removendo apenas a sub-headline duplicada).
+// Mantém: ícone escudo + "ACESSO RESTRITO • BENEFÍCIOS REAIS" + produtos premium.
+const MKT_BANNER_SRC = require("../../assets/images/banner_mkt_clean.png");
+
 const DIAMOND_LIGHT = "#A8E4EF";
 const DIAMOND = "#7FD7E5";
 const DIAMOND_DARK = "#4A8F99";
@@ -298,27 +303,25 @@ export default function Home() {
           {(() => {
             // Define imagem + cor de destaque do plano do usuário
             const tierKey = (member?.tier || "silver").toLowerCase();
-            // Banner único do Marketplace de Elite (BLACKSCLUB) — usado para todos os tiers.
-            // Imagem oficial "ACESSO RESTRITO • BENEFÍCIOS REAIS" com produtos premium em destaque.
-            // ?v=2 — cache-buster para forçar dispositivos com versão antiga em cache a baixarem a nova imagem.
-            const MKT_BANNER = "https://customer-assets.emergentagent.com/job_member-shop-2/artifacts/2rea8o8h_banner%20mktplace.png?v=2";
-            const TIER_BANNER: Record<string, { image: string; title: string; sub: string; accent: string; route: string }> = {
+            // Banner único do Marketplace de Elite — versão LIMPA (sem "O MARKETPLACE DE ELITE" duplicado).
+            // Carregado como require() local — sempre fresh, sem precisar de cache-buster e sem depender de CDN externo.
+            const TIER_BANNER: Record<string, { image: any; title: string; sub: string; accent: string; route: string }> = {
               diamond: {
-                image: MKT_BANNER,
+                image: MKT_BANNER_SRC,
                 title: "PLANO DIAMANTE",
                 sub: "Acesso total · Marketplace completo",
                 accent: "#EAF1F6",
                 route: "/catalog/diamond",
               },
               gold: {
-                image: MKT_BANNER,
+                image: MKT_BANNER_SRC,
                 title: "PLANO GOLD",
                 sub: "Acesso Premium · Ofertas exclusivas",
                 accent: "#F4D47A",
                 route: "/catalog/gold",
               },
               silver: {
-                image: MKT_BANNER,
+                image: MKT_BANNER_SRC,
                 title: "PLANO SILVER",
                 sub: "Acesso Inicial · Linha essencial",
                 accent: "#E8E8E8",
@@ -333,19 +336,15 @@ export default function Home() {
                 activeOpacity={0.9}
                 testID="home-tier-banner"
               >
-                {Platform.OS === "web" ? (
-                  <View
-                    style={{
-                      ...(StyleSheet.absoluteFillObject as any),
-                      backgroundImage: `url("${banner.image}")`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "65% center",
-                      backgroundRepeat: "no-repeat",
-                    } as any}
-                  />
-                ) : (
-                  <Image source={{ uri: banner.image }} style={s.tierBannerImg} resizeMode="cover" />
-                )}
+                <Image
+                  source={banner.image}
+                  style={[
+                    s.tierBannerImg,
+                    // objectPosition no web ajusta o crop para centralizar produtos
+                    Platform.OS === "web" ? ({ objectPosition: "center center" } as any) : {},
+                  ]}
+                  resizeMode="cover"
+                />
                 <LinearGradient
                   colors={["transparent", "rgba(0,0,0,0.45)", "rgba(0,0,0,0.92)"] as const}
                   start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
