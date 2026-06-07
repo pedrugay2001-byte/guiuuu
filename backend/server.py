@@ -754,6 +754,49 @@ async def admin_delete_home_banner(banner_id: str, staff: dict = Depends(require
 # Migration endpoint REMOVIDO após uso bem-sucedido (74 ads migrados em 05/jun/2026).
 # Arquivo backend/data/ads_export.json também removido para não inflar o bundle.
 
+# ============================================================================
+# ONE-TIME MIGRATION — Backfill niche field for legacy ads.
+# Atualiza todos os anúncios com niche faltando/null para um nicho default
+# (por padrão "performance"). Idempotente: rodar de novo só atualiza os que
+# ainda não tem niche.
+# Auth: require_admin (apenas master admin pode disparar).
+# REMOVER este endpoint após a migração ser concluída em produção.
+# ============================================================================
+class BackfillNicheRequest(BaseModel):
+    default_niche: str = "performance"
+
+
+@api_router.post("/admin/migrate/backfill-ads-niche")
+async def admin_backfill_ads_niche(data: BackfillNicheRequest, admin: dict = Depends(require_admin)):
+    NICHES_VALIDOS = {"tech", "performance", "beleza", "semi-novos", "lazer", "black"}
+    niche = (data.default_niche or "performance").strip().lower()
+    if niche not in NICHES_VALIDOS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Nicho inválido. Use um dos: {', '.join(sorted(NICHES_VALIDOS))}",
+        )
+    before = await db.ads.count_documents({
+        "$or": [{"niche": None}, {"niche": {"$exists": False}}],
+    })
+    result = await db.ads.update_many(
+        {"$or": [{"niche": None}, {"niche": {"$exists": False}}]},
+        {"$set": {"niche": niche}},
+    )
+    total = await db.ads.count_documents({})
+    pipeline = [{"$group": {"_id": "$niche", "count": {"$sum": 1}}}]
+    by_niche = await db.ads.aggregate(pipeline).to_list(length=20)
+    return {
+        "ok": True,
+        "ads_without_niche_before": before,
+        "matched": result.matched_count,
+        "modified": result.modified_count,
+        "default_niche": niche,
+        "total_in_db": total,
+        "by_niche": {(b["_id"] or "null"): b["count"] for b in by_niche},
+    }
+
+
+
 
 # -------------- Orders & Chat --------------
 class OrderItem(BaseModel):
