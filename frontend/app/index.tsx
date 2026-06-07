@@ -13,20 +13,21 @@ export default function Index() {
     if (member === undefined) return; // still loading
     (async () => {
       if (member) {
-        router.replace("/(tabs)/home");
+        // Logado — mas mostra onboarding na PRIMEIRA vez (após login inicial)
+        try {
+          const seen = await AsyncStorage.getItem("onboarding_done");
+          if (seen === "1") {
+            router.replace("/(tabs)/home");
+          } else {
+            router.replace("/onboarding");
+          }
+        } catch {
+          router.replace("/(tabs)/home");
+        }
         return;
       }
-      // Sem membro logado — checa se já passou pelo onboarding
-      try {
-        const seen = await AsyncStorage.getItem("onboarding_done");
-        if (seen === "1") {
-          router.replace("/welcome");
-        } else {
-          router.replace("/onboarding");
-        }
-      } catch {
-        router.replace("/welcome");
-      }
+      // Sem membro logado — vai direto pro fluxo de boas-vindas/login
+      router.replace("/welcome");
     })();
   }, [member, router]);
 
