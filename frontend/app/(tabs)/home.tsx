@@ -285,7 +285,7 @@ export default function Home() {
           {/* GREETING compacto + nome do membro */}
           <View style={s.greet}>
             <Text style={s.greetHello}>Olá, {name}</Text>
-            <Text style={s.greetSub}>Foco hoje, resultado amanhã.</Text>
+            <Text style={s.greetSub}>🔒 Bem-vindo ao círculo onde poucos chegam.</Text>
           </View>
 
           {/* ============================================================
