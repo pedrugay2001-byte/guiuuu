@@ -78,15 +78,8 @@ export default function Onboarding() {
     <View style={{ flex: 1, backgroundColor: BG }}>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
-        {/* HEADER — logo discreta + skip */}
+        {/* HEADER — apenas skip discreto */}
         <View style={styles.top}>
-          <View style={styles.brandRow}>
-            <Text style={styles.brandTxt}>BLACKS</Text>
-            <View style={styles.brandDot}>
-              <Text style={styles.brandDotTxt}>S</Text>
-            </View>
-            <Text style={styles.brandTxt}>CLUB</Text>
-          </View>
           <TouchableOpacity onPress={finish} hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}>
             <Text style={styles.skip}>Pular</Text>
           </TouchableOpacity>
@@ -163,16 +156,9 @@ export default function Onboarding() {
 
 const styles = StyleSheet.create({
   top: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    flexDirection: "row", alignItems: "center", justifyContent: "flex-end",
     paddingHorizontal: 22, paddingTop: 4, paddingBottom: 6,
   },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  brandTxt: { color: "#FFF", fontSize: 13, fontWeight: "900", letterSpacing: 2 },
-  brandDot: {
-    width: 18, height: 18, borderRadius: 9, backgroundColor: GOLD,
-    alignItems: "center", justifyContent: "center", marginHorizontal: 2,
-  },
-  brandDotTxt: { color: "#000", fontSize: 10, fontWeight: "900" },
   skip: { color: "#888", fontSize: 13, fontWeight: "700", letterSpacing: 0.5 },
 
   slide: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 20 },
