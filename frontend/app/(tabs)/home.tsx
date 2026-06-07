@@ -397,7 +397,7 @@ export default function Home() {
 
           {/* PAINEL ROTATIVO — Notícias / Promoções / Novidades gerenciado pelo Admin Master.
               Carrossel com troca automática a cada 10s + swipe manual. */}
-          <HomeBannerCarousel height={170} />
+          <HomeBannerCarousel height={130} />
 
           {/* CENTRAL DE PERFORMANCE — REMOVIDA da Home a pedido do usuário.
               Para acessar metas/progresso/dias, use o botão "Metas" do rodapé. */}
@@ -468,14 +468,14 @@ const s = StyleSheet.create({
   profileImg: { width: 33, height: 33, borderRadius: 16.5 },
 
   // Greeting compacto (reduzido para não ocupar todo o topo)
-  greet: { alignItems: "flex-start", paddingHorizontal: 16, marginTop: 6, marginBottom: 14 },
+  greet: { alignItems: "flex-start", paddingHorizontal: 16, marginTop: 4, marginBottom: 8 },
 
   // ====================== TIER BANNER (Home) ======================
   // Banner do plano do usuário (Diamante/Gold/Silver) — full-width clicável
   // que substitui o card BLEX e o card MARKETPLACE DIAMANTE antigos.
   tierBanner: {
     marginHorizontal: 16,
-    marginBottom: 18,
+    marginBottom: 10,
     borderRadius: 14,
     overflow: "hidden",
     backgroundColor: "#0A0A0A",
@@ -669,10 +669,10 @@ const s = StyleSheet.create({
   seeAllGold: { color: GOLD, fontSize: 11, fontWeight: "800" },
 
   // TILES 3 col — design espelhado da Carteira (borda gold gradient + ícone oval slate + label + sub)
-  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 8, justifyContent: "space-between", marginTop: 8 },
+  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 8, justifyContent: "space-between", marginTop: 4 },
   tile: {
     flexBasis: "31.5%",
-    aspectRatio: 0.95,
+    aspectRatio: 1.45,
   },
   tileBorder: {
     flex: 1,
@@ -683,20 +683,20 @@ const s = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 14,
+    paddingVertical: 8,
     paddingHorizontal: 6,
     backgroundColor: "#0B0D10",
     borderRadius: 13,
   },
   tileIconOval: {
-    width: 54, height: 34, borderRadius: 17,
+    width: 44, height: 26, borderRadius: 13,
     backgroundColor: "rgba(143,163,180,0.14)",
     borderWidth: 1, borderColor: "#C89A3A55",
     alignItems: "center", justifyContent: "center",
-    marginBottom: 10,
+    marginBottom: 5,
   },
-  tileLbl: { color: "#E0E8EF", fontSize: 12, fontWeight: "800", letterSpacing: 0.4, textAlign: "center" },
-  tileSub: { color: "#C89A3A", fontSize: 9.5, fontWeight: "700", marginTop: 3, letterSpacing: 0.3, textAlign: "center" },
+  tileLbl: { color: "#E0E8EF", fontSize: 11.5, fontWeight: "800", letterSpacing: 0.4, textAlign: "center" },
+  tileSub: { color: "#C89A3A", fontSize: 9, fontWeight: "700", marginTop: 1, letterSpacing: 0.3, textAlign: "center" },
 
   // Below-fold
   postCard: { width: 170, borderRadius: 14, backgroundColor: "#0E0E0E", borderWidth: 1, borderColor: "#1A1A1A", padding: 12 },
