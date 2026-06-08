@@ -3522,10 +3522,11 @@ async def wallet_topup(data: TopupRequest, staff: dict = Depends(require_staff))
 
 # Dados fixos do PIX (ajustáveis depois, por enquanto hardcoded conforme cliente)
 PIX_INFO: Dict[str, Any] = {
-    "beneficiario": "BRAZA BANK S.A. BANCO DE CAMBIO",
+    "beneficiario": "NU PAGAMENTOS S.A - INSTITUIÇÃO DE PAGAMENTO",
     "cnpj_masked": "—",
-    "instituicao": "BRAZA BANK S.A.",
-    "pix_code": "00020101021226880014br.gov.bcb.pix2566qrcode.bbrlpay.com.br/dynamic/f5ccdd99-e997-44bc-bd4b-6385d380f2ad5204000053039865802BR5912BRAZA CAMBIO6009Sao Paulo62070503***63047340",
+    "instituicao": "NU PAGAMENTOS S.A.",
+    "pix_key": "627c7ab6-f484-4148-8e78-1212e1ae7543",
+    "pix_code": "00020126580014br.gov.bcb.pix0136627c7ab6-f484-4148-8e78-1212e1ae75435204000053039865802BR5910BLACKSCLUB6009SAO PAULO62070503***6304DE79",
     "fee_pct": 1.0,                # 1% de taxa de processamento
     "rate_brl_to_blx": 1.0,        # 1 BRL = 1 BLX (antes da taxa)
     "min_brl": 10.0,

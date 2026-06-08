@@ -37,6 +37,7 @@ export default function Topup() {
   const [info, setInfo] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
   // Estado de sucesso após criar pedido — botão vira verde com confirmação
   const [success, setSuccess] = useState<{ blx: number; brl: number } | null>(null);
 
@@ -67,6 +68,13 @@ export default function Topup() {
     await Clipboard.setStringAsync(info.pix_code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2200);
+  };
+
+  const copyKey = async () => {
+    if (!info?.pix_key) return;
+    await Clipboard.setStringAsync(info.pix_key);
+    setCopiedKey(true);
+    setTimeout(() => setCopiedKey(false), 2200);
   };
 
   const submit = async () => {
@@ -126,11 +134,31 @@ export default function Topup() {
           <Row label="Beneficiário" value={info?.beneficiario || "—"} />
           <Row label="CNPJ" value={info?.cnpj_masked || "—"} />
           <Row label="Instituição" value={info?.instituicao || "—"} />
+          {info?.pix_key ? <Row label="Chave PIX" value={info.pix_key} /> : null}
         </View>
 
-        {/* Botão copiar */}
+        {/* Botão 1: Copiar CHAVE PIX (UUID) — recomendado para PIX por chave aleatória */}
+        {info?.pix_key ? (
+          <TouchableOpacity
+            style={[st.copyBtn, copiedKey && { borderColor: "#4EE07F", backgroundColor: "#4EE07F1A" }]}
+            onPress={copyKey}
+            activeOpacity={0.85}
+            testID="topup-copy-pix-key"
+          >
+            <Ionicons
+              name={copiedKey ? "checkmark-circle" : "key-outline"}
+              size={20}
+              color={copiedKey ? "#4EE07F" : accent.accent}
+            />
+            <Text style={[st.copyBtnTxt, { color: copiedKey ? "#4EE07F" : accent.accent }]}>
+              {copiedKey ? "CHAVE COPIADA!" : "COPIAR CHAVE PIX"}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {/* Botão 2: Copiar CÓDIGO PIX (BR Code copia-e-cola) — para apps que aceitam */}
         <TouchableOpacity
-          style={[st.copyBtn, copied && { borderColor: "#4EE07F", backgroundColor: "#4EE07F1A" }]}
+          style={[st.copyBtn, copied && { borderColor: "#4EE07F", backgroundColor: "#4EE07F1A" }, { marginTop: 8 }]}
           onPress={copyPix}
           disabled={!info?.pix_code}
           activeOpacity={0.85}
