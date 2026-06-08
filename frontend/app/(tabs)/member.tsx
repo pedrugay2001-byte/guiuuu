@@ -88,7 +88,7 @@ export default function Member() {
     // Direct logout — more reliable across web and mobile
     try { await setToken(null); } catch {}
     try { await clear(); } catch {}
-    router.replace("/welcome");
+    router.replace("/login");
   };
 
   const shareGeneric = async () => {

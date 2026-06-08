@@ -11,7 +11,7 @@ export default function TabsLayout() {
   const { member } = useGate();
 
   useEffect(() => {
-    if (member === null) router.replace("/welcome");
+    if (member === null) router.replace("/login");
   }, [member, router]);
 
   if (!member) {

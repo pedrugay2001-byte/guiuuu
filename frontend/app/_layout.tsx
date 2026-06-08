@@ -11,7 +11,7 @@ import { MessageInboxProvider } from "../src/message-inbox";
 import ChatHeadsOverlay from "../src/chat-heads";
 import BottomBrandBar from "../src/bottom-brand-bar";
 
-// Rotas onde o menu inferior NÃO deve aparecer (auth, onboarding, staff backoffice).
+// Rotas onde o menu inferior NÃO deve aparecer (auth, staff backoffice).
 // Em todas as outras telas a barra fica visível conforme pedido do usuário.
 const HIDE_BAR_PATTERNS: RegExp[] = [
   /^\/$/,
@@ -21,7 +21,6 @@ const HIDE_BAR_PATTERNS: RegExp[] = [
   /^\/forgot/,
   /^\/enter/,
   /^\/terms/,
-  /^\/onboarding/,
   /^\/daily-message/,
   /^\/staff/,
 ];
