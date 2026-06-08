@@ -146,7 +146,7 @@ export default function Topup() {
             testID="topup-copy-pix-key"
           >
             <Ionicons
-              name={copiedKey ? "checkmark-circle" : "key-outline"}
+              name={copiedKey ? "checkmark-circle" : "copy-outline"}
               size={20}
               color={copiedKey ? "#4EE07F" : accent.accent}
             />
