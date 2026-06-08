@@ -14,6 +14,7 @@ const STATUS_META: Record<string, { label: string; color: string; icon: any }> =
   awaiting_delivery_payment: { label: "AGUARDANDO ENTREGA", color: "#F5C150", icon: "cube-outline" },
   in_escrow: { label: "AGUARDANDO LIBERAÇÃO", color: "#F5C150", icon: "lock-closed" },
   awaiting_delivery: { label: "AGUARDANDO ENTREGA", color: "#F5C150", icon: "cube-outline" },
+  delivered_pending: { label: "ENTREGUE — AGUARDANDO CONFIRMAÇÃO", color: "#7DD3FC", icon: "cube" },
   delivered_settled: { label: "ENTREGUE", color: "#4EE07F", icon: "checkmark-circle" },
   settled: { label: "LIBERADO", color: "#4EE07F", icon: "checkmark-done" },
   cancelled: { label: "CANCELADO", color: "#AAA", icon: "close-circle" },
@@ -51,15 +52,29 @@ export default function OrderDetail() {
 
   const markDelivered = async () => {
     if (!id || !member) return;
+    const isLegacy = !!(data as any)?.legacy_escrow;
     Alert.alert(
-      "Confirmar entrega?",
-      "O saldo devedor travado do comprador será liberado automaticamente para você.",
+      "Marcar como entregue?",
+      isLegacy
+        ? "Você está confirmando que entregou ou enviou o pedido. O pagamento NÃO é liberado agora — o comprador ainda precisa confirmar o recebimento para que os BLX em escrow sejam liberados."
+        : "O saldo devedor travado do comprador será liberado automaticamente para você.",
       [
         { text: "Cancelar", style: "cancel" },
         { text: "Confirmar", onPress: async () => {
             setActing(true);
-            try { await api.orderDeliver(id, member.member_id); await load(); Alert.alert("Entrega confirmada!", "Saldo liberado."); }
-            catch (e: any) { Alert.alert("Erro", e?.message); }
+            try {
+              if (isLegacy) {
+                // Wallet_tx escrow — apenas marca shipped (não libera pagamento)
+                await api.blxMarkShipped(id, member.member_id);
+              } else {
+                await api.orderDeliver(id, member.member_id);
+              }
+              await load();
+              Alert.alert(
+                isLegacy ? "Marcado como entregue!" : "Entrega confirmada!",
+                isLegacy ? "Aguardando comprador confirmar o recebimento." : "Saldo liberado.",
+              );
+            } catch (e: any) { Alert.alert("Erro", e?.message); }
             finally { setActing(false); }
           },
         },
@@ -99,8 +114,10 @@ export default function OrderDetail() {
   const total = o.total_cents || 0;
   const entry = o.entry_cents ?? o.total_cents ?? 0;
   const remaining = o.remaining_cents ?? 0;
-  const canDeliver = data.i_am_seller && (o.status === "awaiting_delivery_payment" || o.status === "in_escrow" || o.status === "awaiting_delivery");
-  const canCancel = (data.i_am_buyer || data.i_am_seller) && o.status !== "delivered_settled" && o.status !== "settled" && o.status !== "cancelled" && o.status !== "refunded";
+  const canDeliver = data.i_am_seller &&
+    (o.status === "awaiting_delivery_payment" || o.status === "in_escrow" || o.status === "awaiting_delivery") &&
+    !(o as any).shipped_at;
+  const canCancel = (data.i_am_buyer || data.i_am_seller) && o.status !== "delivered_settled" && o.status !== "delivered_pending" && o.status !== "settled" && o.status !== "cancelled" && o.status !== "refunded";
 
   return (
     <View style={{ flex: 1, backgroundColor: "#050505" }}>

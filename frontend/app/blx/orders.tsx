@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
   RefreshControl, Image, Alert, Modal, TextInput, KeyboardAvoidingView, Platform,
@@ -21,6 +21,7 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [confirmTx, setConfirmTx] = useState<BlxOrder | null>(null);
+  const [shipConfirmTx, setShipConfirmTx] = useState<BlxOrder | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [ratingTx, setRatingTx] = useState<BlxOrder | null>(null);
   const [stars, setStars] = useState(5);
@@ -38,8 +39,9 @@ export default function Orders() {
     }
   }, [member, tab]);
 
+  // Recarrega sempre que o tab mudar OU quando a tela ganhar foco
+  useEffect(() => { load(); }, [load]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
-
   const doConfirm = async () => {
     if (!member || !confirmTx) return;
     setSubmitting(true);
@@ -82,6 +84,24 @@ export default function Orders() {
     }
   };
 
+  // VENDEDOR marca a venda como entregue (sem liberar pagamento — escrow continua travado)
+  const doMarkShipped = async () => {
+    if (!member || !shipConfirmTx) return;
+    setSubmitting(true);
+    try {
+      const res = await api.blxMarkShipped(shipConfirmTx.tx_id, member.member_id);
+      // Atualiza local sem precisar refetch
+      setOrders(prev => prev.map(o =>
+        o.tx_id === shipConfirmTx.tx_id ? { ...o, shipped_at: res.shipped_at } : o
+      ));
+      setShipConfirmTx(null);
+    } catch (e: any) {
+      Alert.alert("Erro", e.message || "Falha ao marcar como entregue.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: "#050505", justifyContent: "center" }}>
@@ -107,7 +127,7 @@ export default function Orders() {
         <View style={styles.tabs}>
           <TouchableOpacity
             style={[styles.tab, tab === "buyer" && styles.tabActive]}
-            onPress={() => { setTab("buyer"); setLoading(true); setTimeout(load, 0); }}
+            onPress={() => setTab("buyer")}
             testID="orders-tab-buyer"
           >
             <Ionicons name="bag-handle" size={14} color={tab === "buyer" ? "#0A0A0A" : "#AAA"} />
@@ -115,7 +135,7 @@ export default function Orders() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tab, tab === "seller" && styles.tabActive]}
-            onPress={() => { setTab("seller"); setLoading(true); setTimeout(load, 0); }}
+            onPress={() => setTab("seller")}
             testID="orders-tab-seller"
           >
             <Ionicons name="cash" size={14} color={tab === "seller" ? "#0A0A0A" : "#AAA"} />
@@ -155,7 +175,7 @@ export default function Orders() {
             </View>
           ) : null}
 
-          {orders.map((o) => <OrderRow key={o.tx_id} order={o} onConfirm={setConfirmTx} onRate={setRatingTx} onChat={(id) => router.push(`/community/dm/${id}` as any)} onOpen={(oid) => router.push(`/order/${oid}` as any)} />)}
+          {orders.map((o) => <OrderRow key={o.tx_id} order={o} onConfirm={setConfirmTx} onRate={setRatingTx} onMarkShipped={setShipConfirmTx} onChat={(id) => router.push(`/community/dm/${id}` as any)} onOpen={(oid) => router.push(`/order/${oid}` as any)} />)}
         </ScrollView>
       </SafeAreaView>
 
@@ -238,23 +258,62 @@ export default function Orders() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      {/* MODAL MARCAR COMO ENTREGUE (vendedor) */}
+      <Modal visible={!!shipConfirmTx} transparent animationType="slide" onRequestClose={() => !submitting && setShipConfirmTx(null)}>
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => !submitting && setShipConfirmTx(null)} />
+          <View style={styles.modalCard}>
+            <Ionicons name="cube" size={48} color="#7DD3FC" style={{ alignSelf: "center" }} />
+            <Text style={styles.modalTitle}>Marcar como entregue?</Text>
+            <Text style={styles.modalDesc}>
+              Você está confirmando que <Text style={{ color: "#FFF", fontWeight: "900" }}>já entregou ou enviou</Text> o pedido:
+              {"\n"}
+              <Text style={{ color: "#FFF", fontWeight: "900" }}>{shipConfirmTx?.ad_title || "Anúncio"}</Text>
+              {"\n\n"}
+              ⚠️ Esta ação não libera o pagamento. O comprador ainda precisa confirmar o recebimento para liberar os {shipConfirmTx ? formatBLX(shipConfirmTx.amount_centavos) : ""} BLX que estão em escrow.
+            </Text>
+            <TouchableOpacity
+              style={[styles.primaryBtn, { backgroundColor: "#7DD3FC" }, submitting && { opacity: 0.7 }]}
+              disabled={submitting}
+              onPress={doMarkShipped}
+              testID="orders-mark-shipped-confirm"
+            >
+              {submitting ? <ActivityIndicator color="#0A0A0A" /> : (
+                <>
+                  <Ionicons name="cube" size={18} color="#0A0A0A" />
+                  <Text style={styles.primaryBtnTxt}>SIM, MARCAR COMO ENTREGUE</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.ghostBtn} onPress={() => setShipConfirmTx(null)} disabled={submitting}>
+              <Text style={styles.ghostBtnTxt}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-function OrderRow({ order, onConfirm, onRate, onChat, onOpen }: {
+function OrderRow({ order, onConfirm, onRate, onMarkShipped, onChat, onOpen }: {
   order: BlxOrder;
   onConfirm: (o: BlxOrder) => void;
   onRate: (o: BlxOrder) => void;
+  onMarkShipped: (o: BlxOrder) => void;
   onChat: (cpId: string) => void;
   onOpen: (orderId: string) => void;
 }) {
   const tier = TIERS[order.counterpart?.tier || "black"];
   const isBuyer = order.i_am_buyer;
+  // Status "pending" e "escrow" são equivalentes (transação travada aguardando entrega)
+  const isEscrow = order.status === "escrow" || (order.status as string) === "pending";
   let statusColor = "#F5C150";
   let statusLabel = "AGUARDANDO ENTREGA";
   let statusIcon: any = "lock-closed";
-  if (order.status === "settled") { statusColor = "#4EE07F"; statusLabel = "LIBERADO"; statusIcon = "checkmark-done"; }
+  // Estado intermediário: vendedor já marcou como entregue, mas comprador ainda não confirmou
+  if (isEscrow && order.shipped_at) {
+    statusColor = "#7DD3FC"; statusLabel = "ENTREGUE — AGUARDANDO CONFIRMAÇÃO"; statusIcon = "cube";
+  } else if (order.status === "settled") { statusColor = "#4EE07F"; statusLabel = "LIBERADO"; statusIcon = "checkmark-done"; }
   else if (order.status === "refunded") { statusColor = "#AAA"; statusLabel = "REEMBOLSADO"; statusIcon = "return-up-back"; }
   else if (order.status === "delivered_settled") { statusColor = "#4EE07F"; statusLabel = "ENTREGUE"; statusIcon = "checkmark-circle"; }
   else if (order.status === "awaiting_delivery_payment") { statusColor = "#F5C150"; statusLabel = "AGUARDANDO ENTREGA"; statusIcon = "cube-outline"; }
@@ -263,9 +322,9 @@ function OrderRow({ order, onConfirm, onRate, onChat, onOpen }: {
   return (
     <TouchableOpacity
       style={styles.orderCard}
-      onPress={() => onOpen(order.order_id)}
+      onPress={() => onOpen(order.tx_id)}
       activeOpacity={0.85}
-      testID={`order-row-${order.order_id}`}
+      testID={`order-row-${order.tx_id}`}
     >
       <View style={styles.orderTop}>
         <View style={styles.orderImgBox}>
@@ -317,14 +376,14 @@ function OrderRow({ order, onConfirm, onRate, onChat, onOpen }: {
       )}
 
       {/* Ações */}
-      {isBuyer && order.status === "escrow" && (
-        <TouchableOpacity style={styles.actionPrimary} onPress={() => onConfirm(order)} testID={`confirm-${order.tx_id}`}>
+      {isBuyer && isEscrow && (
+        <TouchableOpacity style={styles.actionPrimary} onPress={(e) => { e.stopPropagation(); onConfirm(order); }} testID={`confirm-${order.tx_id}`}>
           <Ionicons name="checkmark-done" size={16} color="#0A0A0A" />
           <Text style={styles.actionPrimaryTxt}>CONFIRMAR RECEBIMENTO</Text>
         </TouchableOpacity>
       )}
       {isBuyer && order.status === "settled" && !order.i_rated && (
-        <TouchableOpacity style={styles.actionSecondary} onPress={() => onRate(order)} testID={`rate-${order.tx_id}`}>
+        <TouchableOpacity style={styles.actionSecondary} onPress={(e) => { e.stopPropagation(); onRate(order); }} testID={`rate-${order.tx_id}`}>
           <Ionicons name="star" size={16} color="#F5C150" />
           <Text style={styles.actionSecondaryTxt}>AVALIAR VENDEDOR</Text>
         </TouchableOpacity>
@@ -335,10 +394,22 @@ function OrderRow({ order, onConfirm, onRate, onChat, onOpen }: {
           <Text style={styles.doneBadgeTxt}>PEDIDO FINALIZADO E AVALIADO</Text>
         </View>
       )}
-      {!isBuyer && order.status === "escrow" && (
-        <View style={styles.infoBox}>
-          <Ionicons name="hourglass" size={13} color="#F5C150" />
-          <Text style={styles.infoBoxTxt}>Aguardando comprador confirmar recebimento. Entre em contato para acertar a entrega.</Text>
+      {!isBuyer && isEscrow && !order.shipped_at && (
+        <TouchableOpacity
+          style={styles.actionPrimary}
+          onPress={(e) => { e.stopPropagation(); onMarkShipped(order); }}
+          testID={`mark-shipped-${order.tx_id}`}
+        >
+          <Ionicons name="cube" size={16} color="#0A0A0A" />
+          <Text style={styles.actionPrimaryTxt}>MARCAR COMO ENTREGUE</Text>
+        </TouchableOpacity>
+      )}
+      {!isBuyer && isEscrow && order.shipped_at && (
+        <View style={[styles.infoBox, { borderColor: "rgba(125,211,252,0.3)", backgroundColor: "rgba(125,211,252,0.08)" }]}>
+          <Ionicons name="checkmark-done" size={13} color="#7DD3FC" />
+          <Text style={[styles.infoBoxTxt, { color: "#9FD9F4" }]}>
+            Você marcou como entregue. Aguardando comprador confirmar o recebimento para liberar o pagamento.
+          </Text>
         </View>
       )}
       {!isBuyer && order.status === "settled" && (

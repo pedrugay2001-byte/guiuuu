@@ -4026,6 +4026,33 @@ async def wallet_confirm(tx_id: str, body: dict):
     return {"ok": True}
 
 
+@api_router.post("/blx/orders/{tx_id}/mark-shipped")
+async def blx_orders_mark_shipped(tx_id: str, body: dict):
+    """O VENDEDOR marca o pedido como entregue (estado intermediário).
+    Não libera o pagamento — apenas sinaliza que enviou.
+    O comprador ainda precisa confirmar o recebimento para liberar o escrow."""
+    seller_id = (body or {}).get("seller_id")
+    if not seller_id:
+        raise HTTPException(status_code=400, detail="seller_id obrigatório")
+    tx = await db.wallet_txs.find_one({"tx_id": tx_id})
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transação não encontrada")
+    if tx.get("type") != "escrow":
+        raise HTTPException(status_code=400, detail="Operação válida apenas para transações em escrow")
+    if tx.get("to_id") != seller_id:
+        raise HTTPException(status_code=403, detail="Apenas o vendedor pode marcar como entregue")
+    if tx.get("status") != "escrow":
+        raise HTTPException(status_code=400, detail="Transação não está mais em escrow")
+    if tx.get("shipped_at"):
+        return {"ok": True, "already_shipped": True, "shipped_at": tx["shipped_at"]}
+    now = datetime.now(timezone.utc)
+    await db.wallet_txs.update_one(
+        {"tx_id": tx_id},
+        {"$set": {"shipped_at": now, "shipped_by": seller_id}},
+    )
+    return {"ok": True, "shipped_at": now.isoformat()}
+
+
 @api_router.post("/wallet/refund/{tx_id}")
 async def wallet_refund(tx_id: str, body: dict):
     admin_request = bool(body.get("admin"))
@@ -4766,10 +4793,19 @@ async def orders_my_purchases(member_id: str, status: Optional[str] = None, limi
 
 @api_router.get("/orders/detail/{order_id}")
 async def order_detail(order_id: str, member_id: Optional[str] = None):
-    """Retorna detalhes enriquecidos de um pedido específico."""
+    """Retorna detalhes enriquecidos de um pedido específico.
+    Aceita tanto `order_id` (sistema novo `db.orders`) quanto `tx_id`
+    (sistema escrow legado `db.wallet_txs`) como identificador."""
+    # 1) Tenta sistema novo (db.orders)
     order = await db.orders.find_one({"order_id": order_id}, {"_id": 0})
+
+    # 2) Fallback: trata como tx_id (escrow legado) — busca em wallet_txs
     if not order:
+        tx_legacy = await db.wallet_txs.find_one({"tx_id": order_id, "type": "escrow"}, {"_id": 0})
+        if tx_legacy:
+            return await _build_legacy_escrow_detail(tx_legacy, member_id)
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
+
     # Só o comprador, vendedor ou admin podem ver detalhes
     if member_id:
         is_buyer = order.get("member_id") == member_id
@@ -4794,6 +4830,81 @@ async def order_detail(order_id: str, member_id: Optional[str] = None):
         "timeline": timeline,
         "i_am_buyer": member_id and order.get("member_id") == member_id,
         "i_am_seller": member_id and order.get("seller_id") == member_id,
+    }
+
+
+async def _build_legacy_escrow_detail(tx: dict, member_id: Optional[str]) -> dict:
+    """Constrói payload `/orders/detail` para wallet_tx escrow (sistema legado do BLX).
+    Preserva o mesmo shape para o frontend renderizar a mesma UI."""
+    # Permissão: só comprador/vendedor/admin
+    if member_id:
+        is_buyer = tx.get("from_id") == member_id
+        is_seller = tx.get("to_id") == member_id
+        is_admin = await _staff_or_admin(member_id)
+        if not (is_buyer or is_seller or is_admin):
+            raise HTTPException(status_code=403, detail="Sem permissão para ver este pedido")
+
+    # Busca dados do anúncio
+    ad_image = None
+    if tx.get("ad_id"):
+        ad = await db.ads.find_one({"ad_id": tx["ad_id"]}, {"_id": 0, "images": 1})
+        if ad and ad.get("images"):
+            ad_image = ad["images"][0]
+
+    # Busca dados de comprador e vendedor
+    buyer = await db.members.find_one({"member_id": tx.get("from_id")}, {"_id": 0, "name": 1, "nickname": 1, "tier": 1, "avatar_base64": 1}) or {}
+    seller = await db.members.find_one({"member_id": tx.get("to_id")}, {"_id": 0, "name": 1, "nickname": 1, "tier": 1, "avatar_base64": 1}) or {}
+
+    amount_cents = int(tx.get("amount_centavos") or round(float(tx.get("amount", 0)) * 100))
+    status_raw = tx.get("status", "escrow")
+    # Map para status do sistema novo (visualização consistente)
+    status_view = status_raw
+    if status_raw == "escrow":
+        status_view = "delivered_pending" if tx.get("shipped_at") else "awaiting_delivery"
+    elif status_raw == "settled":
+        status_view = "settled"
+    elif status_raw == "refunded":
+        status_view = "refunded"
+
+    order_view = {
+        "order_id": tx.get("tx_id"),  # usa tx_id como id
+        "tx_id": tx.get("tx_id"),
+        "member_id": tx.get("from_id"),
+        "seller_id": tx.get("to_id"),
+        "product_name": tx.get("ad_title") or "Anúncio",
+        "image": ad_image,
+        "quantity": 1,
+        "total_cents": amount_cents,
+        "entry_cents": amount_cents,
+        "remaining_cents": 0,
+        "pay_option": "full",
+        "status": status_view,
+        "channel": "ad_direct",
+        "buyer_name": buyer.get("nickname") or buyer.get("name") or "Comprador",
+        "buyer_tier": buyer.get("tier"),
+        "buyer_avatar": buyer.get("avatar_base64"),
+        "seller_name": seller.get("nickname") or seller.get("name") or "Vendedor",
+        "seller_tier": seller.get("tier"),
+        "seller_avatar": seller.get("avatar_base64"),
+        "shipped_at": tx.get("shipped_at"),
+    }
+
+    # Timeline
+    timeline = [{"event": "created", "label": "Pedido criado (escrow)", "at": tx.get("created_at")}]
+    if tx.get("shipped_at"):
+        timeline.append({"event": "shipped", "label": "Vendedor marcou como entregue", "at": tx.get("shipped_at")})
+    if tx.get("settled_at") and status_raw == "settled":
+        timeline.append({"event": "delivered", "label": "Comprador confirmou recebimento — saldo liberado", "at": tx.get("settled_at")})
+    elif tx.get("settled_at") and status_raw == "refunded":
+        timeline.append({"event": "cancelled", "label": "Reembolsado", "at": tx.get("settled_at")})
+
+    return {
+        "order": order_view,
+        "tx": tx,
+        "timeline": timeline,
+        "i_am_buyer": bool(member_id and tx.get("from_id") == member_id),
+        "i_am_seller": bool(member_id and tx.get("to_id") == member_id),
+        "legacy_escrow": True,  # flag pro frontend saber que é wallet_tx legado
     }
 
 

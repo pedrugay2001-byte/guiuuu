@@ -384,6 +384,13 @@ export const api = {
   walletRefund: (tx_id: string) =>
     request<{ ok: boolean }>(`/wallet/refund/${tx_id}`, { method: "POST", body: JSON.stringify({ admin: true }) }),
 
+  // VENDEDOR marca a transação escrow como "ENTREGUE" (estado intermediário) — não libera o pagamento
+  blxMarkShipped: (tx_id: string, seller_id: string) =>
+    request<{ ok: boolean; shipped_at: string; already_shipped?: boolean }>(
+      `/blx/orders/${tx_id}/mark-shipped`,
+      { method: "POST", body: JSON.stringify({ seller_id }) },
+    ),
+
   // ----- PIX Manual Orders (recarga BLX com aprovação manual do suporte) -----
   pixInfo: () =>
     request<{
@@ -803,6 +810,8 @@ export type BlxTx = {
   ad_title?: string;
   created_at: string;
   settled_at?: string;
+  shipped_at?: string;   // vendedor marcou como entregue (escrow intermediário)
+  shipped_by?: string;
 };
 export type BlxOrder = BlxTx & {
   i_am_buyer: boolean;
