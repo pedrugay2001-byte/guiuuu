@@ -763,6 +763,44 @@ async def admin_delete_home_banner(banner_id: str, staff: dict = Depends(require
 # REMOVER este endpoint após a migração ser concluída em produção.
 # ============================================================================
 # -------------- Orders & Chat --------------
+
+
+class ReassignAdsRequest(BaseModel):
+    new_seller_id: str
+    only_from_seller_id: Optional[str] = None  # se informado, só reatribui ads desse seller específico
+
+
+@api_router.post("/admin/migrate/reassign-ads-owner")
+async def admin_reassign_ads_owner(data: ReassignAdsRequest, admin: dict = Depends(require_admin)):
+    """ENDPOINT TEMPORÁRIO — Reatribui todos os ads ao novo seller_id.
+    Útil para consolidar anúncios legados sob um único perfil que possa editar/excluir."""
+    # Valida que o member alvo existe
+    target = await db.members.find_one({"member_id": data.new_seller_id}, {"_id": 0, "member_id": 1, "name": 1, "tier": 1})
+    if not target:
+        raise HTTPException(status_code=404, detail=f"Membro alvo '{data.new_seller_id}' não encontrado")
+
+    # Filtro: todos ou apenas de um seller_id antigo
+    q: Dict[str, Any] = {}
+    if data.only_from_seller_id:
+        q["seller_id"] = data.only_from_seller_id
+
+    before = await db.ads.count_documents(q)
+    res = await db.ads.update_many(q, {"$set": {"seller_id": data.new_seller_id}})
+
+    total = await db.ads.count_documents({})
+    by_seller = await db.ads.aggregate([{"$group": {"_id": "$seller_id", "count": {"$sum": 1}}}]).to_list(length=50)
+    return {
+        "ok": True,
+        "target_member": target,
+        "before_match": before,
+        "matched": res.matched_count,
+        "modified": res.modified_count,
+        "total_ads": total,
+        "by_seller": {(b["_id"] or "null"): b["count"] for b in by_seller},
+    }
+
+
+
 class OrderItem(BaseModel):
     product_id: str
     name: str
