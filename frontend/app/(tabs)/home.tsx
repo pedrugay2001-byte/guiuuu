@@ -119,11 +119,35 @@ const silverSt = StyleSheet.create({
 export default function Home() {
   const router = useRouter();
   const { member } = useGate();
-  const { width } = useWindowDimensions();
+  const { width, height: screenH } = useWindowDimensions();
   const [dashboard, setDashboard] = useState<GoalDashboard | null>(null);
   const [diamondAds, setDiamondAds] = useState<Ad[]>([]);
 
   const isDiamond = (member?.tier || "").toLowerCase() === "diamond";
+
+  /**
+   * Calcula a altura ideal do carrossel para preencher o espaço vago restante
+   * entre o final do grid de botões e a barra inferior — evitando o "buraco"
+   * que aparecia abaixo do carrossel em telas maiores.
+   *
+   * Estimativas verticais (em pixels):
+   *  - Header TOP (safe-area top + logo): ~70
+   *  - Greet (Olá + sub):                 ~58
+   *  - Tier banner (aspectRatio 16:9):    width × 9/16 + marginBottom 10
+   *  - Grid 3 tiles (aspectRatio 1.45):   ((width - 12*2 - 8*2) / 3) / 1.45 + marginTop 4
+   *  - Bottom bar (safe-area):            ~80
+   *  - Paddings da ScrollView:            ~22
+   */
+  const screenW = width;
+  const tierBannerH = (screenW * 9) / 16 + 10;
+  const tileH = ((screenW - 12 * 2 - 8 * 2) / 3) / 1.45 + 4;
+  const HEADER_TOP = 70;
+  const GREET_H = 58;
+  const BOTTOM_BAR = 80;
+  const SCROLL_PADS = 22;
+  const occupied = HEADER_TOP + GREET_H + tierBannerH + tileH + BOTTOM_BAR + SCROLL_PADS;
+  // Carrossel preenche o restante (mínimo 130, máximo 260 para não ficar absurdo em tablets/desktop)
+  const bannerH = Math.max(130, Math.min(260, Math.floor(screenH - occupied)));
 
   const load = useCallback(async () => {
     try {
@@ -141,7 +165,6 @@ export default function Home() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const W = Math.min(width, 430);
   const name = (member?.nickname || member?.name || "você").split(" ")[0];
   const accent = useTierAccent();
   const [wallet, setWallet] = useState<BlxWallet | null>(null);
@@ -396,8 +419,9 @@ export default function Home() {
           </View>
 
           {/* PAINEL ROTATIVO — Notícias / Promoções / Novidades gerenciado pelo Admin Master.
-              Carrossel com troca automática a cada 10s + swipe manual. */}
-          <HomeBannerCarousel height={130} />
+              Carrossel com troca automática a cada 10s + swipe manual.
+              Altura calculada dinamicamente para preencher o espaço restante da viewport. */}
+          <HomeBannerCarousel height={bannerH} />
 
           {/* CENTRAL DE PERFORMANCE — REMOVIDA da Home a pedido do usuário.
               Para acessar metas/progresso/dias, use o botão "Metas" do rodapé. */}
