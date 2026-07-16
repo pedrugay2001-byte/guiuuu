@@ -352,14 +352,14 @@ export default function Send() {
                   <Text style={styles.reviewValSmall}>{w?.wallet_number}</Text>
                 </View>
               </View>
-              {note.trim() && (
+              {note.trim() ? (
                 <View style={styles.reviewRow}>
                   <Text style={styles.reviewLbl}>MENSAGEM</Text>
                   <Text style={[styles.reviewVal, { flex: 1, textAlign: "right", marginLeft: 16 }]} numberOfLines={3}>
                     {note.trim()}
                   </Text>
                 </View>
-              )}
+              ) : null}
             </View>
 
             <View style={styles.warnBox}>
