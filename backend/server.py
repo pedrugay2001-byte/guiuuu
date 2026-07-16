@@ -762,34 +762,6 @@ async def admin_delete_home_banner(banner_id: str, staff: dict = Depends(require
 # Auth: require_admin (apenas master admin pode disparar).
 # REMOVER este endpoint após a migração ser concluída em produção.
 # ============================================================================
-@api_router.post("/admin/emergency-master-reset")
-async def admin_emergency_master_reset(body: dict):
-    """ENDPOINT TEMPORÁRIO — Reseta a senha do admin master.
-    Sem auth (o próprio admin perdeu o acesso). Protegido por:
-    1. Email deve ser exatamente o do admin master (hardcoded)
-    2. secret_code deve match string fixa (compartilhada offline)
-    Deve ser REMOVIDO logo após o reset."""
-    email = (body or {}).get("email", "").strip().lower()
-    new_password = (body or {}).get("new_password", "")
-    secret_code = (body or {}).get("secret_code", "")
-
-    # Guardrails
-    ALLOWED_EMAIL = "guilherme925145000@gmail.com"
-    SECRET = "pyx_master_recovery_2026_shakira"  # somente main agent + admin conhecem
-    if email != ALLOWED_EMAIL:
-        raise HTTPException(status_code=403, detail="Email não autorizado para reset de emergência")
-    if secret_code != SECRET:
-        raise HTTPException(status_code=403, detail="Código secreto inválido")
-    if len(new_password) < 6:
-        raise HTTPException(status_code=400, detail="Senha muito curta (mínimo 6 caracteres)")
-
-    hashed = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
-    r = await db.users.update_one({"email": email}, {"$set": {"password_hash": hashed}})
-    if r.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
-    return {"ok": True, "modified": r.modified_count, "email": email}
-
-
 @api_router.post("/admin/migrate/blx-to-pyx")
 async def admin_migrate_blx_to_pyx(admin: dict = Depends(require_admin)):
     """ENDPOINT TEMPORÁRIO — Migra wallet_number e from/to_wallet de 'BLX-XXX' para 'PYX-XXX'."""
