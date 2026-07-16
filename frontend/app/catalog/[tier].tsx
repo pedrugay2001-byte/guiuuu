@@ -8,7 +8,7 @@ import { useRouter, useFocusEffect, useLocalSearchParams, Stack } from "expo-rou
 import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { api, Category, Product, Ad, formatBRL } from "../../src/api";
-import { formatBLX } from "../../src/blx";
+import { formatPYX } from "../../src/pyx";
 import { useGate } from "../../src/gate";
 import { useAuth } from "../../src/auth";
 import { theme } from "../../src/theme";
@@ -541,8 +541,8 @@ function AdCard({ ad, onPress }: { ad: Ad; onPress: () => void }) {
       </View>
       <Text style={st.adName} numberOfLines={2}>{toTitleCase(ad.title)}</Text>
       <Text style={st.adPrice}>
-        {formatBLX(Math.round(ad.price_full * 100))}
-        <Text style={st.adPriceUnit}> BLX</Text>
+        {formatPYX(Math.round(ad.price_full * 100))}
+        <Text style={st.adPriceUnit}> PYX</Text>
       </Text>
     </TouchableOpacity>
   );
@@ -576,8 +576,8 @@ function AdGridCard({ ad, onPress }: { ad: Ad; onPress: () => void }) {
       <View style={st.adGridPriceRow}>
         <Ionicons name="diamond" size={11} color={DIAMOND_BLUE} />
         <Text style={st.adGridPrice}>
-          {formatBLX(Math.round(ad.price_full * 100))}
-          <Text style={st.adGridPriceUnit}> BLX</Text>
+          {formatPYX(Math.round(ad.price_full * 100))}
+          <Text style={st.adGridPriceUnit}> PYX</Text>
         </Text>
       </View>
     </TouchableOpacity>

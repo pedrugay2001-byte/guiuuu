@@ -6,9 +6,9 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "../../src/icons";
-import { api, BlxOrder } from "../../src/api";
+import { api, PyxOrder } from "../../src/api";
 import { useGate } from "../../src/gate";
-import { formatBLX } from "../../src/blx";
+import { formatPYX } from "../../src/pyx";
 import { TIERS } from "../../src/theme";
 
 type Tab = "buyer" | "seller";
@@ -17,13 +17,13 @@ export default function Orders() {
   const router = useRouter();
   const { member } = useGate();
   const [tab, setTab] = useState<Tab>("buyer");
-  const [orders, setOrders] = useState<BlxOrder[]>([]);
+  const [orders, setOrders] = useState<PyxOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [confirmTx, setConfirmTx] = useState<BlxOrder | null>(null);
-  const [shipConfirmTx, setShipConfirmTx] = useState<BlxOrder | null>(null);
+  const [confirmTx, setConfirmTx] = useState<PyxOrder | null>(null);
+  const [shipConfirmTx, setShipConfirmTx] = useState<PyxOrder | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [ratingTx, setRatingTx] = useState<BlxOrder | null>(null);
+  const [ratingTx, setRatingTx] = useState<PyxOrder | null>(null);
   const [stars, setStars] = useState(5);
   const [comment, setComment] = useState("");
 
@@ -31,7 +31,7 @@ export default function Orders() {
     if (!member) return;
     setLoading(true);  // mostra spinner enquanto carrega — evita mostrar "empty state" durante troca de aba
     try {
-      const list = await api.blxOrders(member.member_id, tab);
+      const list = await api.pyxOrders(member.member_id, tab);
       setOrders(list);
     } finally {
       setLoading(false);
@@ -48,7 +48,7 @@ export default function Orders() {
     try {
       await api.walletConfirm(confirmTx.tx_id, member.member_id);
       // Recarregar
-      const list = await api.blxOrders(member.member_id, tab);
+      const list = await api.pyxOrders(member.member_id, tab);
       setOrders(list);
       // Abre avaliação na sequência se for comprador
       const updated = list.find(o => o.tx_id === confirmTx.tx_id);
@@ -68,7 +68,7 @@ export default function Orders() {
     if (!member || !ratingTx) return;
     setSubmitting(true);
     try {
-      await api.blxCreateRating({
+      await api.pyxCreateRating({
         tx_id: ratingTx.tx_id,
         rater_id: member.member_id,
         rating: stars,
@@ -89,7 +89,7 @@ export default function Orders() {
     if (!member || !shipConfirmTx) return;
     setSubmitting(true);
     try {
-      const res = await api.blxMarkShipped(shipConfirmTx.tx_id, member.member_id);
+      const res = await api.pyxMarkShipped(shipConfirmTx.tx_id, member.member_id);
       // Atualiza local sem precisar refetch
       setOrders(prev => prev.map(o =>
         o.tx_id === shipConfirmTx.tx_id ? { ...o, shipped_at: res.shipped_at } : o
@@ -187,7 +187,7 @@ export default function Orders() {
             <Ionicons name="checkmark-circle" size={48} color="#4EE07F" style={{ alignSelf: "center" }} />
             <Text style={styles.modalTitle}>Confirmar recebimento</Text>
             <Text style={styles.modalDesc}>
-              Ao confirmar, os <Text style={{ color: "#FFF", fontWeight: "900" }}>{confirmTx ? formatBLX(confirmTx.amount_centavos) : ""} BLX</Text> sairão do escrow e irão para a carteira de{" "}
+              Ao confirmar, os <Text style={{ color: "#FFF", fontWeight: "900" }}>{confirmTx ? formatPYX(confirmTx.amount_centavos) : ""} PYX</Text> sairão do escrow e irão para a carteira de{" "}
               <Text style={{ color: "#FFF", fontWeight: "900" }}>{confirmTx?.counterpart?.name || "vendedor"}</Text>.
               {"\n\n"}Esta ação é definitiva.
             </Text>
@@ -270,7 +270,7 @@ export default function Orders() {
               {"\n"}
               <Text style={{ color: "#FFF", fontWeight: "900" }}>{shipConfirmTx?.ad_title || "Anúncio"}</Text>
               {"\n\n"}
-              ⚠️ Esta ação não libera o pagamento. O comprador ainda precisa confirmar o recebimento para liberar os {shipConfirmTx ? formatBLX(shipConfirmTx.amount_centavos) : ""} BLX que estão em escrow.
+              ⚠️ Esta ação não libera o pagamento. O comprador ainda precisa confirmar o recebimento para liberar os {shipConfirmTx ? formatPYX(shipConfirmTx.amount_centavos) : ""} PYX que estão em escrow.
             </Text>
             <TouchableOpacity
               style={[styles.primaryBtn, { backgroundColor: "#7DD3FC" }, submitting && { opacity: 0.7 }]}
@@ -296,10 +296,10 @@ export default function Orders() {
 }
 
 function OrderRow({ order, onConfirm, onRate, onMarkShipped, onChat, onOpen }: {
-  order: BlxOrder;
-  onConfirm: (o: BlxOrder) => void;
-  onRate: (o: BlxOrder) => void;
-  onMarkShipped: (o: BlxOrder) => void;
+  order: PyxOrder;
+  onConfirm: (o: PyxOrder) => void;
+  onRate: (o: PyxOrder) => void;
+  onMarkShipped: (o: PyxOrder) => void;
   onChat: (cpId: string) => void;
   onOpen: (orderId: string) => void;
 }) {
@@ -348,9 +348,9 @@ function OrderRow({ order, onConfirm, onRate, onMarkShipped, onChat, onOpen }: {
         </View>
         <View style={{ alignItems: "flex-end" }}>
           <Text style={[styles.amountVal, { color: isBuyer ? "#F87171" : "#4EE07F" }]}>
-            {isBuyer ? "−" : "+"}{formatBLX(order.amount_centavos)}
+            {isBuyer ? "−" : "+"}{formatPYX(order.amount_centavos)}
           </Text>
-          <Text style={styles.amountUnit}>BLX</Text>
+          <Text style={styles.amountUnit}>PYX</Text>
         </View>
       </View>
 

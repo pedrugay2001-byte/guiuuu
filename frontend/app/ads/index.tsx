@@ -6,7 +6,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "../../src/icons";
 import { api, Ad } from "../../src/api";
-import { formatBLX } from "../../src/blx";
+import { formatPYX } from "../../src/pyx";
 import { useGate } from "../../src/gate";
 import { TIERS } from "../../src/theme";
 import ScreenHeader from "../../src/screen-header";
@@ -83,8 +83,8 @@ export default function AdsIndex() {
                     <Ionicons name={tier.icon as any} size={10} color={tier.color} />
                     <Text style={[styles.seller, { color: tier.color }]}>{item.seller_nickname}</Text>
                   </View>
-                  {myDisc > 0 && <Text style={styles.priceOld}>{formatBLX(Math.round(item.price_full * 100))} BLX</Text>}
-                  <Text style={styles.priceNew}>{formatBLX(Math.round(final * 100))} BLX</Text>
+                  {myDisc > 0 && <Text style={styles.priceOld}>{formatPYX(Math.round(item.price_full * 100))} PYX</Text>}
+                  <Text style={styles.priceNew}>{formatPYX(Math.round(final * 100))} PYX</Text>
                   {myDisc > 0 && <Text style={styles.disc}>−{myDisc}% aplicado</Text>}
                 </View>
               </TouchableOpacity>

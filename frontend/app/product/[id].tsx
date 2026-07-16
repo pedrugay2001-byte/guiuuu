@@ -9,7 +9,7 @@ import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
 import { api, Product, ApiError } from "../../src/api";
 import { useGate } from "../../src/gate";
-import { formatBLX } from "../../src/blx";
+import { formatPYX } from "../../src/pyx";
 import { notify } from "../../src/alerts";
 import { theme, TIERS } from "../../src/theme";
 import InsufficientBalanceModal from "../../src/components/InsufficientBalanceModal";
@@ -60,7 +60,7 @@ export default function ProductDetails() {
 
   const tier = (member?.tier || "black").toLowerCase();
   const tierDisc = TIER_DISCOUNT[tier] || 0;
-  // 1 BLX ≡ 1 BRL interno → aplicamos tier + pagamento
+  // 1 PYX ≡ 1 BRL interno → aplicamos tier + pagamento
   const baseBrl = product.member_price * (1 - tierDisc);
   const opt = PAY_OPTIONS.find(o => o.id === pay)!;
   const fullCents = Math.round(baseBrl * 100);
@@ -75,7 +75,7 @@ export default function ProductDetails() {
     if (!member) return;
     setBuying(true);
     try {
-      const r = await api.buyProductBLX(product.product_id, {
+      const r = await api.buyProductPYX(product.product_id, {
         member_id: member.member_id,
         quantity: 1,
         pay_option: pay,
@@ -83,16 +83,16 @@ export default function ProductDetails() {
       setShowConfirm(false);
       notify(
         "Compra confirmada",
-        (r.message || "BLX debitados com sucesso.") +
+        (r.message || "PYX debitados com sucesso.") +
           (r.remaining_cents > 0
-            ? ` Saldo de ${(r.remaining_cents / 100).toFixed(2)} BLX travado na sua carteira — liberado automaticamente na entrega.`
+            ? ` Saldo de ${(r.remaining_cents / 100).toFixed(2)} PYX travado na sua carteira — liberado automaticamente na entrega.`
             : ""),
       );
       refreshMember();
       setTimeout(() => router.back(), 1200);
     } catch (e: any) {
       setShowConfirm(false);
-      if (e instanceof ApiError && e.error_code === "INSUFFICIENT_BLX") {
+      if (e instanceof ApiError && e.error_code === "INSUFFICIENT_PYX") {
         setInsuf({
           required: e.data.required_centavos || 0,
           current: e.data.current_centavos || 0,
@@ -160,14 +160,14 @@ export default function ProductDetails() {
             style={s.priceCard}
           >
             <View>
-              <Text style={s.priceLabel}>VALOR EM BLX</Text>
+              <Text style={s.priceLabel}>VALOR EM PYX</Text>
               <View style={s.priceRow}>
-                <Text style={s.priceBLX}>{formatBLX(finalCents)}</Text>
-                <Text style={s.priceUnit}>BLX</Text>
+                <Text style={s.pricePYX}>{formatPYX(finalCents)}</Text>
+                <Text style={s.priceUnit}>PYX</Text>
               </View>
               {tierDisc > 0 && (
                 <Text style={s.priceOld}>
-                  Valor cheio {formatBLX(Math.round(product.member_price * 100))} BLX · tier {tier.toUpperCase()} −{Math.round(tierDisc * 100)}%
+                  Valor cheio {formatPYX(Math.round(product.member_price * 100))} PYX · tier {tier.toUpperCase()} −{Math.round(tierDisc * 100)}%
                 </Text>
               )}
             </View>
@@ -200,7 +200,7 @@ export default function ProductDetails() {
                         <Text style={s.discPillTxt}>−{o.discount}%</Text>
                       </View>
                     )}
-                    <Text style={[s.payPrice, selected && { color: GOLD_LIGHT }]}>{formatBLX(discCents)} BLX</Text>
+                    <Text style={[s.payPrice, selected && { color: GOLD_LIGHT }]}>{formatPYX(discCents)} PYX</Text>
                   </View>
                 </TouchableOpacity>
               );
@@ -213,11 +213,11 @@ export default function ProductDetails() {
               <>
                 <View style={s.summaryRow}>
                   <Text style={s.summaryLbl}>Entrada ({entryPct}%)</Text>
-                  <Text style={s.summaryVal}>{formatBLX(entryCents)} BLX</Text>
+                  <Text style={s.summaryVal}>{formatPYX(entryCents)} PYX</Text>
                 </View>
                 <View style={s.summaryRow}>
                   <Text style={s.summaryLbl}>Saldo na entrega</Text>
-                  <Text style={s.summaryVal}>{formatBLX(remainingCents)} BLX</Text>
+                  <Text style={s.summaryVal}>{formatPYX(remainingCents)} PYX</Text>
                 </View>
                 <View style={s.summaryDivider} />
               </>
@@ -225,8 +225,8 @@ export default function ProductDetails() {
             <View style={s.summaryRow}>
               <Text style={s.summaryLblBold}>Total</Text>
               <View style={{ alignItems: "flex-end" }}>
-                <Text style={[s.summaryTotal, { color: GOLD_LIGHT }]}>{formatBLX(finalCents)} BLX</Text>
-                {opt.discount > 0 && <Text style={s.summarySaving}>economia {formatBLX(fullCents - finalCents)} BLX</Text>}
+                <Text style={[s.summaryTotal, { color: GOLD_LIGHT }]}>{formatPYX(finalCents)} PYX</Text>
+                {opt.discount > 0 && <Text style={s.summarySaving}>economia {formatPYX(fullCents - finalCents)} PYX</Text>}
               </View>
             </View>
           </View>
@@ -254,7 +254,7 @@ export default function ProductDetails() {
           <View style={s.securityBox}>
             <Ionicons name="shield-checkmark" size={18} color="#AAA" />
             <Text style={s.securityTxt}>
-              Produto oficial do clube. Pagamento em BLEX Token (BLX). Curadoria verificada com envio discreto.
+              Produto oficial do clube. Pagamento em PYX Token (PYX). Curadoria verificada com envio discreto.
             </Text>
           </View>
         </View>
@@ -283,7 +283,7 @@ export default function ProductDetails() {
             <TouchableOpacity
               style={s.buyBtn}
               onPress={() => setShowConfirm(true)}
-              testID="product-buy-blx"
+              testID="product-buy-pyx"
               activeOpacity={0.88}
             >
               <LinearGradient
@@ -292,7 +292,7 @@ export default function ProductDetails() {
                 style={s.buyBtnInner}
               >
                 <MaterialCommunityIcons name="diamond-stone" size={16} color="#0A0A0A" />
-                <Text style={s.buyBtnTxt}>COMPRAR · {formatBLX(entryCents)} BLX AGORA</Text>
+                <Text style={s.buyBtnTxt}>COMPRAR · {formatPYX(entryCents)} PYX AGORA</Text>
               </LinearGradient>
             </TouchableOpacity>
           </>
@@ -329,23 +329,23 @@ export default function ProductDetails() {
             )}
             <View style={[s.modalRow, { borderTopWidth: 1, borderTopColor: "#1F1F1F", paddingTop: 12, marginTop: 6 }]}>
               <Text style={[s.modalLbl, { color: GOLD }]}>TOTAL</Text>
-              <Text style={[s.modalVal, { color: GOLD, fontSize: 17 }]}>{formatBLX(finalCents)} BLX</Text>
+              <Text style={[s.modalVal, { color: GOLD, fontSize: 17 }]}>{formatPYX(finalCents)} PYX</Text>
             </View>
 
             {/* Destaque: debitado agora vs travado */}
             <View style={s.splitBox}>
               <View style={s.splitCol}>
                 <Text style={s.splitLbl}>A DEBITAR AGORA</Text>
-                <Text style={s.splitVal}>{formatBLX(entryCents)}</Text>
-                <Text style={s.splitUnit}>BLX · {entryPct}%</Text>
+                <Text style={s.splitVal}>{formatPYX(entryCents)}</Text>
+                <Text style={s.splitUnit}>PYX · {entryPct}%</Text>
               </View>
               <View style={[s.splitCol, { borderLeftWidth: 1, borderLeftColor: "#1F1F1F" }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                   <Ionicons name="lock-closed" size={9} color="#F5C150" />
                   <Text style={s.splitLbl}>TRAVADO · ENTREGA</Text>
                 </View>
-                <Text style={[s.splitVal, { color: "#F5C150" }]}>{formatBLX(remainingCents)}</Text>
-                <Text style={s.splitUnit}>BLX · {100 - entryPct}%</Text>
+                <Text style={[s.splitVal, { color: "#F5C150" }]}>{formatPYX(remainingCents)}</Text>
+                <Text style={s.splitUnit}>PYX · {100 - entryPct}%</Text>
               </View>
             </View>
 
@@ -420,7 +420,7 @@ const s = StyleSheet.create({
   },
   priceLabel: { color: GOLD_DARK, fontSize: 9.5, fontWeight: "900", letterSpacing: 2 },
   priceRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginTop: 4 },
-  priceBLX: { color: "#FFF", fontSize: 26, fontWeight: "900", letterSpacing: -1 },
+  pricePYX: { color: "#FFF", fontSize: 26, fontWeight: "900", letterSpacing: -1 },
   priceUnit: { color: GOLD, fontSize: 13, fontWeight: "900", letterSpacing: 1.5, marginBottom: 5 },
   priceOld: { color: "#777", fontSize: 10.5, marginTop: 4, fontStyle: "italic" },
 

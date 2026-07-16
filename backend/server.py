@@ -762,7 +762,45 @@ async def admin_delete_home_banner(banner_id: str, staff: dict = Depends(require
 # Auth: require_admin (apenas master admin pode disparar).
 # REMOVER este endpoint após a migração ser concluída em produção.
 # ============================================================================
+@api_router.post("/admin/migrate/blx-to-pyx")
+async def admin_migrate_blx_to_pyx(admin: dict = Depends(require_admin)):
+    """ENDPOINT TEMPORÁRIO — Migra wallet_number e from/to_wallet de 'BLX-XXX' para 'PYX-XXX'."""
+    wallets_before = await db.wallets.count_documents({"wallet_number": {"$regex": "^BLX-"}})
+    wallets_updated = 0
+    async for w in db.wallets.find({"wallet_number": {"$regex": "^BLX-"}}):
+        new_num = "PYX-" + w["wallet_number"][4:]
+        r = await db.wallets.update_one({"member_id": w["member_id"]}, {"$set": {"wallet_number": new_num}})
+        if r.modified_count:
+            wallets_updated += 1
+    txs_before = await db.wallet_txs.count_documents({
+        "$or": [{"from_wallet": {"$regex": "^BLX-"}}, {"to_wallet": {"$regex": "^BLX-"}}],
+    })
+    txs_updated = 0
+    async for tx in db.wallet_txs.find({
+        "$or": [{"from_wallet": {"$regex": "^BLX-"}}, {"to_wallet": {"$regex": "^BLX-"}}],
+    }):
+        upd: Dict[str, Any] = {}
+        if (tx.get("from_wallet") or "").startswith("BLX-"):
+            upd["from_wallet"] = "PYX-" + tx["from_wallet"][4:]
+        if (tx.get("to_wallet") or "").startswith("BLX-"):
+            upd["to_wallet"] = "PYX-" + tx["to_wallet"][4:]
+        if upd:
+            r = await db.wallet_txs.update_one({"tx_id": tx["tx_id"]}, {"$set": upd})
+            if r.modified_count:
+                txs_updated += 1
+    return {
+        "ok": True,
+        "wallets_before": wallets_before,
+        "wallets_updated": wallets_updated,
+        "txs_before": txs_before,
+        "txs_updated": txs_updated,
+    }
+
+
 # -------------- Orders & Chat --------------
+
+
+
 class OrderItem(BaseModel):
     product_id: str
     name: str
@@ -1147,9 +1185,9 @@ async def admin_stats(staff: dict = Depends(require_staff)):
 @api_router.get("/admin/metrics")
 async def admin_metrics(staff: dict = Depends(require_staff)):
     """
-    Métricas executivas do ecossistema BLX:
+    Métricas executivas do ecossistema PYX:
     - Supply total circulante (soma de balance_centavos de todas as carteiras)
-    - BLX em escrow (valor preso em transações pendentes)
+    - PYX em escrow (valor preso em transações pendentes)
     - Top 10 sellers por volume de vendas liberadas (settled)
     - Volume de transações dos últimos 30 dias
     - Total de membros com saldo > 0
@@ -1168,7 +1206,7 @@ async def admin_metrics(staff: dict = Depends(require_staff)):
         }}
     ]).to_list(length=1)
     supply = supply_agg[0] if supply_agg else {}
-    # escrow está em BLX float no schema antigo → converte para centavos
+    # escrow está em PYX float no schema antigo → converte para centavos
     escrow_out_cents = int(round(float(supply.get("total_escrow_out") or 0) * 100))
     escrow_in_cents = int(round(float(supply.get("total_escrow_in") or 0) * 100))
 
@@ -1199,7 +1237,7 @@ async def admin_metrics(staff: dict = Depends(require_staff)):
     # Enriquecer com nome/avatar/rating médio — OTIMIZADO (2 queries em vez de N+1).
     # Antes: para cada um dos top 10 vendedores, 2 queries (members.find_one + ratings.aggregate)
     #        = 20+ queries → lento e arriscava timeout em produção.
-    # Agora: 1 bulk find em members + 1 aggregate group em blx_ratings → 2 queries totais.
+    # Agora: 1 bulk find em members + 1 aggregate group em pyx_ratings → 2 queries totais.
     top_sellers: list = []
     seller_ids = [row["_id"] for row in top_agg if row.get("_id")]
     if seller_ids:
@@ -1212,7 +1250,7 @@ async def admin_metrics(staff: dict = Depends(require_staff)):
         members_by_id = {m["member_id"]: m for m in members_list}
 
         # Bulk aggregate dos ratings (agrupados por seller_id)
-        ratings_agg = await db.blx_ratings.aggregate([
+        ratings_agg = await db.pyx_ratings.aggregate([
             {"$match": {"seller_id": {"$in": seller_ids}}},
             {"$group": {"_id": "$seller_id", "avg": {"$avg": "$stars"}, "count": {"$sum": 1}}},
         ]).to_list(length=len(seller_ids))
@@ -1787,14 +1825,14 @@ PUBLIC_CATEGORIES = ["metabolicos", "performance", "regeneracao", "estetica", "f
 HEALTH_CATEGORIES = ["emagrecedores", "peptideos", "landerlan", "hormonios"]
 HEALTH_UMBRELLA_ID = "saude_diamante"
 
-# Limites mensais de transferência P2P em BLX (em centavos)
-# Black: não pode transferir; Silver: 2.000 BLX; Gold: 10.000 BLX; Diamond: 50.000 BLX
+# Limites mensais de transferência P2P em PYX (em centavos)
+# Black: não pode transferir; Silver: 2.000 PYX; Gold: 10.000 PYX; Diamond: 50.000 PYX
 # Staff (admin/support/financeiro) não possuem limite.
-BLX_MONTHLY_TRANSFER_LIMITS_CENTAVOS = {
+PYX_MONTHLY_TRANSFER_LIMITS_CENTAVOS = {
     "black":   0,
-    "silver":  200_000,     # 2.000 BLX
-    "gold":    1_000_000,   # 10.000 BLX
-    "diamond": 5_000_000,   # 50.000 BLX
+    "silver":  200_000,     # 2.000 PYX
+    "gold":    1_000_000,   # 10.000 PYX
+    "diamond": 5_000_000,   # 50.000 PYX
 }
 
 @api_router.get("/products", response_model=List[Product])
@@ -1952,16 +1990,16 @@ async def delete_product(product_id: str, admin: dict = Depends(require_staff)):
     return {"ok": True}
 
 
-class ProductBLXPurchase(BaseModel):
+class ProductPYXPurchase(BaseModel):
     member_id: str
     quantity: int = 1
     pay_option: str = "full"  # "full" (100%, -30%) | "half" (50%, -15%) | "entry" (10%, 0%)
 
 
-@api_router.post("/products/{product_id}/buy-blx")
-async def buy_product_with_blx(product_id: str, data: ProductBLXPurchase):
+@api_router.post("/products/{product_id}/buy-pyx")
+async def buy_product_with_pyx(product_id: str, data: ProductPYXPurchase):
     """
-    Compra um item do catálogo oficial com BLX.
+    Compra um item do catálogo oficial com PYX.
     - pay_option define: % de entrada debitada AGORA + desconto no total.
     - Saldo restante fica registrado como "remaining_cents" no order (a pagar na entrega).
     """
@@ -2013,7 +2051,7 @@ async def buy_product_with_blx(product_id: str, data: ProductBLXPurchase):
 
     wallet = await db.wallets.find_one({"member_id": data.member_id}, {"_id": 0})
     if not wallet:
-        raise HTTPException(status_code=400, detail="Carteira BLX não encontrada")
+        raise HTTPException(status_code=400, detail="Carteira PYX não encontrada")
 
     current_cents = int(wallet.get("balance_centavos") or 0)
     # Valida: precisa ter o TOTAL disponível (entrada + saldo devedor travado)
@@ -2022,10 +2060,10 @@ async def buy_product_with_blx(product_id: str, data: ProductBLXPurchase):
         raise HTTPException(
             status_code=400,
             detail={
-                "error_code": "INSUFFICIENT_BLX",
+                "error_code": "INSUFFICIENT_PYX",
                 "message": (
-                    f"Saldo BLX insuficiente. Você precisa de {total_cents/100:.2f} BLX "
-                    f"(faltam {faltante:.2f} BLX) para reservar o total da compra."
+                    f"Saldo PYX insuficiente. Você precisa de {total_cents/100:.2f} PYX "
+                    f"(faltam {faltante:.2f} PYX) para reservar o total da compra."
                 ),
                 "missing_centavos": total_cents - current_cents,
                 "required_centavos": total_cents,
@@ -2068,7 +2106,7 @@ async def buy_product_with_blx(product_id: str, data: ProductBLXPurchase):
         "entry_cents": entry_cents, "remaining_cents": remaining_cents,
         "reserved_on_buyer_cents": remaining_cents,  # quanto está travado no comprador
         "tier_discount": tier_disc, "pay_option": data.pay_option,
-        "status": status, "channel": "catalog_blx",
+        "status": status, "channel": "catalog_pyx",
         "seller_id": "catalog_admin",
         "tx_id": tx_id, "created_at": now,
     })
@@ -2091,9 +2129,9 @@ async def buy_product_with_blx(product_id: str, data: ProductBLXPurchase):
         "quantity": data.quantity,
         "new_balance_centavos": new_balance_cents,
         "message": (
-            f"Compra realizada! {amt_float:.2f} BLX debitados "
+            f"Compra realizada! {amt_float:.2f} PYX debitados "
             f"({cfg['entry_pct']}% de entrada)."
-            + (f" Saldo de {remaining_cents/100:.2f} BLX travado para pagar na entrega."
+            + (f" Saldo de {remaining_cents/100:.2f} PYX travado para pagar na entrega."
                if remaining_cents > 0 else "")
         ),
     }
@@ -3024,15 +3062,15 @@ async def get_ad(ad_id: str):
     return a
 
 
-class AdBLXBuy(BaseModel):
+class AdPYXBuy(BaseModel):
     member_id: str
     pay_option: str = "full"  # "full"|"half"|"entry"
 
 
-@api_router.post("/ads/{ad_id}/buy-blx")
-async def buy_ad_with_blx(ad_id: str, data: AdBLXBuy):
+@api_router.post("/ads/{ad_id}/buy-pyx")
+async def buy_ad_with_pyx(ad_id: str, data: AdPYXBuy):
     """
-    Compra direta de um anúncio Diamante via BLX.
+    Compra direta de um anúncio Diamante via PYX.
     - Debita APENAS a entrada (entry_pct) do saldo disponível do comprador.
     - Trava o saldo devedor em `reserved_centavos` do comprador (liberado na entrega).
     - A entrada entra em escrow_out até o vendedor confirmar a entrega.
@@ -3064,17 +3102,17 @@ async def buy_ad_with_blx(ad_id: str, data: AdBLXBuy):
 
     wallet = await db.wallets.find_one({"member_id": data.member_id}, {"_id": 0})
     if not wallet:
-        raise HTTPException(status_code=400, detail="Carteira BLX não encontrada")
+        raise HTTPException(status_code=400, detail="Carteira PYX não encontrada")
     current_cents = int(wallet.get("balance_centavos") or 0)
     if current_cents < total_cents:
         faltante = (total_cents - current_cents) / 100.0
         raise HTTPException(
             status_code=400,
             detail={
-                "error_code": "INSUFFICIENT_BLX",
+                "error_code": "INSUFFICIENT_PYX",
                 "message": (
-                    f"Saldo BLX insuficiente. Você precisa de {total_cents/100:.2f} BLX "
-                    f"(faltam {faltante:.2f} BLX) para reservar o total da compra."
+                    f"Saldo PYX insuficiente. Você precisa de {total_cents/100:.2f} PYX "
+                    f"(faltam {faltante:.2f} PYX) para reservar o total da compra."
                 ),
                 "missing_centavos": total_cents - current_cents,
                 "required_centavos": total_cents,
@@ -3134,9 +3172,9 @@ async def buy_ad_with_blx(ad_id: str, data: AdBLXBuy):
         "pay_option": data.pay_option,
         "new_balance_centavos": current_cents - total_cents,
         "message": (
-            f"Reserva Diamante confirmada! {amt_float:.2f} BLX em custódia "
+            f"Reserva Diamante confirmada! {amt_float:.2f} PYX em custódia "
             f"(entrada {cfg['entry_pct']}%)."
-            + (f" Saldo de {remaining_cents/100:.2f} BLX travado para pagar na entrega."
+            + (f" Saldo de {remaining_cents/100:.2f} PYX travado para pagar na entrega."
                if remaining_cents > 0 else "")
         ),
     }
@@ -3421,18 +3459,18 @@ async def ads_by_member(member_id: str, include_inactive: bool = False):
     return await cur.to_list(length=100)
 
 
-# ---------- WALLET (BLEX TOKEN — BLX) ----------
-# Moeda interna do clube. 1 BLX = 100 centavos (precisão total em int).
-# Para retrocompatibilidade, manter campo legado "balance" (float, em BLX inteiros)
+# ---------- WALLET (PYX TOKEN — PYX) ----------
+# Moeda interna do clube. 1 PYX = 100 centavos (precisão total em int).
+# Para retrocompatibilidade, manter campo legado "balance" (float, em PYX inteiros)
 # e adicionar "balance_centavos" (int) como fonte de verdade a partir de agora.
-# Cada membro recebe um "wallet_number" público no formato BLX-XXXXXXXX para
+# Cada membro recebe um "wallet_number" público no formato PYX-XXXXXXXX para
 # transferências P2P.
 
 
 def _gen_wallet_number() -> str:
-    """Gera número público de carteira no formato BLX-XXXXXXXX (alfanumérico)."""
+    """Gera número público de carteira no formato PYX-XXXXXXXX (alfanumérico)."""
     alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sem 0/O/1/I p/ evitar confusão
-    return "BLX-" + "".join(random.choice(alphabet) for _ in range(8))
+    return "PYX-" + "".join(random.choice(alphabet) for _ in range(8))
 
 
 async def _assign_wallet_number(member_id: str) -> str:
@@ -3454,7 +3492,7 @@ async def _wallet_get_or_create(member_id: str) -> dict:
     if not w:
         w = {
             "member_id": member_id,
-            "balance": 0.0,          # legado (BLX inteiros)
+            "balance": 0.0,          # legado (PYX inteiros)
             "balance_centavos": 0,   # NOVO: fonte de verdade (centavos em int)
             "reserved_centavos": 0,  # NOVO: saldo travado (saldo devedor de pedidos pendentes)
             "escrow_in": 0.0,
@@ -3492,21 +3530,21 @@ async def wallet_txs(member_id: str):
 
 class TopupRequest(BaseModel):
     member_id: str
-    amount: Optional[float] = None             # legado (BLX inteiros)
+    amount: Optional[float] = None             # legado (PYX inteiros)
     amount_centavos: Optional[int] = None      # preferido (precisão total)
 
 
 @api_router.post("/wallet/topup")
 async def wallet_topup(data: TopupRequest, staff: dict = Depends(require_staff)):
-    """Admin/Suporte/Financeiro creditam BLX manualmente (após pagamento externo validado).
-    Aceita `amount_centavos` (int) ou `amount` (float em BLX). Mantém compatibilidade."""
+    """Admin/Suporte/Financeiro creditam PYX manualmente (após pagamento externo validado).
+    Aceita `amount_centavos` (int) ou `amount` (float em PYX). Mantém compatibilidade."""
     if data.amount_centavos is not None:
         cents = int(data.amount_centavos)
     elif data.amount is not None:
         cents = int(round(float(data.amount) * 100))
     else:
         raise HTTPException(status_code=400, detail="Informe amount ou amount_centavos")
-    if cents <= 0 or cents > 100_000_000:  # limite 1M BLX por operação
+    if cents <= 0 or cents > 100_000_000:  # limite 1M PYX por operação
         raise HTTPException(status_code=400, detail="Valor inválido")
     w = await _wallet_get_or_create(data.member_id)
     amt_float = cents / 100.0
@@ -3522,9 +3560,9 @@ async def wallet_topup(data: TopupRequest, staff: dict = Depends(require_staff))
         "to_wallet": w.get("wallet_number"),
         "amount": amt_float,
         "amount_centavos": cents,
-        "currency": "BLX",
+        "currency": "PYX",
         "status": "settled",
-        "note": f"Crédito BLX (admin: {staff.get('email','')})",
+        "note": f"Crédito PYX (admin: {staff.get('email','')})",
         "created_at": datetime.now(timezone.utc),
     }
     await db.wallet_txs.insert_one(tx.copy())
@@ -3536,9 +3574,9 @@ async def wallet_topup(data: TopupRequest, staff: dict = Depends(require_staff))
 # PIX MANUAL ORDERS — recarga via PIX com aprovação manual do suporte
 # Fluxo:
 #  1. Membro faz PIX para os dados fixos (BRLA Digital Ltda / Stark Bank)
-#  2. Membro abre um pedido (POST /blx/pix-orders) informando o valor pago
+#  2. Membro abre um pedido (POST /pyx/pix-orders) informando o valor pago
 #  3. Pedido fica `pending` até suporte/admin aprovar (em /staff/pix-orders)
-#  4. Aprovação credita BLX na carteira aplicando taxa de 1% (R$ 100 → 99 BLX)
+#  4. Aprovação credita PYX na carteira aplicando taxa de 1% (R$ 100 → 99 PYX)
 # =============================================================================
 
 # Dados fixos do PIX (ajustáveis depois, por enquanto hardcoded conforme cliente)
@@ -3549,27 +3587,27 @@ PIX_INFO: Dict[str, Any] = {
     "pix_key": "627c7ab6-f484-4148-8e78-1212e1ae7543",
     "pix_code": "00020126580014br.gov.bcb.pix0136627c7ab6-f484-4148-8e78-1212e1ae75435204000053039865802BR5910BLACKSCLUB6009SAO PAULO62070503***6304DE79",
     "fee_pct": 1.0,                # 1% de taxa de processamento
-    "rate_brl_to_blx": 1.0,        # 1 BRL = 1 BLX (antes da taxa)
+    "rate_brl_to_pyx": 1.0,        # 1 BRL = 1 PYX (antes da taxa)
     "min_brl": 10.0,
     "estimated_minutes": 10,
     "instructions": [
         "Faça o PIX no valor desejado para os dados acima.",
         "Após o pagamento, abra um pedido informando o valor pago.",
-        "Nosso suporte analisa e libera o saldo em BLX.",
+        "Nosso suporte analisa e libera o saldo em PYX.",
         "Comprovante é opcional — peça apenas se o suporte solicitar.",
     ],
 }
 
 
-def _pix_calc_blx_centavos(amount_brl_centavos: int) -> int:
-    """Aplica taxa de 1% sobre o valor BRL (em centavos) e devolve BLX em centavos.
-    R$ 100,00 (10000 cent) → 9900 cent = 99,00 BLX."""
+def _pix_calc_pyx_centavos(amount_brl_centavos: int) -> int:
+    """Aplica taxa de 1% sobre o valor BRL (em centavos) e devolve PYX em centavos.
+    R$ 100,00 (10000 cent) → 9900 cent = 99,00 PYX."""
     if amount_brl_centavos <= 0:
         return 0
     fee = PIX_INFO["fee_pct"] / 100.0
-    rate = PIX_INFO["rate_brl_to_blx"]
-    blx_cents = int(round(amount_brl_centavos * rate * (1.0 - fee)))
-    return max(0, blx_cents)
+    rate = PIX_INFO["rate_brl_to_pyx"]
+    pyx_cents = int(round(amount_brl_centavos * rate * (1.0 - fee)))
+    return max(0, pyx_cents)
 
 
 class PixOrderCreate(BaseModel):
@@ -3580,13 +3618,13 @@ class PixOrderCreate(BaseModel):
     receipt_base64: Optional[str] = None  # data URI opcional
 
 
-@api_router.get("/blx/pix-info")
+@api_router.get("/pyx/pix-info")
 async def get_pix_info():
     """Devolve dados do PIX + instruções para a UI do membro."""
     return PIX_INFO
 
 
-@api_router.post("/blx/pix-orders")
+@api_router.post("/pyx/pix-orders")
 async def pix_order_create(data: PixOrderCreate):
     """Membro abre pedido de recarga via PIX. Fica pending até aprovação do staff."""
     if data.amount_brl_centavos is not None:
@@ -3607,7 +3645,7 @@ async def pix_order_create(data: PixOrderCreate):
     if not m:
         raise HTTPException(status_code=404, detail="Membro não encontrado")
 
-    blx_cents = _pix_calc_blx_centavos(cents)
+    pyx_cents = _pix_calc_pyx_centavos(cents)
     now = datetime.now(timezone.utc)
     order = {
         "order_id": f"pix_{uuid.uuid4().hex[:14]}",
@@ -3615,7 +3653,7 @@ async def pix_order_create(data: PixOrderCreate):
         "member_name": m.get("nickname") or m.get("name") or "Membro",
         "member_tier": m.get("tier"),
         "amount_brl_centavos": cents,
-        "blx_centavos": blx_cents,
+        "pyx_centavos": pyx_cents,
         "fee_pct": PIX_INFO["fee_pct"],
         "status": "pending",  # pending | approved | rejected | cancelled
         "note": (data.note or "").strip()[:500] or None,
@@ -3633,7 +3671,7 @@ async def pix_order_create(data: PixOrderCreate):
     return order
 
 
-@api_router.get("/blx/pix-orders/me/{member_id}")
+@api_router.get("/pyx/pix-orders/me/{member_id}")
 async def pix_orders_mine(member_id: str, limit: int = 50):
     """Lista pedidos PIX do próprio membro (mais recentes primeiro)."""
     cur = db.pix_orders.find({"member_id": member_id}, {"_id": 0, "receipt_base64": 0}).sort("created_at", -1).limit(int(limit))
@@ -3649,7 +3687,7 @@ async def pix_orders_mine(member_id: str, limit: int = 50):
     return {"orders": out}
 
 
-@api_router.get("/blx/pix-orders")
+@api_router.get("/pyx/pix-orders")
 async def pix_orders_list(status: Optional[str] = None, limit: int = 100, staff: dict = Depends(require_staff)):
     """Listagem para staff/admin (autenticado via JWT). Use ?status=pending para filtrar."""
     q: Dict[str, Any] = {}
@@ -3665,7 +3703,7 @@ async def pix_orders_list(status: Optional[str] = None, limit: int = 100, staff:
     return {"orders": out}
 
 
-@api_router.get("/blx/pix-orders/stats")
+@api_router.get("/pyx/pix-orders/stats")
 async def pix_orders_stats(staff: dict = Depends(require_staff)):
     """Resumo p/ staff: contagens por status."""
     pending = await db.pix_orders.count_documents({"status": "pending"})
@@ -3678,9 +3716,9 @@ class PixOrderActionBody(BaseModel):
     note: Optional[str] = None
 
 
-@api_router.post("/blx/pix-orders/{order_id}/approve")
+@api_router.post("/pyx/pix-orders/{order_id}/approve")
 async def pix_order_approve(order_id: str, body: PixOrderActionBody, staff: dict = Depends(require_staff)):
-    """Staff/admin aprova o pedido — credita BLX na carteira do membro (com taxa de 1%)."""
+    """Staff/admin aprova o pedido — credita PYX na carteira do membro (com taxa de 1%)."""
     order = await db.pix_orders.find_one({"order_id": order_id}, {"_id": 0})
     if not order:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
@@ -3688,15 +3726,15 @@ async def pix_order_approve(order_id: str, body: PixOrderActionBody, staff: dict
         return {"ok": True, "already": order.get("status"), "order": order}
 
     member_id = order["member_id"]
-    blx_cents = int(order.get("blx_centavos") or 0)
-    if blx_cents <= 0:
-        raise HTTPException(status_code=400, detail="Valor BLX inválido")
+    pyx_cents = int(order.get("pyx_centavos") or 0)
+    if pyx_cents <= 0:
+        raise HTTPException(status_code=400, detail="Valor PYX inválido")
 
     w = await _wallet_get_or_create(member_id)
-    blx_float = blx_cents / 100.0
+    pyx_float = pyx_cents / 100.0
     await db.wallets.update_one(
         {"member_id": member_id},
-        {"$inc": {"balance": blx_float, "balance_centavos": blx_cents}},
+        {"$inc": {"balance": pyx_float, "balance_centavos": pyx_cents}},
     )
 
     tx = {
@@ -3705,9 +3743,9 @@ async def pix_order_approve(order_id: str, body: PixOrderActionBody, staff: dict
         "from_id": None,
         "to_id": member_id,
         "to_wallet": w.get("wallet_number"),
-        "amount": blx_float,
-        "amount_centavos": blx_cents,
-        "currency": "BLX",
+        "amount": pyx_float,
+        "amount_centavos": pyx_cents,
+        "currency": "PYX",
         "status": "settled",
         "note": f"Recarga PIX aprovada (pedido {order_id}) por {staff.get('email','')}",
         "created_at": datetime.now(timezone.utc),
@@ -3734,7 +3772,7 @@ async def pix_order_approve(order_id: str, body: PixOrderActionBody, staff: dict
     return {"ok": True, "order": out}
 
 
-@api_router.post("/blx/pix-orders/{order_id}/reject")
+@api_router.post("/pyx/pix-orders/{order_id}/reject")
 async def pix_order_reject(order_id: str, body: PixOrderActionBody, staff: dict = Depends(require_staff)):
     """Staff/admin rejeita o pedido com motivo."""
     order = await db.pix_orders.find_one({"order_id": order_id}, {"_id": 0})
@@ -3997,7 +4035,7 @@ async def wallet_purchase(data: PurchaseRequest):
     final_cents = int(round(final * 100))
     wb = await _wallet_get_or_create(data.buyer_id)
     if int(wb.get("balance_centavos") or 0) < final_cents:
-        raise HTTPException(status_code=400, detail=f"Saldo BLX insuficiente. Você precisa de {final:.2f} BLX.")
+        raise HTTPException(status_code=400, detail=f"Saldo PYX insuficiente. Você precisa de {final:.2f} PYX.")
     await _wallet_get_or_create(seller_id)
     # move buyer balance -> escrow_out ; seller escrow_in
     await db.wallets.update_one(
@@ -4017,7 +4055,7 @@ async def wallet_purchase(data: PurchaseRequest):
         "discount": disc,
         "amount": final,
         "amount_centavos": final_cents,
-        "currency": "BLX",
+        "currency": "PYX",
         "status": "escrow",
         "note": f"Compra aguardando entrega: {ad['title']}",
         "created_at": datetime.now(timezone.utc),
@@ -4047,8 +4085,8 @@ async def wallet_confirm(tx_id: str, body: dict):
     return {"ok": True}
 
 
-@api_router.post("/blx/orders/{tx_id}/mark-shipped")
-async def blx_orders_mark_shipped(tx_id: str, body: dict):
+@api_router.post("/pyx/orders/{tx_id}/mark-shipped")
+async def pyx_orders_mark_shipped(tx_id: str, body: dict):
     """O VENDEDOR marca o pedido como entregue (estado intermediário).
     Não libera o pagamento — apenas sinaliza que enviou.
     O comprador ainda precisa confirmar o recebimento para liberar o escrow."""
@@ -4328,10 +4366,10 @@ async def cart_list(member_id: str):
     }
 
 
-@api_router.post("/cart/checkout-blx")
-async def cart_checkout_blx(data: dict):
+@api_router.post("/cart/checkout-pyx")
+async def cart_checkout_pyx(data: dict):
     """
-    Checkout unificado do carrinho usando BLX com pagamento parcelado.
+    Checkout unificado do carrinho usando PYX com pagamento parcelado.
     - pay_option define % de entrada debitada agora + desconto sobre o total.
     - Saldo devedor é TRAVADO em `reserved_centavos` do comprador (liberado na entrega).
     - Itens do Catálogo (item_type=product): entrada vai p/ admin, resto fica reservado.
@@ -4398,17 +4436,17 @@ async def cart_checkout_blx(data: dict):
     # Valida saldo TOTAL (precisa ter o valor todo para travar)
     wallet = await db.wallets.find_one({"member_id": member_id}, {"_id": 0})
     if not wallet:
-        raise HTTPException(status_code=400, detail="Carteira BLX não encontrada")
+        raise HTTPException(status_code=400, detail="Carteira PYX não encontrada")
     current_cents = int(wallet.get("balance_centavos") or 0)
     if current_cents < total_cents:
         faltante = (total_cents - current_cents) / 100.0
         raise HTTPException(
             status_code=400,
             detail={
-                "error_code": "INSUFFICIENT_BLX",
+                "error_code": "INSUFFICIENT_PYX",
                 "message": (
-                    f"Saldo BLX insuficiente. Você precisa de {total_cents/100:.2f} BLX "
-                    f"(faltam {faltante:.2f} BLX) para reservar o total da compra."
+                    f"Saldo PYX insuficiente. Você precisa de {total_cents/100:.2f} PYX "
+                    f"(faltam {faltante:.2f} PYX) para reservar o total da compra."
                 ),
                 "missing_centavos": total_cents - current_cents,
                 "required_centavos": total_cents,
@@ -4530,9 +4568,9 @@ async def cart_checkout_blx(data: dict):
         "txs": txs_created,
         "new_balance_centavos": new_balance_cents,
         "message": (
-            f"Compra concluída! {total_entry_cents/100:.2f} BLX debitados "
+            f"Compra concluída! {total_entry_cents/100:.2f} PYX debitados "
             f"({cfg['entry_pct']}% de entrada) · {len(orders_created)} pedidos."
-            + (f" Saldo de {total_remaining_cents/100:.2f} BLX travado para a entrega."
+            + (f" Saldo de {total_remaining_cents/100:.2f} PYX travado para a entrega."
                if total_remaining_cents > 0 else "")
         ),
     }
@@ -4855,7 +4893,7 @@ async def order_detail(order_id: str, member_id: Optional[str] = None):
 
 
 async def _build_legacy_escrow_detail(tx: dict, member_id: Optional[str]) -> dict:
-    """Constrói payload `/orders/detail` para wallet_tx escrow (sistema legado do BLX).
+    """Constrói payload `/orders/detail` para wallet_tx escrow (sistema legado do PYX).
     Preserva o mesmo shape para o frontend renderizar a mesma UI."""
     # Permissão: só comprador/vendedor/admin
     if member_id:
@@ -4969,20 +5007,20 @@ async def orders_my_sales(member_id: str, status: Optional[str] = None, limit: i
     }
 
 
-# ---------- BLEX TOKEN (BLX) — P2P Transfer, Lookup, Extrato ----------
+# ---------- PYX TOKEN (PYX) — P2P Transfer, Lookup, Extrato ----------
 # Transferência instantânea entre membros usando saldo em centavos.
 
 
-class BlxTransferRequest(BaseModel):
+class PyxTransferRequest(BaseModel):
     from_member_id: str
-    to_wallet: Optional[str] = None      # aceita BLX-XXXXXXXX
+    to_wallet: Optional[str] = None      # aceita PYX-XXXXXXXX
     to_member_id: Optional[str] = None   # ou direto por id interno
     amount_centavos: int                 # valor em centavos
     note: Optional[str] = None
 
 
-@api_router.get("/blx/wallet/{member_id}")
-async def blx_get_wallet(member_id: str):
+@api_router.get("/pyx/wallet/{member_id}")
+async def pyx_get_wallet(member_id: str):
     """Retorna a carteira do membro garantindo wallet_number e balance_centavos."""
     w = await _wallet_get_or_create(member_id)
     bal = int(w.get("balance_centavos") or 0)
@@ -4992,27 +5030,27 @@ async def blx_get_wallet(member_id: str):
         "member_id": w["member_id"],
         "wallet_number": w.get("wallet_number"),
         "balance_centavos": bal,
-        "balance_blx": round(bal / 100.0, 2),
+        "balance_pyx": round(bal / 100.0, 2),
         "reserved_centavos": res,
-        "reserved_blx": round(res / 100.0, 2),
+        "reserved_pyx": round(res / 100.0, 2),
         "total_centavos": bal + res,
-        "total_blx": round((bal + res) / 100.0, 2),
+        "total_pyx": round((bal + res) / 100.0, 2),
         "escrow_in_centavos": int(round(float(w.get("escrow_in", 0.0)) * 100)),
         "escrow_out_centavos": int(round(float(w.get("escrow_out", 0.0)) * 100)),
-        "currency": "BLX",
+        "currency": "PYX",
     }
 
 
-@api_router.get("/blx/lookup")
-async def blx_lookup(q: str):
-    """Busca destinatário por número de carteira (BLX-XXXX), email, telefone ou nome.
+@api_router.get("/pyx/lookup")
+async def pyx_lookup(q: str):
+    """Busca destinatário por número de carteira (PYX-XXXX), email, telefone ou nome.
     Retorna uma pequena lista com no máximo 8 membros para UX de transferência."""
     q = (q or "").strip()
     if len(q) < 3:
         return []
     q_up = q.upper()
     # 1) Match exato por wallet_number
-    if q_up.startswith("BLX-"):
+    if q_up.startswith("PYX-"):
         w = await db.wallets.find_one({"wallet_number": q_up}, {"_id": 0})
         if w:
             m = await db.members.find_one({"member_id": w["member_id"]}, {"_id": 0, "password_hash": 0})
@@ -5052,15 +5090,15 @@ async def blx_lookup(q: str):
     return results
 
 
-@api_router.post("/blx/transfer")
-async def blx_transfer(data: BlxTransferRequest):
-    """Transferência P2P instantânea em BLX entre dois membros.
+@api_router.post("/pyx/transfer")
+async def pyx_transfer(data: PyxTransferRequest):
+    """Transferência P2P instantânea em PYX entre dois membros.
     Valor em centavos. Não exige escrow — liquidação imediata.
-    Sujeito a limite mensal por tier (ver BLX_MONTHLY_TRANSFER_LIMITS_CENTAVOS)."""
+    Sujeito a limite mensal por tier (ver PYX_MONTHLY_TRANSFER_LIMITS_CENTAVOS)."""
     amt = int(data.amount_centavos or 0)
     if amt <= 0:
         raise HTTPException(status_code=400, detail="Valor inválido")
-    if amt > 1_000_000_000:  # teto sanitário: 10M BLX por operação
+    if amt > 1_000_000_000:  # teto sanitário: 10M PYX por operação
         raise HTTPException(status_code=400, detail="Valor acima do permitido")
 
     # Resolve destinatário
@@ -5094,7 +5132,7 @@ async def blx_transfer(data: BlxTransferRequest):
 
     if not is_staff:
         sender_tier = (sender.get("tier") or "black").lower()
-        monthly_limit = BLX_MONTHLY_TRANSFER_LIMITS_CENTAVOS.get(sender_tier, 0)
+        monthly_limit = PYX_MONTHLY_TRANSFER_LIMITS_CENTAVOS.get(sender_tier, 0)
         if monthly_limit == 0:
             raise HTTPException(
                 status_code=403,
@@ -5121,8 +5159,8 @@ async def blx_transfer(data: BlxTransferRequest):
                 status_code=403,
                 detail=(
                     f"Limite mensal de transferências excedido. "
-                    f"Plano {sender_tier.upper()}: {monthly_limit/100:,.0f} BLX/mês · "
-                    f"Disponível agora: {remaining/100:,.0f} BLX."
+                    f"Plano {sender_tier.upper()}: {monthly_limit/100:,.0f} PYX/mês · "
+                    f"Disponível agora: {remaining/100:,.0f} PYX."
                 ),
             )
 
@@ -5155,7 +5193,7 @@ async def blx_transfer(data: BlxTransferRequest):
         "to_wallet": wt.get("wallet_number"),
         "amount": amt_float,
         "amount_centavos": amt,
-        "currency": "BLX",
+        "currency": "PYX",
         "status": "settled",
         "note": (data.note or "").strip()[:140] or None,
         "created_at": now,
@@ -5166,9 +5204,9 @@ async def blx_transfer(data: BlxTransferRequest):
     return tx
 
 
-@api_router.get("/blx/transfer/limits/{member_id}")
-async def blx_transfer_limits(member_id: str):
-    """Retorna o limite mensal de transferência BLX do membro, quanto usado e restante.
+@api_router.get("/pyx/transfer/limits/{member_id}")
+async def pyx_transfer_limits(member_id: str):
+    """Retorna o limite mensal de transferência PYX do membro, quanto usado e restante.
     Staff (admin/support/financeiro) é retornado como ilimitado (-1)."""
     m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "tier": 1, "email": 1})
     if not m:
@@ -5199,7 +5237,7 @@ async def blx_transfer_limits(member_id: str):
             "limit_centavos": -1, "used_centavos": total_used,
             "available_centavos": -1, "month_start": month_start.isoformat(),
         }
-    monthly_limit = BLX_MONTHLY_TRANSFER_LIMITS_CENTAVOS.get(tier, 0)
+    monthly_limit = PYX_MONTHLY_TRANSFER_LIMITS_CENTAVOS.get(tier, 0)
     return {
         "tier": tier, "role": role, "unlimited": False,
         "limit_centavos": monthly_limit,
@@ -5209,8 +5247,8 @@ async def blx_transfer_limits(member_id: str):
     }
 
 
-@api_router.get("/blx/transactions/{member_id}")
-async def blx_transactions(member_id: str, limit: int = 50, skip: int = 0):
+@api_router.get("/pyx/transactions/{member_id}")
+async def pyx_transactions(member_id: str, limit: int = 50, skip: int = 0):
     """Extrato completo paginado do membro. Enriquece com info do contra-parte."""
     limit = max(1, min(int(limit or 50), 200))
     skip = max(0, int(skip or 0))
@@ -5508,30 +5546,30 @@ async def get_notifications(member_id: str):
         iAmSeller = tx.get("to_id") == member_id
         typ = tx.get("type")
         cents = int(tx.get("amount_centavos") or round(float(tx.get("amount", 0)) * 100))
-        blx_str = f"{cents // 100:,}".replace(",", ".") + f",{cents % 100:02d} BLX"
+        pyx_str = f"{cents // 100:,}".replace(",", ".") + f",{cents % 100:02d} PYX"
         if typ == "topup":
-            items.append({"id": f"tx_{tx.get('tx_id')}", "type": "wallet", "title": "Crédito BLX recebido", "body": f"+{blx_str} adicionados à sua carteira.", "route": "/(tabs)/wallet", "created_at": tx.get("created_at"), "icon": "add-circle", "color": "#4EE07F"})
+            items.append({"id": f"tx_{tx.get('tx_id')}", "type": "wallet", "title": "Crédito PYX recebido", "body": f"+{pyx_str} adicionados à sua carteira.", "route": "/(tabs)/wallet", "created_at": tx.get("created_at"), "icon": "add-circle", "color": "#4EE07F"})
         elif typ == "withdraw":
-            items.append({"id": f"tx_{tx.get('tx_id')}", "type": "wallet", "title": "Débito BLX", "body": f"−{blx_str} da sua carteira.", "route": "/(tabs)/wallet", "created_at": tx.get("created_at"), "icon": "arrow-down-circle", "color": "#F5C150"})
+            items.append({"id": f"tx_{tx.get('tx_id')}", "type": "wallet", "title": "Débito PYX", "body": f"−{pyx_str} da sua carteira.", "route": "/(tabs)/wallet", "created_at": tx.get("created_at"), "icon": "arrow-down-circle", "color": "#F5C150"})
         elif typ == "transfer":
             if iAmBuyer:  # enviei
-                items.append({"id": f"tx_{tx.get('tx_id')}", "type": "transfer", "title": "BLX enviado", "body": f"−{blx_str} para {tx.get('to_name') or tx.get('to_wallet') or 'outro membro'}.", "route": "/blx/history", "created_at": tx.get("created_at"), "icon": "arrow-up-circle", "color": "#F87171"})
+                items.append({"id": f"tx_{tx.get('tx_id')}", "type": "transfer", "title": "PYX enviado", "body": f"−{pyx_str} para {tx.get('to_name') or tx.get('to_wallet') or 'outro membro'}.", "route": "/pyx/history", "created_at": tx.get("created_at"), "icon": "arrow-up-circle", "color": "#F87171"})
             elif iAmSeller:  # recebi
-                items.append({"id": f"tx_{tx.get('tx_id')}", "type": "transfer", "title": "BLX recebido", "body": f"+{blx_str} de {tx.get('from_name') or tx.get('from_wallet') or 'outro membro'}.", "route": "/blx/history", "created_at": tx.get("created_at"), "icon": "arrow-down-circle", "color": "#4EE07F"})
+                items.append({"id": f"tx_{tx.get('tx_id')}", "type": "transfer", "title": "PYX recebido", "body": f"+{pyx_str} de {tx.get('from_name') or tx.get('from_wallet') or 'outro membro'}.", "route": "/pyx/history", "created_at": tx.get("created_at"), "icon": "arrow-down-circle", "color": "#4EE07F"})
         elif typ == "escrow":
             status = tx.get("status")
             if iAmBuyer:
                 if status == "escrow":
-                    items.append({"id": f"tx_{tx.get('tx_id')}_b", "type": "order", "title": f"Compra efetuada: {tx.get('ad_title','Anúncio')}", "body": f"{blx_str} em escrow. Confirme o recebimento quando chegar.", "route": "/blx/orders", "created_at": tx.get("created_at"), "icon": "lock-closed", "color": "#F5C150"})
+                    items.append({"id": f"tx_{tx.get('tx_id')}_b", "type": "order", "title": f"Compra efetuada: {tx.get('ad_title','Anúncio')}", "body": f"{pyx_str} em escrow. Confirme o recebimento quando chegar.", "route": "/pyx/orders", "created_at": tx.get("created_at"), "icon": "lock-closed", "color": "#F5C150"})
                 elif status == "settled":
-                    items.append({"id": f"tx_{tx.get('tx_id')}_b", "type": "order", "title": f"Compra liberada: {tx.get('ad_title','Anúncio')}", "body": f"Você confirmou o recebimento de {blx_str}. Avalie o vendedor!", "route": "/blx/orders", "created_at": tx.get("settled_at") or tx.get("created_at"), "icon": "checkmark-circle", "color": "#4EE07F"})
+                    items.append({"id": f"tx_{tx.get('tx_id')}_b", "type": "order", "title": f"Compra liberada: {tx.get('ad_title','Anúncio')}", "body": f"Você confirmou o recebimento de {pyx_str}. Avalie o vendedor!", "route": "/pyx/orders", "created_at": tx.get("settled_at") or tx.get("created_at"), "icon": "checkmark-circle", "color": "#4EE07F"})
                 elif status == "refunded":
-                    items.append({"id": f"tx_{tx.get('tx_id')}_b", "type": "order", "title": f"Reembolso: {tx.get('ad_title','Anúncio')}", "body": f"{blx_str} devolvidos à sua carteira.", "route": "/blx/orders", "created_at": tx.get("settled_at") or tx.get("created_at"), "icon": "return-up-back", "color": "#AAA"})
+                    items.append({"id": f"tx_{tx.get('tx_id')}_b", "type": "order", "title": f"Reembolso: {tx.get('ad_title','Anúncio')}", "body": f"{pyx_str} devolvidos à sua carteira.", "route": "/pyx/orders", "created_at": tx.get("settled_at") or tx.get("created_at"), "icon": "return-up-back", "color": "#AAA"})
             elif iAmSeller:
                 if status == "escrow":
-                    items.append({"id": f"tx_{tx.get('tx_id')}_s", "type": "sale", "title": f"Nova venda: {tx.get('ad_title','Anúncio')}", "body": f"{blx_str} aguardando entrega. Combine com o comprador.", "route": "/blx/orders", "created_at": tx.get("created_at"), "icon": "cash", "color": "#4EE07F"})
+                    items.append({"id": f"tx_{tx.get('tx_id')}_s", "type": "sale", "title": f"Nova venda: {tx.get('ad_title','Anúncio')}", "body": f"{pyx_str} aguardando entrega. Combine com o comprador.", "route": "/pyx/orders", "created_at": tx.get("created_at"), "icon": "cash", "color": "#4EE07F"})
                 elif status == "settled":
-                    items.append({"id": f"tx_{tx.get('tx_id')}_s", "type": "sale", "title": f"Pagamento liberado: {tx.get('ad_title','Anúncio')}", "body": f"Comprador confirmou. +{blx_str} na sua carteira.", "route": "/blx/orders", "created_at": tx.get("settled_at") or tx.get("created_at"), "icon": "checkmark-done", "color": "#4EE07F"})
+                    items.append({"id": f"tx_{tx.get('tx_id')}_s", "type": "sale", "title": f"Pagamento liberado: {tx.get('ad_title','Anúncio')}", "body": f"Comprador confirmou. +{pyx_str} na sua carteira.", "route": "/pyx/orders", "created_at": tx.get("settled_at") or tx.get("created_at"), "icon": "checkmark-done", "color": "#4EE07F"})
 
     # Group invites (custom groups where I'm invited)
     g_cur = db.groups.find({"is_custom": True, "invited_ids": member_id, "owner_id": {"$ne": member_id}, "created_at": {"$gte": since}}, {"_id": 0}).sort("created_at", -1).limit(10)
@@ -5539,7 +5577,7 @@ async def get_notifications(member_id: str):
         owner = await db.members.find_one({"member_id": g.get("owner_id")}, {"_id": 0, "nickname": 1, "name": 1})
         items.append({"id": f"g_{g.get('group_id')}", "type": "group", "title": f"{(owner or {}).get('nickname') or 'Alguém'} te convidou para o grupo '{g.get('name')}'", "body": g.get("description") or "Entre e interaja!", "route": f"/community/group/{g.get('group_id')}", "created_at": g.get("created_at"), "icon": "people", "color": g.get("color", "#D4AF37")})
 
-    # ============== MINHAS RECARGAS PIX → BLX ==============
+    # ============== MINHAS RECARGAS PIX → PYX ==============
     # Mostra status (pending/approved/rejected) dos meus pedidos de recarga,
     # para o membro saber em tempo real se o crédito foi aprovado ou recusado.
     pix_my_cur = db.pix_orders.find(
@@ -5548,15 +5586,15 @@ async def get_notifications(member_id: str):
     ).sort("created_at", -1).limit(20)
     async for p in pix_my_cur:
         cents_brl = int(p.get("amount_brl_centavos", 0))
-        cents_blx = int(p.get("blx_centavos", 0))
+        cents_pyx = int(p.get("pyx_centavos", 0))
         brl_str = f"R$ {cents_brl // 100:,}".replace(",", ".") + f",{cents_brl % 100:02d}"
-        blx_str = f"{cents_blx // 100:,}".replace(",", ".") + f",{cents_blx % 100:02d} BLX"
+        pyx_str = f"{cents_pyx // 100:,}".replace(",", ".") + f",{cents_pyx % 100:02d} PYX"
         status = p.get("status", "pending")
         # Para o item mais recente de cada status, usa created_at OU o timestamp da decisão
         # (approved_at / rejected_at) — assim a notificação "sobe" no feed quando muda.
         if status == "approved" and p.get("approved_at"):
             ts = p.get("approved_at")
-            title = f"✅ Sua recarga foi APROVADA · {blx_str}"
+            title = f"✅ Sua recarga foi APROVADA · {pyx_str}"
             body = f"PIX de {brl_str} confirmado · saldo já creditado na sua carteira"
             color = "#4EE07F"
             icon = "checkmark-circle"
@@ -5630,12 +5668,12 @@ async def get_notifications(member_id: str):
         ).sort("created_at", -1).limit(30)
         async for s in sales_cur:
             cents = int(s.get("amount_centavos") or round(float(s.get("amount", 0)) * 100))
-            blx_str = f"{cents // 100:,}".replace(",", ".") + f",{cents % 100:02d} BLX"
+            pyx_str = f"{cents // 100:,}".replace(",", ".") + f",{cents % 100:02d} PYX"
             items.append({
                 "id": f"adm_sale_{s.get('tx_id')}",
                 "type": "admin_sale",
                 "title": f"💰 Compra no marketplace · {s.get('ad_title','Anúncio')}",
-                "body": f"{blx_str} · {s.get('from_name','Comprador')} → {s.get('to_name','Vendedor')}",
+                "body": f"{pyx_str} · {s.get('from_name','Comprador')} → {s.get('to_name','Vendedor')}",
                 "route": "/staff/dashboard",
                 "created_at": s.get("created_at"),
                 "icon": "cart",
@@ -5894,11 +5932,11 @@ async def chat_recent_senders(member_id: str):
     return {"senders": senders}
 
 
-# ---------- BLX ORDERS (escrow marketplace) ----------
+# ---------- PYX ORDERS (escrow marketplace) ----------
 
 
-@api_router.get("/blx/orders/{member_id}")
-async def blx_orders(member_id: str, role: str = "all"):
+@api_router.get("/pyx/orders/{member_id}")
+async def pyx_orders(member_id: str, role: str = "all"):
     """Lista escrow transactions onde o membro é comprador ou vendedor.
     role=buyer | seller | all. Ordenado por data desc."""
     q: Dict[str, Any] = {"type": "escrow"}
@@ -5929,7 +5967,7 @@ async def blx_orders(member_id: str, role: str = "all"):
     # Verifica se há avaliação
     rated_tx_ids = set()
     if tx_ids:
-        async for r in db.blx_ratings.find({"tx_id": {"$in": tx_ids}, "rater_id": member_id}, {"_id": 0, "tx_id": 1}):
+        async for r in db.pyx_ratings.find({"tx_id": {"$in": tx_ids}, "rater_id": member_id}, {"_id": 0, "tx_id": 1}):
             rated_tx_ids.add(r["tx_id"])
     out = []
     for t in orders:
@@ -5954,18 +5992,18 @@ async def blx_orders(member_id: str, role: str = "all"):
     return out
 
 
-# ---------- BLX RATINGS (avaliação do vendedor) ----------
+# ---------- PYX RATINGS (avaliação do vendedor) ----------
 
 
-class BlxRatingRequest(BaseModel):
+class PyxRatingRequest(BaseModel):
     tx_id: str
     rater_id: str        # comprador
     rating: int          # 1..5
     comment: Optional[str] = None
 
 
-@api_router.post("/blx/ratings")
-async def blx_create_rating(data: BlxRatingRequest):
+@api_router.post("/pyx/ratings")
+async def pyx_create_rating(data: PyxRatingRequest):
     if data.rating < 1 or data.rating > 5:
         raise HTTPException(status_code=400, detail="Avaliação deve ser entre 1 e 5")
     tx = await db.wallet_txs.find_one({"tx_id": data.tx_id}, {"_id": 0})
@@ -5976,7 +6014,7 @@ async def blx_create_rating(data: BlxRatingRequest):
     if tx.get("status") != "settled":
         raise HTTPException(status_code=400, detail="Só é possível avaliar após liberar o pagamento")
     # upsert (só pode avaliar 1x)
-    existing = await db.blx_ratings.find_one({"tx_id": data.tx_id, "rater_id": data.rater_id})
+    existing = await db.pyx_ratings.find_one({"tx_id": data.tx_id, "rater_id": data.rater_id})
     if existing:
         raise HTTPException(status_code=400, detail="Você já avaliou esta compra")
     rating_doc = {
@@ -5990,24 +6028,24 @@ async def blx_create_rating(data: BlxRatingRequest):
         "comment": (data.comment or "").strip()[:500] or None,
         "created_at": datetime.now(timezone.utc),
     }
-    await db.blx_ratings.insert_one(rating_doc.copy())
+    await db.pyx_ratings.insert_one(rating_doc.copy())
     rating_doc.pop("_id", None)
     return rating_doc
 
 
-@api_router.get("/blx/ratings/seller/{seller_id}")
-async def blx_seller_ratings(seller_id: str, limit: int = 50):
+@api_router.get("/pyx/ratings/seller/{seller_id}")
+async def pyx_seller_ratings(seller_id: str, limit: int = 50):
     """Retorna avaliações + média do vendedor."""
-    cur = db.blx_ratings.find({"seller_id": seller_id}, {"_id": 0}).sort("created_at", -1).limit(int(limit))
+    cur = db.pyx_ratings.find({"seller_id": seller_id}, {"_id": 0}).sort("created_at", -1).limit(int(limit))
     ratings = await cur.to_list(length=int(limit))
-    total = await db.blx_ratings.count_documents({"seller_id": seller_id})
+    total = await db.pyx_ratings.count_documents({"seller_id": seller_id})
     avg = 0.0
     if total:
         pipeline = [
             {"$match": {"seller_id": seller_id}},
             {"$group": {"_id": None, "avg": {"$avg": "$rating"}}},
         ]
-        agg = await db.blx_ratings.aggregate(pipeline).to_list(length=1)
+        agg = await db.pyx_ratings.aggregate(pipeline).to_list(length=1)
         if agg:
             avg = round(float(agg[0].get("avg") or 0), 2)
     # Enriquece com nome do avaliador

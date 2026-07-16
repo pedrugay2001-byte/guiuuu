@@ -6,16 +6,16 @@ import {
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "../../src/icons";
-import { api, BlxTx } from "../../src/api";
+import { api, PyxTx } from "../../src/api";
 import { useGate } from "../../src/gate";
-import { formatBLX } from "../../src/blx";
+import { formatPYX } from "../../src/pyx";
 
 type Filter = "all" | "in" | "out";
 
 export default function History() {
   const router = useRouter();
   const { member } = useGate();
-  const [txs, setTxs] = useState<BlxTx[]>([]);
+  const [txs, setTxs] = useState<PyxTx[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -27,7 +27,7 @@ export default function History() {
   const load = useCallback(async (reset = false) => {
     if (!member) return;
     try {
-      const data = await api.blxTransactions(member.member_id, PAGE, 0);
+      const data = await api.pyxTransactions(member.member_id, PAGE, 0);
       setTxs(data);
       setHasMore(data.length === PAGE);
     } finally {
@@ -42,7 +42,7 @@ export default function History() {
     if (!member || loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const more = await api.blxTransactions(member.member_id, PAGE, txs.length);
+      const more = await api.pyxTransactions(member.member_id, PAGE, txs.length);
       setTxs((prev) => [...prev, ...more]);
       if (more.length < PAGE) setHasMore(false);
     } finally {
@@ -69,11 +69,11 @@ export default function History() {
     <View style={{ flex: 1, backgroundColor: "#050505" }}>
       <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
         <View style={styles.topBar}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} testID="blx-history-back">
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} testID="pyx-history-back">
             <Ionicons name="chevron-back" size={22} color="#FFF" />
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: "center" }}>
-            <Text style={styles.title}>EXTRATO BLX</Text>
+            <Text style={styles.title}>EXTRATO PYX</Text>
             <Text style={styles.sub}>{txs.length} {txs.length === 1 ? "movimentação" : "movimentações"}</Text>
           </View>
           <View style={{ width: 40 }} />
@@ -86,7 +86,7 @@ export default function History() {
               key={f.id}
               style={[styles.filterBtn, filter === f.id && styles.filterBtnActive]}
               onPress={() => setFilter(f.id)}
-              testID={`blx-filter-${f.id}`}
+              testID={`pyx-filter-${f.id}`}
             >
               <Text style={[styles.filterText, filter === f.id && styles.filterTextActive]}>{f.lbl}</Text>
             </TouchableOpacity>
@@ -118,7 +118,7 @@ export default function History() {
   );
 }
 
-function Row({ tx, me }: { tx: BlxTx; me: string }) {
+function Row({ tx, me }: { tx: PyxTx; me: string }) {
   const isOut = tx.from_id === me;
   let icon: any = "swap-horizontal";
   let color = "#AAA";
@@ -167,7 +167,7 @@ function Row({ tx, me }: { tx: BlxTx; me: string }) {
         )}
       </View>
       <Text style={[styles.txAmt, { color: isOut ? "#F87171" : "#4EE07F" }]}>
-        {sign}{formatBLX(tx.amount_centavos)} BLX
+        {sign}{formatPYX(tx.amount_centavos)} PYX
       </Text>
     </View>
   );

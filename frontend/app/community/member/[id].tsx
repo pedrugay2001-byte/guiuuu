@@ -6,7 +6,7 @@ import {
 import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "../../../src/icons";
 import { api, CommunityMember, Ad } from "../../../src/api";
-import { formatBLX } from "../../../src/blx";
+import { formatPYX } from "../../../src/pyx";
 import { TIERS } from "../../../src/theme";
 import GalleryViewer from "../../../src/gallery-viewer";
 
@@ -106,7 +106,7 @@ export default function MemberProfile() {
                 {a.images?.[0] ? <Image source={{ uri: a.images[0] }} style={styles.adImg} /> : <View style={[styles.adImg, { backgroundColor: "#1A1A1A", alignItems: "center", justifyContent: "center" }]}><Ionicons name="cube" size={20} color="#555" /></View>}
                 <View style={{ flex: 1 }}>
                   <Text style={styles.adTitle} numberOfLines={1}>{a.title}</Text>
-                  <Text style={styles.adPrice}>{formatBLX(Math.round(a.price_full * 100))} BLX</Text>
+                  <Text style={styles.adPrice}>{formatPYX(Math.round(a.price_full * 100))} PYX</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#666" />
               </TouchableOpacity>

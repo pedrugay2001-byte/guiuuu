@@ -9,7 +9,7 @@ import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
 import { api, Ad, ApiError } from "../../src/api";
 import { useGate } from "../../src/gate";
-import { formatBLX } from "../../src/blx";
+import { formatPYX } from "../../src/pyx";
 import { notify } from "../../src/alerts";
 import { theme, TIERS } from "../../src/theme";
 import InsufficientBalanceModal from "../../src/components/InsufficientBalanceModal";
@@ -111,20 +111,20 @@ export default function AdView() {
     if (!member || !ad) return;
     setBuying(true);
     try {
-      const r = await api.buyAdBLX(ad.ad_id, { member_id: member.member_id, pay_option: pay });
+      const r = await api.buyAdPYX(ad.ad_id, { member_id: member.member_id, pay_option: pay });
       setShowConfirm(false);
       notify(
         "Reserva confirmada",
-        (r.message || "BLX retidos em escrow.") +
+        (r.message || "PYX retidos em escrow.") +
           (r.remaining_cents > 0
-            ? ` Saldo de ${(r.remaining_cents / 100).toFixed(2)} BLX travado na sua carteira — liberado automaticamente na entrega.`
+            ? ` Saldo de ${(r.remaining_cents / 100).toFixed(2)} PYX travado na sua carteira — liberado automaticamente na entrega.`
             : ""),
       );
       refreshMember();
       setTimeout(() => router.back(), 1200);
     } catch (e: any) {
       setShowConfirm(false);
-      if (e instanceof ApiError && e.error_code === "INSUFFICIENT_BLX") {
+      if (e instanceof ApiError && e.error_code === "INSUFFICIENT_PYX") {
         setInsuf({
           required: e.data.required_centavos || 0,
           current: e.data.current_centavos || 0,
@@ -204,14 +204,14 @@ export default function AdView() {
             style={s.priceCard}
           >
             <View>
-              <Text style={s.priceLabel}>VALOR EM BLX</Text>
+              <Text style={s.priceLabel}>VALOR EM PYX</Text>
               <View style={s.priceRow}>
-                <Text style={s.priceBLX}>{formatBLX(finalCents)}</Text>
-                <Text style={s.priceUnit}>BLX</Text>
+                <Text style={s.pricePYX}>{formatPYX(finalCents)}</Text>
+                <Text style={s.priceUnit}>PYX</Text>
               </View>
               {effectiveDiscount > 0 && (
                 <Text style={s.priceOld}>
-                  Valor cheio {formatBLX(fullCents)} BLX · seu plano −{effectiveDiscount}%
+                  Valor cheio {formatPYX(fullCents)} PYX · seu plano −{effectiveDiscount}%
                 </Text>
               )}
             </View>
@@ -228,8 +228,8 @@ export default function AdView() {
             <View style={s.summaryRow}>
               <Text style={s.summaryLblBold}>Total</Text>
               <View style={{ alignItems: "flex-end" }}>
-                <Text style={[s.summaryTotal, { color: DIAMOND_LIGHT }]}>{formatBLX(finalCents)} BLX</Text>
-                {effectiveDiscount > 0 && <Text style={s.summarySaving}>economia {formatBLX(fullCents - finalCents)} BLX</Text>}
+                <Text style={[s.summaryTotal, { color: DIAMOND_LIGHT }]}>{formatPYX(finalCents)} PYX</Text>
+                {effectiveDiscount > 0 && <Text style={s.summarySaving}>economia {formatPYX(fullCents - finalCents)} PYX</Text>}
               </View>
             </View>
           </View>
@@ -250,7 +250,7 @@ export default function AdView() {
 
           {/* Info blocks IGUAL Catálogo */}
           <View style={s.infoRow}>
-            <InfoBlock icon="shield-checkmark-outline" label="Escrow" value="BLX" color={DIAMOND} />
+            <InfoBlock icon="shield-checkmark-outline" label="Escrow" value="PYX" color={DIAMOND} />
             <InfoBlock icon="lock-closed-outline" label="Acesso" value="Privado" color={DIAMOND} />
             <InfoBlock icon="rocket-outline" label="Envio" value="Discreto" color={DIAMOND} />
           </View>
@@ -258,13 +258,13 @@ export default function AdView() {
           <View style={s.securityBox}>
             <Ionicons name="shield-checkmark" size={18} color="#AAA" />
             <Text style={s.securityTxt}>
-              Transação privada entre membros do Círculo Diamante. Pagamento em BLEX Token (BLX) com custódia em escrow. Entrega combinada diretamente com o vendedor.
+              Transação privada entre membros do Círculo Diamante. Pagamento em PYX Token (PYX) com custódia em escrow. Entrega combinada diretamente com o vendedor.
             </Text>
           </View>
         </View>
       </ScrollView>
 
-      {/* FOOTER — carrinho + comprar BLX */}
+      {/* FOOTER — carrinho + comprar PYX */}
       {!isOwner && (
         <SafeAreaView style={s.footer} edges={["bottom"]}>
           <TouchableOpacity style={s.iconBtn} onPress={chatSeller} testID="ad-chat">
@@ -284,7 +284,7 @@ export default function AdView() {
           <TouchableOpacity
             style={s.buyBtn}
             onPress={() => setShowConfirm(true)}
-            testID="ad-buy-blx"
+            testID="ad-buy-pyx"
             activeOpacity={0.88}
           >
             <LinearGradient
@@ -293,7 +293,7 @@ export default function AdView() {
               style={s.buyBtnInner}
             >
               <MaterialCommunityIcons name="diamond-stone" size={16} color="#0A0A0A" />
-              <Text style={s.buyBtnTxt}>COMPRAR · {formatBLX(entryCents)} BLX AGORA</Text>
+              <Text style={s.buyBtnTxt}>COMPRAR · {formatPYX(entryCents)} PYX AGORA</Text>
             </LinearGradient>
           </TouchableOpacity>
         </SafeAreaView>
@@ -327,23 +327,23 @@ export default function AdView() {
             </View>
             <View style={[s.modalRow, { borderTopWidth: 1, borderTopColor: "#1F1F1F", paddingTop: 12, marginTop: 6 }]}>
               <Text style={[s.modalLbl, { color: DIAMOND }]}>TOTAL</Text>
-              <Text style={[s.modalVal, { color: DIAMOND_LIGHT, fontSize: 17 }]}>{formatBLX(finalCents)} BLX</Text>
+              <Text style={[s.modalVal, { color: DIAMOND_LIGHT, fontSize: 17 }]}>{formatPYX(finalCents)} PYX</Text>
             </View>
 
             {/* Destaque: debitado agora vs travado */}
             <View style={s.splitBox}>
               <View style={s.splitCol}>
                 <Text style={s.splitLbl}>A DEBITAR AGORA</Text>
-                <Text style={s.splitVal}>{formatBLX(entryCents)}</Text>
-                <Text style={s.splitUnit}>BLX · {entryPct}%</Text>
+                <Text style={s.splitVal}>{formatPYX(entryCents)}</Text>
+                <Text style={s.splitUnit}>PYX · {entryPct}%</Text>
               </View>
               <View style={[s.splitCol, { borderLeftWidth: 1, borderLeftColor: "#1F1F1F" }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                   <Ionicons name="lock-closed" size={9} color="#F5C150" />
                   <Text style={s.splitLbl}>TRAVADO · ENTREGA</Text>
                 </View>
-                <Text style={[s.splitVal, { color: "#F5C150" }]}>{formatBLX(remainingCents)}</Text>
-                <Text style={s.splitUnit}>BLX · {100 - entryPct}%</Text>
+                <Text style={[s.splitVal, { color: "#F5C150" }]}>{formatPYX(remainingCents)}</Text>
+                <Text style={s.splitUnit}>PYX · {100 - entryPct}%</Text>
               </View>
             </View>
 
@@ -464,7 +464,7 @@ const s = StyleSheet.create({
   },
   priceLabel: { color: DIAMOND_DARK, fontSize: 9.5, fontWeight: "900", letterSpacing: 2 },
   priceRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginTop: 4 },
-  priceBLX: { color: "#FFF", fontSize: 26, fontWeight: "900", letterSpacing: -1 },
+  pricePYX: { color: "#FFF", fontSize: 26, fontWeight: "900", letterSpacing: -1 },
   priceUnit: { color: DIAMOND, fontSize: 13, fontWeight: "900", letterSpacing: 1.5, marginBottom: 5 },
   priceOld: { color: "#777", fontSize: 10.5, marginTop: 4, fontStyle: "italic" },
 

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "../icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { formatBLX } from "../blx";
+import { formatPYX } from "../pyx";
 
 const GOLD_LIGHT = "#F4D47A";
 const GOLD = "#D4AF37";
@@ -19,8 +19,8 @@ interface Props {
 }
 
 /**
- * Modal premium exibido quando o saldo BLX do membro é insuficiente para a compra.
- * Oferece CTA direto para falar com o SUPORTE, que é responsável por creditar BLX.
+ * Modal premium exibido quando o saldo PYX do membro é insuficiente para a compra.
+ * Oferece CTA direto para falar com o SUPORTE, que é responsável por creditar PYX.
  */
 export default function InsufficientBalanceModal({
   visible,
@@ -34,7 +34,7 @@ export default function InsufficientBalanceModal({
 
   const handleSupport = () => {
     onClose();
-    // Abre o chat com o suporte/financeiro (responsável por creditar BLX)
+    // Abre o chat com o suporte/financeiro (responsável por creditar PYX)
     router.push("/chat" as any);
   };
 
@@ -62,7 +62,7 @@ export default function InsufficientBalanceModal({
 
           <Text style={styles.kicker}>SALDO INSUFICIENTE</Text>
           <Text style={styles.title}>
-            Seu saldo BLX não é suficiente para concluir esta compra.
+            Seu saldo PYX não é suficiente para concluir esta compra.
           </Text>
 
           <View style={styles.infoBox}>
@@ -74,25 +74,25 @@ export default function InsufficientBalanceModal({
             ) : null}
             <View style={styles.row}>
               <Text style={styles.lbl}>Necessário</Text>
-              <Text style={styles.val}>{formatBLX(requiredCents)} BLX</Text>
+              <Text style={styles.val}>{formatPYX(requiredCents)} PYX</Text>
             </View>
             <View style={styles.row}>
               <Text style={styles.lbl}>Seu saldo</Text>
               <Text style={[styles.val, { color: "#4EE07F" }]}>
-                {formatBLX(currentCents)} BLX
+                {formatPYX(currentCents)} PYX
               </Text>
             </View>
             <View style={[styles.row, styles.rowMissing]}>
               <Text style={[styles.lbl, { color: "#FF8A8A" }]}>Faltam</Text>
               <Text style={[styles.val, { color: "#FF8A8A", fontSize: 17 }]}>
-                {formatBLX(missingCents)} BLX
+                {formatPYX(missingCents)} PYX
               </Text>
             </View>
           </View>
 
           <Text style={styles.note}>
-            Para recarregar sua carteira BLX, fale com nosso suporte. Nossa equipe vai te
-            ajudar com o depósito e a conversão para BLX.
+            Para recarregar sua carteira PYX, fale com nosso suporte. Nossa equipe vai te
+            ajudar com o depósito e a conversão para PYX.
           </Text>
 
           <TouchableOpacity

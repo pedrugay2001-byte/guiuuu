@@ -21,7 +21,7 @@ type TabKey = typeof TABS[number]["key"];
 /**
  * Painel de pedidos PIX para STAFF/ADMIN.
  * - Lista pedidos por status (Pendentes/Aprovados/Rejeitados)
- * - Aprovação credita BLX automaticamente na carteira do membro (com taxa 1%)
+ * - Aprovação credita PYX automaticamente na carteira do membro (com taxa 1%)
  * - Rejeição requer um motivo
  */
 export default function StaffPixOrders() {
@@ -63,7 +63,7 @@ export default function StaffPixOrders() {
     // confirm() universal: funciona tanto em web (window.confirm) quanto em mobile (Alert nativo)
     const ok = await confirm(
       "Aprovar pedido?",
-      `Confirma o crédito de ${(o.blx_centavos / 100).toFixed(2)} BLX para ${o.member_name || "membro"}?\n(R$ ${(o.amount_brl_centavos / 100).toFixed(2)} pago no PIX)`,
+      `Confirma o crédito de ${(o.pyx_centavos / 100).toFixed(2)} PYX para ${o.member_name || "membro"}?\n(R$ ${(o.amount_brl_centavos / 100).toFixed(2)} pago no PIX)`,
     );
     if (!ok) return;
     setActioning(o.order_id);
@@ -71,7 +71,7 @@ export default function StaffPixOrders() {
       await api.pixOrderApprove(o.order_id);
       notify(
         "✅ Pedido aprovado",
-        `${(o.blx_centavos / 100).toFixed(2)} BLX creditados para ${o.member_name || "o membro"}.`,
+        `${(o.pyx_centavos / 100).toFixed(2)} PYX creditados para ${o.member_name || "o membro"}.`,
       );
       load();
     } catch (e: any) {
@@ -113,7 +113,7 @@ export default function StaffPixOrders() {
     <SafeAreaView style={st.container} edges={["top", "bottom"]}>
       <Stack.Screen
         options={{
-          title: "Pedidos PIX → BLX",
+          title: "Pedidos PIX → PYX",
           headerStyle: { backgroundColor: "#050505" },
           headerTintColor: "#FFF",
         }}
@@ -255,9 +255,9 @@ function OrderCard({
         </View>
         <Ionicons name="arrow-forward" size={18} color="#666" />
         <View style={st.amountCol}>
-          <Text style={[st.amountLbl, { textAlign: "right" }]}>RECEBE EM BLX</Text>
+          <Text style={[st.amountLbl, { textAlign: "right" }]}>RECEBE EM PYX</Text>
           <Text style={[st.amountVal, { color: "#4EE07F", textAlign: "right" }]}>
-            {(o.blx_centavos / 100).toFixed(2)} BLX
+            {(o.pyx_centavos / 100).toFixed(2)} PYX
           </Text>
         </View>
       </View>

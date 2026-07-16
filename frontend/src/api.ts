@@ -59,7 +59,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       else if (Array.isArray(data.detail))
         detail = data.detail.map((e: any) => e.msg || JSON.stringify(e)).join(" ");
       else if (data.detail && typeof data.detail === "object")
-        detail = data.detail; // objeto estruturado (ex: INSUFFICIENT_BLX)
+        detail = data.detail; // objeto estruturado (ex: INSUFFICIENT_PYX)
     } catch {}
     const msg = typeof detail === "string" ? detail : (detail?.message || "Erro na requisição");
     throw new ApiError(
@@ -201,7 +201,7 @@ export const api = {
     request<Product>(`/products/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteProduct: (id: string) =>
     request<{ ok: boolean }>(`/products/${id}`, { method: "DELETE" }),
-  buyProductBLX: (product_id: string, body: { member_id: string; quantity: number; pay_option?: "full" | "half" | "entry" }) =>
+  buyProductPYX: (product_id: string, body: { member_id: string; quantity: number; pay_option?: "full" | "half" | "entry" }) =>
     request<{
       ok: boolean;
       order_id: string;
@@ -214,8 +214,8 @@ export const api = {
       quantity: number;
       new_balance_centavos: number;
       message: string;
-    }>(`/products/${product_id}/buy-blx`, { method: "POST", body: JSON.stringify(body) }),
-  buyAdBLX: (ad_id: string, body: { member_id: string; pay_option: "full" | "half" | "entry" }) =>
+    }>(`/products/${product_id}/buy-pyx`, { method: "POST", body: JSON.stringify(body) }),
+  buyAdPYX: (ad_id: string, body: { member_id: string; pay_option: "full" | "half" | "entry" }) =>
     request<{
       ok: boolean;
       order_id: string;
@@ -227,7 +227,7 @@ export const api = {
       pay_option: "full" | "half" | "entry";
       new_balance_centavos: number;
       message: string;
-    }>(`/ads/${ad_id}/buy-blx`, { method: "POST", body: JSON.stringify(body) }),
+    }>(`/ads/${ad_id}/buy-pyx`, { method: "POST", body: JSON.stringify(body) }),
   createOrder: (body: { member_id: string; items: any[]; total: number }) =>
     request<{ order_id: string; status: string }>("/orders", {
       method: "POST", body: JSON.stringify(body),
@@ -389,13 +389,13 @@ export const api = {
     request<{ ok: boolean }>(`/wallet/refund/${tx_id}`, { method: "POST", body: JSON.stringify({ admin: true }) }),
 
   // VENDEDOR marca a transação escrow como "ENTREGUE" (estado intermediário) — não libera o pagamento
-  blxMarkShipped: (tx_id: string, seller_id: string) =>
+  pyxMarkShipped: (tx_id: string, seller_id: string) =>
     request<{ ok: boolean; shipped_at: string; already_shipped?: boolean }>(
-      `/blx/orders/${tx_id}/mark-shipped`,
+      `/pyx/orders/${tx_id}/mark-shipped`,
       { method: "POST", body: JSON.stringify({ seller_id }) },
     ),
 
-  // ----- PIX Manual Orders (recarga BLX com aprovação manual do suporte) -----
+  // ----- PIX Manual Orders (recarga PYX com aprovação manual do suporte) -----
   pixInfo: () =>
     request<{
       beneficiario: string;
@@ -403,46 +403,46 @@ export const api = {
       instituicao: string;
       pix_code: string;
       fee_pct: number;
-      rate_brl_to_blx: number;
+      rate_brl_to_pyx: number;
       min_brl: number;
       estimated_minutes: number;
       instructions: string[];
-    }>("/blx/pix-info"),
+    }>("/pyx/pix-info"),
   pixOrderCreate: (body: { member_id: string; amount_brl: number; note?: string; receipt_base64?: string }) =>
-    request<PixOrder>("/blx/pix-orders", { method: "POST", body: JSON.stringify(body) }),
+    request<PixOrder>("/pyx/pix-orders", { method: "POST", body: JSON.stringify(body) }),
   pixOrdersMine: (member_id: string) =>
-    request<{ orders: PixOrder[] }>(`/blx/pix-orders/me/${member_id}`),
+    request<{ orders: PixOrder[] }>(`/pyx/pix-orders/me/${member_id}`),
   pixOrdersList: (status?: "pending" | "approved" | "rejected") =>
-    request<{ orders: PixOrder[] }>(`/blx/pix-orders${status ? `?status=${status}` : ""}`),
+    request<{ orders: PixOrder[] }>(`/pyx/pix-orders${status ? `?status=${status}` : ""}`),
   pixOrdersStats: () =>
-    request<{ pending: number; approved: number; rejected: number }>("/blx/pix-orders/stats"),
+    request<{ pending: number; approved: number; rejected: number }>("/pyx/pix-orders/stats"),
   pixOrderApprove: (order_id: string, note?: string) =>
-    request<{ ok: boolean; order: PixOrder }>(`/blx/pix-orders/${order_id}/approve`, {
+    request<{ ok: boolean; order: PixOrder }>(`/pyx/pix-orders/${order_id}/approve`, {
       method: "POST",
       body: JSON.stringify({ note }),
     }),
   pixOrderReject: (order_id: string, note?: string) =>
-    request<{ ok: boolean; order: PixOrder }>(`/blx/pix-orders/${order_id}/reject`, {
+    request<{ ok: boolean; order: PixOrder }>(`/pyx/pix-orders/${order_id}/reject`, {
       method: "POST",
       body: JSON.stringify({ note }),
     }),
 
-  // ----- BLEX TOKEN (BLX) — Banco Profissional -----
-  blxWallet: (member_id: string) =>
-    request<BlxWallet>(`/blx/wallet/${member_id}`),
-  blxTransactions: (member_id: string, limit = 50, skip = 0) =>
-    request<BlxTx[]>(`/blx/transactions/${member_id}?limit=${limit}&skip=${skip}`),
-  blxLookup: (q: string) =>
-    request<BlxContact[]>(`/blx/lookup?q=${encodeURIComponent(q)}`),
-  blxTransfer: (body: {
+  // ----- PYX TOKEN (PYX) — Banco Profissional -----
+  pyxWallet: (member_id: string) =>
+    request<PyxWallet>(`/pyx/wallet/${member_id}`),
+  pyxTransactions: (member_id: string, limit = 50, skip = 0) =>
+    request<PyxTx[]>(`/pyx/transactions/${member_id}?limit=${limit}&skip=${skip}`),
+  pyxLookup: (q: string) =>
+    request<PyxContact[]>(`/pyx/lookup?q=${encodeURIComponent(q)}`),
+  pyxTransfer: (body: {
     from_member_id: string;
     to_wallet?: string;
     to_member_id?: string;
     amount_centavos: number;
     note?: string;
-  }) => request<BlxTx>("/blx/transfer", { method: "POST", body: JSON.stringify(body) }),
+  }) => request<PyxTx>("/pyx/transfer", { method: "POST", body: JSON.stringify(body) }),
 
-  blxTransferLimits: (member_id: string) =>
+  pyxTransferLimits: (member_id: string) =>
     request<{
       tier: string;
       role: string | null;
@@ -451,17 +451,17 @@ export const api = {
       used_centavos: number;
       available_centavos: number;
       month_start: string;
-    }>(`/blx/transfer/limits/${member_id}`),
+    }>(`/pyx/transfer/limits/${member_id}`),
 
-  // ----- BLX Orders (escrow marketplace) -----
-  blxOrders: (member_id: string, role: "buyer" | "seller" | "all" = "all") =>
-    request<BlxOrder[]>(`/blx/orders/${member_id}?role=${role}`),
+  // ----- PYX Orders (escrow marketplace) -----
+  pyxOrders: (member_id: string, role: "buyer" | "seller" | "all" = "all") =>
+    request<PyxOrder[]>(`/pyx/orders/${member_id}?role=${role}`),
 
-  // ----- BLX Seller Ratings -----
-  blxCreateRating: (body: { tx_id: string; rater_id: string; rating: number; comment?: string }) =>
-    request<any>("/blx/ratings", { method: "POST", body: JSON.stringify(body) }),
-  blxSellerRatings: (seller_id: string, limit = 50) =>
-    request<{ count: number; average: number; ratings: any[] }>(`/blx/ratings/seller/${seller_id}?limit=${limit}`),
+  // ----- PYX Seller Ratings -----
+  pyxCreateRating: (body: { tx_id: string; rater_id: string; rating: number; comment?: string }) =>
+    request<any>("/pyx/ratings", { method: "POST", body: JSON.stringify(body) }),
+  pyxSellerRatings: (seller_id: string, limit = 50) =>
+    request<{ count: number; average: number; ratings: any[] }>(`/pyx/ratings/seller/${seller_id}?limit=${limit}`),
 
   // ----- AI: Whisper transcription -----
   aiTranscribe: (audio_base64: string, mime?: string) =>
@@ -496,7 +496,7 @@ export const api = {
     request<CartResponse>(`/cart/${member_id}`),
   cartClear: (member_id: string) =>
     request<{ ok: boolean }>(`/cart/${member_id}`, { method: "DELETE" }),
-  cartCheckoutBLX: (member_id: string, pay_option: "full" | "half" | "entry" = "full") =>
+  cartCheckoutPYX: (member_id: string, pay_option: "full" | "half" | "entry" = "full") =>
     request<{
       ok: boolean;
       total_cents: number;
@@ -508,7 +508,7 @@ export const api = {
       txs: string[];
       new_balance_centavos: number;
       message: string;
-    }>("/cart/checkout-blx", { method: "POST", body: JSON.stringify({ member_id, pay_option }) }),
+    }>("/cart/checkout-pyx", { method: "POST", body: JSON.stringify({ member_id, pay_option }) }),
 
   // ----- Orders (partial payment + escrow) -----
   orderDeliver: (order_id: string, actor_id: string) =>
@@ -669,7 +669,7 @@ export type PixOrder = {
   member_name?: string;
   member_tier?: TierId | null;
   amount_brl_centavos: number;
-  blx_centavos: number;
+  pyx_centavos: number;
   fee_pct: number;
   status: "pending" | "approved" | "rejected" | "cancelled";
   note?: string | null;
@@ -729,18 +729,18 @@ export type Wallet = {
   escrow_in: number;
   escrow_out: number;
 };
-export type BlxWallet = {
+export type PyxWallet = {
   member_id: string;
   wallet_number: string;
   balance_centavos: number;
-  balance_blx: number;
+  balance_pyx: number;
   reserved_centavos?: number;
-  reserved_blx?: number;
+  reserved_pyx?: number;
   total_centavos?: number;
-  total_blx?: number;
+  total_pyx?: number;
   escrow_in_centavos: number;
   escrow_out_centavos: number;
-  currency: "BLX";
+  currency: "PYX";
 };
 
 export type MyOrder = {
@@ -788,7 +788,7 @@ export type OrdersBucket = {
   total_pending_delivery_centavos?: number;
   total_in_escrow_centavos?: number;
 };
-export type BlxContact = {
+export type PyxContact = {
   member_id: string;
   name: string;
   nickname?: string | null;
@@ -796,7 +796,7 @@ export type BlxContact = {
   avatar_base64?: string | null;
   wallet_number: string;
 };
-export type BlxTx = {
+export type PyxTx = {
   tx_id: string;
   type: "transfer" | "topup" | "withdraw" | "escrow";
   from_id: string | null;
@@ -807,7 +807,7 @@ export type BlxTx = {
   to_wallet?: string | null;
   amount: number;
   amount_centavos: number;
-  currency?: "BLX";
+  currency?: "PYX";
   status: "settled" | "escrow" | "refunded";
   note?: string | null;
   ad_id?: string;
@@ -817,7 +817,7 @@ export type BlxTx = {
   shipped_at?: string;   // vendedor marcou como entregue (escrow intermediário)
   shipped_by?: string;
 };
-export type BlxOrder = BlxTx & {
+export type PyxOrder = PyxTx & {
   i_am_buyer: boolean;
   i_am_seller: boolean;
   counterpart?: {

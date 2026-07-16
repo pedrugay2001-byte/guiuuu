@@ -6,9 +6,9 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "../../src/icons";
-import { api, BlxContact, BlxWallet } from "../../src/api";
+import { api, PyxContact, PyxWallet } from "../../src/api";
 import { useGate } from "../../src/gate";
-import { formatBLX, maskBLXInput, maskedToCents } from "../../src/blx";
+import { formatPYX, maskPYXInput, maskedToCents } from "../../src/pyx";
 import { TIERS } from "../../src/theme";
 
 type Step = "search" | "amount" | "review" | "success";
@@ -20,10 +20,10 @@ export default function Send() {
 
   const [step, setStep] = useState<Step>("search");
   const [query, setQuery] = useState(params?.wallet || "");
-  const [results, setResults] = useState<BlxContact[]>([]);
+  const [results, setResults] = useState<PyxContact[]>([]);
   const [searching, setSearching] = useState(false);
-  const [selected, setSelected] = useState<BlxContact | null>(null);
-  const [w, setW] = useState<BlxWallet | null>(null);
+  const [selected, setSelected] = useState<PyxContact | null>(null);
+  const [w, setW] = useState<PyxWallet | null>(null);
   const [masked, setMasked] = useState("0,00");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -38,8 +38,8 @@ export default function Send() {
 
   useEffect(() => {
     if (!member) return;
-    api.blxWallet(member.member_id).then(setW).catch(() => {});
-    api.blxTransferLimits(member.member_id).then(setLimits).catch(() => {});
+    api.pyxWallet(member.member_id).then(setW).catch(() => {});
+    api.pyxTransferLimits(member.member_id).then(setLimits).catch(() => {});
   }, [member]);
 
   // Busca com debounce
@@ -51,7 +51,7 @@ export default function Send() {
     debounceRef.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const r = await api.blxLookup(q);
+        const r = await api.pyxLookup(q);
         // Nunca mostra o próprio usuário
         setResults(r.filter((x) => x.member_id !== member?.member_id));
       } catch { setResults([]); }
@@ -64,14 +64,14 @@ export default function Send() {
   const balance = w?.balance_centavos || 0;
   const enough = amountCents > 0 && amountCents <= balance;
 
-  const pickContact = (c: BlxContact) => {
+  const pickContact = (c: PyxContact) => {
     setSelected(c);
     setStep("amount");
   };
 
   const confirmAmount = () => {
     if (amountCents <= 0) { Alert.alert("Valor inválido", "Informe um valor maior que zero."); return; }
-    if (amountCents > balance) { Alert.alert("Saldo insuficiente", `Você tem apenas ${formatBLX(balance)} BLX disponíveis.`); return; }
+    if (amountCents > balance) { Alert.alert("Saldo insuficiente", `Você tem apenas ${formatPYX(balance)} PYX disponíveis.`); return; }
     setStep("review");
   };
 
@@ -79,7 +79,7 @@ export default function Send() {
     if (!member || !selected) return;
     setSubmitting(true);
     try {
-      const tx = await api.blxTransfer({
+      const tx = await api.pyxTransfer({
         from_member_id: member.member_id,
         to_member_id: selected.member_id,
         amount_centavos: amountCents,
@@ -117,17 +117,17 @@ export default function Send() {
               else if (step === "review") setStep("amount");
               else router.back();
             }}
-            testID="blx-send-back"
+            testID="pyx-send-back"
           >
             <Ionicons name="chevron-back" size={22} color="#FFF" />
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: "center" }}>
             <Text style={styles.title}>
-              {step === "search" ? "ENVIAR BLX" : step === "amount" ? "VALOR" : step === "review" ? "CONFIRMAR" : "ENVIADO"}
+              {step === "search" ? "ENVIAR PYX" : step === "amount" ? "VALOR" : step === "review" ? "CONFIRMAR" : "ENVIADO"}
             </Text>
             <Text style={styles.sub}>
               {step === "search" ? "Escolha o destinatário"
-                : step === "amount" ? `Saldo: ${formatBLX(balance)} BLX`
+                : step === "amount" ? `Saldo: ${formatPYX(balance)} PYX`
                 : step === "review" ? "Revise antes de confirmar"
                 : "Transferência concluída"}
             </Text>
@@ -146,7 +146,7 @@ export default function Send() {
                     <Text style={styles.limitTitle}>LIMITE MENSAL</Text>
                   </View>
                   <Text style={styles.limitValue}>
-                    {formatBLX(limits.used_centavos)} / {formatBLX(limits.limit_centavos)} BLX
+                    {formatPYX(limits.used_centavos)} / {formatPYX(limits.limit_centavos)} PYX
                   </Text>
                 </View>
                 <View style={styles.limitBar}>
@@ -163,7 +163,7 @@ export default function Send() {
                 <Text style={styles.limitSub}>
                   {limits.available_centavos <= 0
                     ? "Limite mensal atingido — renova no próximo mês."
-                    : `Disponível: ${formatBLX(limits.available_centavos)} BLX`}
+                    : `Disponível: ${formatPYX(limits.available_centavos)} PYX`}
                 </Text>
               </View>
             )}
@@ -181,9 +181,9 @@ export default function Send() {
             <View style={styles.inputBox}>
               <Ionicons name="search" size={16} color="#8A8A8A" />
               <TextInput
-                testID="blx-search-input"
+                testID="pyx-search-input"
                 style={styles.input}
-                placeholder="BLX-XXXXXXXX ou nome"
+                placeholder="PYX-XXXXXXXX ou nome"
                 placeholderTextColor="#6B6B6B"
                 autoCapitalize="characters"
                 value={query}
@@ -208,7 +208,7 @@ export default function Send() {
                     key={c.member_id}
                     style={styles.contactRow}
                     onPress={() => pickContact(c)}
-                    testID={`blx-contact-${c.member_id}`}
+                    testID={`pyx-contact-${c.member_id}`}
                     activeOpacity={0.8}
                   >
                     <View style={[styles.avatar, { borderColor: tier.color }]}>
@@ -234,7 +234,7 @@ export default function Send() {
               <View style={styles.hintBox}>
                 <Ionicons name="bulb-outline" size={14} color="#D4AF37" />
                 <Text style={styles.hintText}>
-                  Digite ao menos 3 caracteres para buscar. Você pode usar o número da carteira (BLX-XXXX), nome, apelido, e-mail ou telefone.
+                  Digite ao menos 3 caracteres para buscar. Você pode usar o número da carteira (PYX-XXXX), nome, apelido, e-mail ou telefone.
                 </Text>
               </View>
             )}
@@ -246,26 +246,26 @@ export default function Send() {
             <ContactCard c={selected} />
 
             <Text style={[styles.label, { marginTop: 24, textAlign: "center" }]}>
-              VALOR A ENVIAR (BLX)
+              VALOR A ENVIAR (PYX)
             </Text>
             <View style={styles.amountBox}>
               <TextInput
-                testID="blx-amount-input"
+                testID="pyx-amount-input"
                 style={styles.amountInput}
                 value={masked}
-                onChangeText={(t) => setMasked(maskBLXInput(t))}
+                onChangeText={(t) => setMasked(maskPYXInput(t))}
                 keyboardType="number-pad"
                 placeholder="0,00"
                 placeholderTextColor="#3A3A3A"
                 autoFocus
                 selectTextOnFocus
               />
-              <Text style={styles.amountUnit}>BLX</Text>
+              <Text style={styles.amountUnit}>PYX</Text>
             </View>
             <Text style={[styles.balanceHint, !enough && amountCents > 0 && { color: "#F87171" }]}>
               {amountCents > 0 && amountCents > balance
-                ? `Saldo insuficiente (${formatBLX(balance)} BLX)`
-                : `Disponível: ${formatBLX(balance)} BLX`}
+                ? `Saldo insuficiente (${formatPYX(balance)} PYX)`
+                : `Disponível: ${formatPYX(balance)} PYX`}
             </Text>
 
             <View style={styles.quickRow}>
@@ -273,10 +273,10 @@ export default function Send() {
                 <TouchableOpacity
                   key={c}
                   style={styles.quickBtn}
-                  onPress={() => setMasked(maskBLXInput(String(c)))}
-                  testID={`blx-quick-${c}`}
+                  onPress={() => setMasked(maskPYXInput(String(c)))}
+                  testID={`pyx-quick-${c}`}
                 >
-                  <Text style={styles.quickBtnTxt}>+{formatBLX(c)}</Text>
+                  <Text style={styles.quickBtnTxt}>+{formatPYX(c)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -295,7 +295,7 @@ export default function Send() {
               style={[styles.primaryBtn, !enough && styles.primaryBtnDisabled]}
               disabled={!enough}
               onPress={confirmAmount}
-              testID="blx-next-review"
+              testID="pyx-next-review"
               activeOpacity={0.85}
             >
               <Text style={[styles.primaryBtnText, !enough && { color: "#555" }]}>REVISAR</Text>
@@ -309,8 +309,8 @@ export default function Send() {
             <View style={styles.reviewCard}>
               <Text style={styles.reviewKicker}>VALOR A TRANSFERIR</Text>
               <View style={styles.reviewAmountRow}>
-                <Text style={styles.reviewAmount}>{formatBLX(amountCents)}</Text>
-                <Text style={styles.reviewUnit}>BLX</Text>
+                <Text style={styles.reviewAmount}>{formatPYX(amountCents)}</Text>
+                <Text style={styles.reviewUnit}>PYX</Text>
               </View>
 
               <View style={styles.reviewLine} />
@@ -342,7 +342,7 @@ export default function Send() {
             <View style={styles.warnBox}>
               <Ionicons name="warning" size={14} color="#F5C150" />
               <Text style={styles.warnText}>
-                Transferências BLX são instantâneas e definitivas. Ao confirmar, o valor sai imediatamente da sua carteira.
+                Transferências PYX são instantâneas e definitivas. Ao confirmar, o valor sai imediatamente da sua carteira.
               </Text>
             </View>
 
@@ -350,7 +350,7 @@ export default function Send() {
               style={[styles.primaryBtn, submitting && { opacity: 0.7 }]}
               disabled={submitting}
               onPress={submitTransfer}
-              testID="blx-confirm-transfer"
+              testID="pyx-confirm-transfer"
               activeOpacity={0.85}
             >
               {submitting ? (
@@ -371,7 +371,7 @@ export default function Send() {
               <Ionicons name="checkmark" size={48} color="#0A0A0A" />
             </View>
             <Text style={styles.successTitle}>TRANSFERÊNCIA CONCLUÍDA</Text>
-            <Text style={styles.successAmount}>{formatBLX(amountCents)} BLX</Text>
+            <Text style={styles.successAmount}>{formatPYX(amountCents)} PYX</Text>
             <Text style={styles.successSub}>enviados para {selected.nickname || selected.name}</Text>
 
             <View style={[styles.reviewCard, { marginTop: 24, width: "100%" }]}>
@@ -390,14 +390,14 @@ export default function Send() {
             <TouchableOpacity
               style={[styles.primaryBtn, { width: "100%" }]}
               onPress={() => router.replace("/(tabs)/wallet" as any)}
-              testID="blx-success-home"
+              testID="pyx-success-home"
             >
               <Text style={styles.primaryBtnText}>VOLTAR AO BANCO</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.ghostBtn}
-              onPress={() => router.replace("/blx/history" as any)}
+              onPress={() => router.replace("/pyx/history" as any)}
             >
               <Text style={styles.ghostBtnText}>VER EXTRATO</Text>
             </TouchableOpacity>
@@ -408,7 +408,7 @@ export default function Send() {
   );
 }
 
-function ContactCard({ c }: { c: BlxContact }) {
+function ContactCard({ c }: { c: PyxContact }) {
   const tier = TIERS[c.tier] || TIERS.black;
   return (
     <View style={styles.contactCard}>

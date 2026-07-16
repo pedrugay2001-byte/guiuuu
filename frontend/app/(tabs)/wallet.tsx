@@ -7,9 +7,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Clipboard from "expo-clipboard";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
-import { api, BlxWallet, BlxTx } from "../../src/api";
+import { api, PyxWallet, PyxTx } from "../../src/api";
 import { useGate } from "../../src/gate";
-import { formatBLX, formatBLXShort } from "../../src/blx";
+import { formatPYX, formatPYXShort } from "../../src/pyx";
 import { TIERS } from "../../src/theme";
 
 // Paleta platinum/prata metálica — efeito azul-prateado premium (Diamond)
@@ -21,8 +21,8 @@ const GOLD_DEEP = "#2A3744";    // azul-aço profundo
 export default function WalletScreen() {
   const router = useRouter();
   const { member } = useGate();
-  const [w, setW] = useState<BlxWallet | null>(null);
-  const [txs, setTxs] = useState<BlxTx[]>([]);
+  const [w, setW] = useState<PyxWallet | null>(null);
+  const [txs, setTxs] = useState<PyxTx[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hideBalance, setHideBalance] = useState(false);
@@ -31,8 +31,8 @@ export default function WalletScreen() {
     if (!member) return;
     try {
       const [wallet, list] = await Promise.all([
-        api.blxWallet(member.member_id),
-        api.blxTransactions(member.member_id, 6, 0),
+        api.pyxWallet(member.member_id),
+        api.pyxTransactions(member.member_id, 6, 0),
       ]);
       setW(wallet);
       setTxs(list);
@@ -60,7 +60,7 @@ export default function WalletScreen() {
     if (!w?.wallet_number) return;
     try {
       await Share.share({
-        message: `Minha carteira BLEX Token (BLX):\n${w.wallet_number}\n\nEnvie BLX pra mim direto pelo BLACKSCLUB.`,
+        message: `Minha carteira PYX Token (PYX):\n${w.wallet_number}\n\nEnvie PYX pra mim direto pelo BLACKSCLUB.`,
       });
     } catch {}
   };
@@ -73,7 +73,7 @@ export default function WalletScreen() {
     );
   }
 
-  const balance = formatBLX(w.balance_centavos);
+  const balance = formatPYX(w.balance_centavos);
   const tier = TIERS[member.tier] || TIERS.black;
 
   return (
@@ -93,12 +93,12 @@ export default function WalletScreen() {
           <View style={styles.headerRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.bankName}>BANCO BLACKSCLUB</Text>
-              <Text style={styles.bankTag}>BLEX TOKEN · BLX</Text>
+              <Text style={styles.bankTag}>PYX TOKEN · PYX</Text>
             </View>
             <TouchableOpacity
               style={styles.eyeBtn}
               onPress={() => setHideBalance((v) => !v)}
-              testID="blx-toggle-hide"
+              testID="pyx-toggle-hide"
             >
               <Ionicons
                 name={hideBalance ? "eye-off-outline" : "eye-outline"}
@@ -143,7 +143,7 @@ export default function WalletScreen() {
                 >
                   <MaterialCommunityIcons name="diamond-stone" size={18} color="#0A0A0A" />
                 </LinearGradient>
-                <Text style={styles.cardBrand}>BLEX TOKEN</Text>
+                <Text style={styles.cardBrand}>PYX TOKEN</Text>
                 <View style={{ flex: 1 }} />
                 <View style={[styles.cardTierPill, { borderColor: GOLD }]}>
                   <Text style={[styles.cardTierText, { color: GOLD_LIGHT }]}>
@@ -157,7 +157,7 @@ export default function WalletScreen() {
                 <Text style={styles.balanceValue}>
                   {hideBalance ? "••••••" : balance}
                 </Text>
-                <Text style={styles.balanceUnit}>BLX</Text>
+                <Text style={styles.balanceUnit}>PYX</Text>
               </View>
 
               {/* Linha dourada divisória com fade */}
@@ -175,10 +175,10 @@ export default function WalletScreen() {
                     {w.wallet_number}
                   </Text>
                 </View>
-                <TouchableOpacity style={styles.copyBtn} onPress={copyWallet} testID="blx-copy-wallet">
+                <TouchableOpacity style={styles.copyBtn} onPress={copyWallet} testID="pyx-copy-wallet">
                   <Ionicons name="copy-outline" size={15} color={GOLD_LIGHT} />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.copyBtn} onPress={shareWallet} testID="blx-share-wallet">
+                <TouchableOpacity style={styles.copyBtn} onPress={shareWallet} testID="pyx-share-wallet">
                   <Ionicons name="share-social-outline" size={15} color={GOLD_LIGHT} />
                 </TouchableOpacity>
               </View>
@@ -199,32 +199,32 @@ export default function WalletScreen() {
             icon="arrow-up"
             label="Enviar"
             sub="Transferir"
-            onPress={() => router.push("/blx/send" as any)}
-            testID="blx-action-send"
+            onPress={() => router.push("/pyx/send" as any)}
+            testID="pyx-action-send"
           />
           <ActionButton
             icon="arrow-down"
             label="Receber"
-            sub="Receber BLX"
-            onPress={() => router.push("/blx/receive" as any)}
-            testID="blx-action-receive"
+            sub="Receber PYX"
+            onPress={() => router.push("/pyx/receive" as any)}
+            testID="pyx-action-receive"
           />
           <ActionButton
             icon="receipt-outline"
             label="Extrato"
             sub="Histórico"
-            onPress={() => router.push("/blx/history" as any)}
-            testID="blx-action-history"
+            onPress={() => router.push("/pyx/history" as any)}
+            testID="pyx-action-history"
           />
         </View>
 
-        {/* Ações premium — Adicionar BLX + Suporte */}
+        {/* Ações premium — Adicionar PYX + Suporte */}
         <View style={styles.ctaRow}>
           <TouchableOpacity
             style={styles.ctaPrimary}
             onPress={() => router.push("/wallet/topup" as any)}
             activeOpacity={0.88}
-            testID="blx-action-topup"
+            testID="pyx-action-topup"
           >
             <LinearGradient
               colors={[GOLD_LIGHT, GOLD, GOLD_DARK]}
@@ -234,7 +234,7 @@ export default function WalletScreen() {
             >
               <Ionicons name="add-circle" size={18} color="#0A0A0A" />
               <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={styles.ctaPrimaryLbl}>ADICIONAR BLX</Text>
+                <Text style={styles.ctaPrimaryLbl}>ADICIONAR PYX</Text>
                 <Text style={styles.ctaPrimarySub}>Recarregue sua carteira</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color="#0A0A0A" />
@@ -245,7 +245,7 @@ export default function WalletScreen() {
             style={styles.ctaSecondary}
             onPress={() => router.push("/chat" as any)}
             activeOpacity={0.88}
-            testID="blx-action-support"
+            testID="pyx-action-support"
           >
             <View style={styles.ctaSecondaryInner}>
               <Ionicons name="headset" size={18} color={GOLD_LIGHT} />
@@ -262,14 +262,14 @@ export default function WalletScreen() {
               <View style={styles.escrowItem}>
                 <Text style={styles.escrowLbl}>A RECEBER</Text>
                 <Text style={[styles.escrowVal, { color: "#4EE07F" }]}>
-                  +{formatBLXShort(w.escrow_in_centavos)} BLX
+                  +{formatPYXShort(w.escrow_in_centavos)} PYX
                 </Text>
               </View>
               <View style={styles.escrowSep} />
               <View style={styles.escrowItem}>
                 <Text style={styles.escrowLbl}>EM GARANTIA</Text>
                 <Text style={[styles.escrowVal, { color: "#F5C150" }]}>
-                  {formatBLXShort(w.escrow_out_centavos)} BLX
+                  {formatPYXShort(w.escrow_out_centavos)} PYX
                 </Text>
               </View>
             </View>
@@ -280,7 +280,7 @@ export default function WalletScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <Text style={styles.sectionLabel}>ÚLTIMAS MOVIMENTAÇÕES</Text>
-            <TouchableOpacity onPress={() => router.push("/blx/history" as any)}>
+            <TouchableOpacity onPress={() => router.push("/pyx/history" as any)}>
               <Text style={styles.seeAll}>VER TUDO</Text>
             </TouchableOpacity>
           </View>
@@ -290,7 +290,7 @@ export default function WalletScreen() {
               <Ionicons name="wallet-outline" size={32} color="#2E2E2E" />
               <Text style={styles.emptyTitle}>Carteira zerada</Text>
               <Text style={styles.emptyText}>
-                Peça à administração para creditar BLX ou receba de outro membro.
+                Peça à administração para creditar PYX ou receba de outro membro.
               </Text>
             </View>
           ) : (
@@ -326,7 +326,7 @@ function ActionButton({
   );
 }
 
-function TxRow({ tx, me }: { tx: BlxTx; me: string }) {
+function TxRow({ tx, me }: { tx: PyxTx; me: string }) {
   const isOut = tx.from_id === me;
   const isIn = tx.to_id === me;
   let icon: any = "swap-horizontal";
@@ -381,7 +381,7 @@ function TxRow({ tx, me }: { tx: BlxTx; me: string }) {
         </Text>
       </View>
       <Text style={[styles.txAmt, { color: isOut ? "#F87171" : "#4EE07F" }]}>
-        {sign}{formatBLX(tx.amount_centavos)} BLX
+        {sign}{formatPYX(tx.amount_centavos)} PYX
       </Text>
     </View>
   );
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
   actionLabel: { color: "#E0E8EF", fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
   actionSub: { color: GOLD_DARK, fontSize: 8.5, fontWeight: "700", marginTop: 2, letterSpacing: 0.3 },
 
-  // CTA row — Adicionar BLX + Suporte
+  // CTA row — Adicionar PYX + Suporte
   ctaRow: { flexDirection: "row", paddingHorizontal: 16, marginTop: 14, gap: 10 },
   ctaPrimary: { flex: 2, borderRadius: 14, overflow: "hidden" },
   ctaInner: {

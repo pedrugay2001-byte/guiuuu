@@ -8,7 +8,7 @@ import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { api, MyOrder } from "../../src/api";
 import { useGate } from "../../src/gate";
-import { formatBLX } from "../../src/blx";
+import { formatPYX } from "../../src/pyx";
 
 const STATUS_META: Record<string, { label: string; color: string; icon: any }> = {
   awaiting_delivery_payment: { label: "AGUARDANDO ENTREGA", color: "#F5C150", icon: "cube-outline" },
@@ -56,7 +56,7 @@ export default function OrderDetail() {
     Alert.alert(
       "Marcar como entregue?",
       isLegacy
-        ? "Você está confirmando que entregou ou enviou o pedido. O pagamento NÃO é liberado agora — o comprador ainda precisa confirmar o recebimento para que os BLX em escrow sejam liberados."
+        ? "Você está confirmando que entregou ou enviou o pedido. O pagamento NÃO é liberado agora — o comprador ainda precisa confirmar o recebimento para que os PYX em escrow sejam liberados."
         : "O saldo devedor travado do comprador será liberado automaticamente para você.",
       [
         { text: "Cancelar", style: "cancel" },
@@ -65,7 +65,7 @@ export default function OrderDetail() {
             try {
               if (isLegacy) {
                 // Wallet_tx escrow — apenas marca shipped (não libera pagamento)
-                await api.blxMarkShipped(id, member.member_id);
+                await api.pyxMarkShipped(id, member.member_id);
               } else {
                 await api.orderDeliver(id, member.member_id);
               }
@@ -160,21 +160,21 @@ export default function OrderDetail() {
           <Text style={s.cardTitle}>PAGAMENTO</Text>
           <View style={s.row}>
             <Text style={s.rowLbl}>Total do pedido</Text>
-            <Text style={s.rowVal}>{formatBLX(total)} BLX</Text>
+            <Text style={s.rowVal}>{formatPYX(total)} PYX</Text>
           </View>
           <View style={s.row}>
             <Text style={s.rowLbl}>
               Pago agora
               {o.pay_option && <Text style={s.hint}>  ({o.pay_option === "full" ? "100%" : o.pay_option === "half" ? "50%" : "10%"})</Text>}
             </Text>
-            <Text style={[s.rowVal, { color: "#4EE07F" }]}>{formatBLX(entry)} BLX</Text>
+            <Text style={[s.rowVal, { color: "#4EE07F" }]}>{formatPYX(entry)} PYX</Text>
           </View>
           {remaining > 0 && (
             <View style={s.row}>
               <Text style={s.rowLbl}>
                 <Ionicons name="lock-closed" size={10} color="#F5C150" /> Saldo travado
               </Text>
-              <Text style={[s.rowVal, { color: "#F5C150" }]}>{formatBLX(remaining)} BLX</Text>
+              <Text style={[s.rowVal, { color: "#F5C150" }]}>{formatPYX(remaining)} PYX</Text>
             </View>
           )}
           {remaining > 0 && (
@@ -276,7 +276,7 @@ export default function OrderDetail() {
 
 function channelLabel(ch: string): string {
   const map: Record<string, string> = {
-    catalog_blx: "Catálogo · BLX direto",
+    catalog_pyx: "Catálogo · PYX direto",
     ad_direct: "Círculo Diamante · Direto",
     cart_catalog: "Catálogo · Carrinho",
     cart_diamond: "Círculo Diamante · Carrinho",

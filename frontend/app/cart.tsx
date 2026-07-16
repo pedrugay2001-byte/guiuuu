@@ -7,9 +7,9 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialCommunityIcons } from "../src/icons";
-import { api, CartResponse, BlxWallet, ApiError } from "../src/api";
+import { api, CartResponse, PyxWallet, ApiError } from "../src/api";
 import { useGate } from "../src/gate";
-import { formatBLX } from "../src/blx";
+import { formatPYX } from "../src/pyx";
 import { TIERS } from "../src/theme";
 import InsufficientBalanceModal from "../src/components/InsufficientBalanceModal";
 
@@ -26,13 +26,13 @@ const PAY_META: Record<PayOption, { label: string; entry_pct: number; disc_pct: 
 
 /**
  * Carrinho unificado — suporta itens do Catálogo (pagamento direto) e do Círculo Diamante (escrow).
- * Um único checkout "COMPRAR TUDO" processa tudo debitando BLX de uma vez.
+ * Um único checkout "COMPRAR TUDO" processa tudo debitando PYX de uma vez.
  */
 export default function Cart() {
   const router = useRouter();
   const { member, refreshMember } = useGate();
   const [cart, setCart] = useState<CartResponse | null>(null);
-  const [wallet, setWallet] = useState<BlxWallet | null>(null);
+  const [wallet, setWallet] = useState<PyxWallet | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
@@ -46,7 +46,7 @@ export default function Cart() {
     try {
       const [c, w] = await Promise.all([
         api.cartList(member.member_id),
-        api.blxWallet(member.member_id).catch(() => null),
+        api.pyxWallet(member.member_id).catch(() => null),
       ]);
       setCart(c);
       setWallet(w);
@@ -77,21 +77,21 @@ export default function Cart() {
     if (!member) return;
     setBuying(true);
     try {
-      const r = await api.cartCheckoutBLX(member.member_id, payOption);
+      const r = await api.cartCheckoutPYX(member.member_id, payOption);
       setShowConfirm(false);
       Alert.alert(
         "Compra concluída!",
-        `${r.orders.length} pedido(s) processado(s). ${(r.entry_cents / 100).toFixed(2)} BLX debitados.` +
+        `${r.orders.length} pedido(s) processado(s). ${(r.entry_cents / 100).toFixed(2)} PYX debitados.` +
           (r.remaining_cents > 0
-            ? `\n\nSaldo de ${(r.remaining_cents / 100).toFixed(2)} BLX foi TRAVADO na sua carteira e será liberado automaticamente ao confirmar a entrega.`
+            ? `\n\nSaldo de ${(r.remaining_cents / 100).toFixed(2)} PYX foi TRAVADO na sua carteira e será liberado automaticamente ao confirmar a entrega.`
             : ""),
-        [{ text: "Ver meus pedidos", onPress: () => router.push("/blx/orders" as any) }, { text: "OK" }],
+        [{ text: "Ver meus pedidos", onPress: () => router.push("/pyx/orders" as any) }, { text: "OK" }],
       );
       await refreshMember();
       await load();
     } catch (e: any) {
       setShowConfirm(false);
-      if (e instanceof ApiError && e.error_code === "INSUFFICIENT_BLX") {
+      if (e instanceof ApiError && e.error_code === "INSUFFICIENT_PYX") {
         setInsuf({
           required: e.data.required_centavos || 0,
           current: e.data.current_centavos || 0,
@@ -211,7 +211,7 @@ export default function Cart() {
                     </TouchableOpacity>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={styles.itemName} numberOfLines={2}>{item.title}</Text>
-                      <Text style={[styles.itemPrice, { color: accent }]}>{formatBLX(item.price_full_centavos)} BLX</Text>
+                      <Text style={[styles.itemPrice, { color: accent }]}>{formatPYX(item.price_full_centavos)} PYX</Text>
                       <View style={styles.qtyRow}>
                         <TouchableOpacity style={styles.qtyBtn} disabled={!!updating} onPress={() => updateQty(item.ad_id, item.qty - 1)}>
                           <Ionicons name="remove" size={14} color="#FFF" />
@@ -223,8 +223,8 @@ export default function Cart() {
                       </View>
                     </View>
                     <View style={{ alignItems: "flex-end" }}>
-                      <Text style={styles.subtotalVal}>{formatBLX(item.subtotal_centavos)}</Text>
-                      <Text style={[styles.subtotalUnit, { color: accent }]}>BLX</Text>
+                      <Text style={styles.subtotalVal}>{formatPYX(item.subtotal_centavos)}</Text>
+                      <Text style={[styles.subtotalUnit, { color: accent }]}>PYX</Text>
                       <TouchableOpacity onPress={() => updateQty(item.ad_id, 0)} style={{ marginTop: 6 }}>
                         <Ionicons name="trash-outline" size={15} color="#666" />
                       </TouchableOpacity>
@@ -234,7 +234,7 @@ export default function Cart() {
 
                 <View style={styles.groupFooter}>
                   <Text style={styles.groupSubLbl}>SUBTOTAL</Text>
-                  <Text style={[styles.groupSubVal, { color: accent }]}>{formatBLX(g.subtotal_centavos)} BLX</Text>
+                  <Text style={[styles.groupSubVal, { color: accent }]}>{formatPYX(g.subtotal_centavos)} PYX</Text>
                 </View>
               </View>
             );
@@ -259,25 +259,25 @@ export default function Cart() {
               <View>
                 <Text style={styles.totalLbl}>TOTAL ({payMeta.disc_pct}% desc.)</Text>
                 <Text style={[styles.totalVal, { color: canAfford ? GOLD_LIGHT : "#FF6B6B" }]}>
-                  {formatBLX(estFinalCents)} BLX
+                  {formatPYX(estFinalCents)} PYX
                 </Text>
               </View>
               <View style={{ alignItems: "flex-end" }}>
                 <Text style={styles.balanceLbl}>SALDO LIVRE</Text>
                 <Text style={[styles.balanceVal, { color: canAfford ? "#4EE07F" : "#FF6B6B" }]}>
-                  {formatBLX(balanceCents)} BLX
+                  {formatPYX(balanceCents)} PYX
                 </Text>
                 {reservedCents > 0 && (
                   <Text style={styles.reservedVal}>
                     <Ionicons name="lock-closed" size={9} color="#F5C150" />{" "}
-                    {formatBLX(reservedCents)} BLX reservado
+                    {formatPYX(reservedCents)} PYX reservado
                   </Text>
                 )}
               </View>
             </View>
             {!canAfford && (
               <Text style={styles.insufficientTxt}>
-                Faltam {formatBLX(missingCents)} BLX. Fale com o suporte para recarregar.
+                Faltam {formatPYX(missingCents)} PYX. Fale com o suporte para recarregar.
               </Text>
             )}
             <TouchableOpacity
@@ -294,7 +294,7 @@ export default function Cart() {
                 <MaterialCommunityIcons name="diamond-stone" size={16} color={canAfford ? "#0A0A0A" : "#666"} />
                 <Text style={[styles.checkoutTxt, !canAfford && { color: "#666" }]}>
                   {canAfford
-                    ? `COMPRAR TUDO · ${formatBLX(estEntryCents)} BLX AGORA`
+                    ? `COMPRAR TUDO · ${formatPYX(estEntryCents)} PYX AGORA`
                     : "SALDO INSUFICIENTE"}
                 </Text>
               </LinearGradient>
@@ -350,20 +350,20 @@ export default function Cart() {
               <View style={modalS.summary}>
                 <View style={modalS.row}>
                   <Text style={modalS.lbl}>Subtotal ({cart?.count || 0} {cart?.count === 1 ? "item" : "itens"})</Text>
-                  <Text style={modalS.val}>{formatBLX(totalGrossCents)} BLX</Text>
+                  <Text style={modalS.val}>{formatPYX(totalGrossCents)} PYX</Text>
                 </View>
                 {payMeta.disc_pct > 0 && (
                   <View style={modalS.row}>
                     <Text style={[modalS.lbl, { color: "#4EE07F" }]}>Desconto ({payMeta.disc_pct}%)</Text>
                     <Text style={[modalS.val, { color: "#4EE07F" }]}>
-                      -{formatBLX(totalGrossCents - estFinalCents)} BLX
+                      -{formatPYX(totalGrossCents - estFinalCents)} PYX
                     </Text>
                   </View>
                 )}
                 <View style={[modalS.row, modalS.rowTop]}>
                   <Text style={[modalS.lbl, { color: GOLD, fontWeight: "900" }]}>TOTAL</Text>
                   <Text style={[modalS.val, { color: GOLD_LIGHT, fontSize: 16 }]}>
-                    {formatBLX(estFinalCents)} BLX
+                    {formatPYX(estFinalCents)} PYX
                   </Text>
                 </View>
 
@@ -371,8 +371,8 @@ export default function Cart() {
                 <View style={modalS.splitBox}>
                   <View style={modalS.splitCol}>
                     <Text style={modalS.splitLbl}>A DEBITAR AGORA</Text>
-                    <Text style={modalS.splitVal}>{formatBLX(estEntryCents)}</Text>
-                    <Text style={modalS.splitUnit}>BLX · {payMeta.entry_pct}%</Text>
+                    <Text style={modalS.splitVal}>{formatPYX(estEntryCents)}</Text>
+                    <Text style={modalS.splitUnit}>PYX · {payMeta.entry_pct}%</Text>
                   </View>
                   <View style={[modalS.splitCol, { borderLeftWidth: 1, borderLeftColor: "#1F1F1F" }]}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -380,9 +380,9 @@ export default function Cart() {
                       <Text style={modalS.splitLbl}>TRAVADO · ENTREGA</Text>
                     </View>
                     <Text style={[modalS.splitVal, { color: "#F5C150" }]}>
-                      {formatBLX(estRemainingCents)}
+                      {formatPYX(estRemainingCents)}
                     </Text>
-                    <Text style={modalS.splitUnit}>BLX · {100 - payMeta.entry_pct}%</Text>
+                    <Text style={modalS.splitUnit}>PYX · {100 - payMeta.entry_pct}%</Text>
                   </View>
                 </View>
               </View>

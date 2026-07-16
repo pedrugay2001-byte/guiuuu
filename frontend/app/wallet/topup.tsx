@@ -14,7 +14,7 @@ import { useTierAccent } from "../../src/use-tier-accent";
 const PRESETS = [50, 100, 250, 500, 1000];
 
 /**
- * Tela de Recarga BLX — fluxo PIX MANUAL com aprovação do suporte.
+ * Tela de Recarga PYX — fluxo PIX MANUAL com aprovação do suporte.
  *
  * UX:
  *  1. Mostra instruções claras (3 passos).
@@ -24,7 +24,7 @@ const PRESETS = [50, 100, 250, 500, 1000];
  *  5. Botão "Já fiz o PIX → Abrir pedido" cria a ordem (status: pending).
  *  6. Lista de pedidos recentes do membro (status, valor, data).
  *
- * Conversão: R$ paga × 0,99 = BLX creditado (taxa de 1%).
+ * Conversão: R$ paga × 0,99 = PYX creditado (taxa de 1%).
  * Aprovação manual feita em /staff/pix-orders pelo suporte.
  */
 export default function Topup() {
@@ -39,7 +39,7 @@ export default function Topup() {
   const [copied, setCopied] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
   // Estado de sucesso após criar pedido — botão vira verde com confirmação
-  const [success, setSuccess] = useState<{ blx: number; brl: number } | null>(null);
+  const [success, setSuccess] = useState<{ pyx: number; brl: number } | null>(null);
 
   // PIX info é pública — carrega independente de login
   useEffect(() => {
@@ -57,11 +57,11 @@ export default function Topup() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  // Cálculo do BLX a receber (com taxa de 1%)
+  // Cálculo do PYX a receber (com taxa de 1%)
   const v = parseFloat((amount || "").replace(",", "."));
   const validAmount = Number.isFinite(v) && v >= (info?.min_brl ?? 10);
   const fee_pct = info?.fee_pct ?? 1;
-  const blxOut = validAmount ? v * (1 - fee_pct / 100) : 0;
+  const pyxOut = validAmount ? v * (1 - fee_pct / 100) : 0;
 
   const copyPix = async () => {
     if (!info?.pix_code) return;
@@ -91,7 +91,7 @@ export default function Topup() {
         note: note.trim() || undefined,
       });
       // Estado de sucesso — botão fica VERDE com mensagem de confirmação
-      setSuccess({ blx: order.blx_centavos / 100, brl: v });
+      setSuccess({ pyx: order.pyx_centavos / 100, brl: v });
       // Limpa form para próximo pedido
       setAmount("");
       setNote("");
@@ -108,7 +108,7 @@ export default function Topup() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: "#050505" }}>
-      <Stack.Screen options={{ title: "Adicionar BLX", headerStyle: { backgroundColor: "#050505" }, headerTintColor: "#FFF" }} />
+      <Stack.Screen options={{ title: "Adicionar PYX", headerStyle: { backgroundColor: "#050505" }, headerTintColor: "#FFF" }} />
       <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
 
         {/* HERO */}
@@ -123,7 +123,7 @@ export default function Topup() {
           </View>
           <Text style={[st.heroTitle, { color: accent.accent }]}>RECARGA VIA PIX</Text>
           <Text style={st.heroSub}>
-            Pague o PIX, abra o pedido e o suporte libera seu saldo BLX.
+            Pague o PIX, abra o pedido e o suporte libera seu saldo PYX.
             <Text style={{ color: accent.accent, fontWeight: "900" }}>  ~{info?.estimated_minutes ?? 10} min</Text>
           </Text>
         </View>
@@ -224,7 +224,7 @@ export default function Topup() {
             <View style={[st.previewRow, st.previewTotal]}>
               <Text style={[st.previewLbl, { color: accent.accent, fontWeight: "900" }]}>VOCÊ RECEBE</Text>
               <Text style={[st.previewVal, { color: accent.accent, fontSize: 20, fontWeight: "900" }]}>
-                {blxOut.toFixed(2)} BLX
+                {pyxOut.toFixed(2)} PYX
               </Text>
             </View>
           </View>
@@ -251,7 +251,7 @@ export default function Topup() {
             <Text style={st.successTitle}>PEDIDO ENVIADO!</Text>
             <Text style={st.successSub}>
               Recebemos seu pedido de <Text style={st.successStrong}>{formatBRL(success.brl)}</Text>.{"\n"}
-              Em breve <Text style={st.successStrong}>{success.blx.toFixed(2)} BLX</Text> cairão em sua carteira após análise do suporte.
+              Em breve <Text style={st.successStrong}>{success.pyx.toFixed(2)} PYX</Text> cairão em sua carteira após análise do suporte.
             </Text>
             <View style={st.successFooter}>
               <Ionicons name="time-outline" size={14} color="#0A0A0A" />
@@ -346,7 +346,7 @@ function OrderRow({ o, accent }: { o: any; accent: string }) {
         <Ionicons name={cfg.icon as any} size={16} color={cfg.color} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={st.orderTitle}>{formatBRL(o.amount_brl_centavos / 100)} → {(o.blx_centavos / 100).toFixed(2)} BLX</Text>
+        <Text style={st.orderTitle}>{formatBRL(o.amount_brl_centavos / 100)} → {(o.pyx_centavos / 100).toFixed(2)} PYX</Text>
         <Text style={st.orderSub}>{cfg.label} • {date}</Text>
         {status === "rejected" && o.rejection_reason ? (
           <Text style={[st.orderSub, { color: "#F87171", marginTop: 2 }]}>Motivo: {o.rejection_reason}</Text>
@@ -364,7 +364,7 @@ const STATUS_CFG: Record<string, { color: string; icon: string; label: string }>
 };
 
 const formatBRL = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
-const formatBLX = (cents: number) => (cents / 100).toFixed(2);
+const formatPYX = (cents: number) => (cents / 100).toFixed(2);
 
 // ============================================================================
 // Styles

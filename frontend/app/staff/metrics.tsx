@@ -8,7 +8,7 @@ import { Stack, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "../../src/icons";
 import { api } from "../../src/api";
 import { TIERS, TierId } from "../../src/theme";
-import { formatBLX } from "../../src/blx";
+import { formatPYX } from "../../src/pyx";
 import { notify } from "../../src/alerts";
 import ScreenHeader from "../../src/screen-header";
 
@@ -75,7 +75,7 @@ export default function AdminMetrics() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: BG }} edges={["top"]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScreenHeader title="Métricas BLX" subtitle="Painel executivo do ecossistema" />
+      <ScreenHeader title="Métricas PYX" subtitle="Painel executivo do ecossistema" />
 
       <ScrollView
         contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
@@ -85,16 +85,16 @@ export default function AdminMetrics() {
         <View style={st.heroCard}>
           <View style={st.heroGlow} />
           <Text style={st.heroKicker}>SUPPLY TOTAL EM CIRCULAÇÃO</Text>
-          <Text style={st.heroValue}>{formatBLX(totalSupply)}</Text>
-          <Text style={st.heroUnit}>BLX</Text>
+          <Text style={st.heroValue}>{formatPYX(totalSupply)}</Text>
+          <Text style={st.heroUnit}>PYX</Text>
           <View style={st.heroDividers}>
             <View style={st.heroMini}>
               <Text style={st.miniLabel}>DISPONÍVEL</Text>
-              <Text style={st.miniValue}>{formatBLX(available)}</Text>
+              <Text style={st.miniValue}>{formatPYX(available)}</Text>
             </View>
             <View style={st.heroMini}>
               <Text style={st.miniLabel}>EM ESCROW</Text>
-              <Text style={[st.miniValue, { color: "#F5C150" }]}>{formatBLX(escrow)}</Text>
+              <Text style={[st.miniValue, { color: "#F5C150" }]}>{formatPYX(escrow)}</Text>
             </View>
           </View>
         </View>
@@ -111,7 +111,7 @@ export default function AdminMetrics() {
           <MetricCard
             icon="trending-up-outline"
             label="VOLUME 30D"
-            value={`${formatBLX(data.volume_30d.total_cents)}`}
+            value={`${formatPYX(data.volume_30d.total_cents)}`}
             hint={`${data.volume_30d.tx_count} transações`}
             color={GOLD}
           />
@@ -181,8 +181,8 @@ export default function AdminMetrics() {
                   </View>
                 </View>
                 <View style={{ alignItems: "flex-end" }}>
-                  <Text style={st.sellerValue}>{formatBLX(s.total_cents)}</Text>
-                  <Text style={st.sellerUnit}>BLX · {s.sales_count} venda{s.sales_count === 1 ? "" : "s"}</Text>
+                  <Text style={st.sellerValue}>{formatPYX(s.total_cents)}</Text>
+                  <Text style={st.sellerUnit}>PYX · {s.sales_count} venda{s.sales_count === 1 ? "" : "s"}</Text>
                 </View>
               </View>
             );
@@ -190,7 +190,7 @@ export default function AdminMetrics() {
         )}
 
         <Text style={st.footerNote}>
-          Atualizado em tempo real · Dados extraídos de wallet_txs (escrow liberado) e blx_ratings.
+          Atualizado em tempo real · Dados extraídos de wallet_txs (escrow liberado) e pyx_ratings.
         </Text>
       </ScrollView>
     </SafeAreaView>

@@ -7,10 +7,10 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle, Defs, Stop, RadialGradient, LinearGradient as SvgLinearGradient } from "react-native-svg";
-import { api, GoalDashboard, BlxWallet, Ad } from "../../src/api";
+import { api, GoalDashboard, PyxWallet, Ad } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { useTierAccent } from "../../src/use-tier-accent";
-import { formatBLX } from "../../src/blx";
+import { formatPYX } from "../../src/pyx";
 import HomeBannerCarousel from "../../src/home-banner-carousel";
 
 // Banner do Marketplace de Elite (BLACKSCLUB) — versão limpa SEM o texto "O MARKETPLACE DE ELITE"
@@ -43,7 +43,7 @@ type Area = { id: AreaId; label: string; sub: string; icon: { lib: "ion" | "mci"
 // orçamento" do Perfil → rota /quote). O atalho do perfil continua existindo.
 const AREAS: Area[] = [
   { id: "quote",         label: "Orçamento",     sub: "Solicitar",     icon: { lib: "ion", name: "sparkles-outline" }, route: "/quote" },
-  { id: "compras",       label: "Compras",       sub: "Pedidos",       icon: { lib: "ion", name: "bag-handle-outline" }, route: "/blx/orders" },
+  { id: "compras",       label: "Compras",       sub: "Pedidos",       icon: { lib: "ion", name: "bag-handle-outline" }, route: "/pyx/orders" },
   { id: "profissionais", label: "Profissionais", sub: "Especialistas", icon: { lib: "mci", name: "stethoscope" },        route: "/ai" },
 ];
 
@@ -153,7 +153,7 @@ export default function Home() {
     try {
       const [dd, w, ads] = await Promise.all([
         member ? api.goalsDashboard(member.member_id).catch(() => null) : Promise.resolve(null),
-        member ? api.blxWallet(member.member_id).catch(() => null) : Promise.resolve(null),
+        member ? api.pyxWallet(member.member_id).catch(() => null) : Promise.resolve(null),
         // Carrega anúncios Diamond apenas se o membro for diamond (otimização)
         isDiamond ? api.listAds({ tier: "diamond", limit: 6 }).catch(() => []) : Promise.resolve([]),
       ]);
@@ -167,7 +167,7 @@ export default function Home() {
 
   const name = (member?.nickname || member?.name || "você").split(" ")[0];
   const accent = useTierAccent();
-  const [wallet, setWallet] = useState<BlxWallet | null>(null);
+  const [wallet, setWallet] = useState<PyxWallet | null>(null);
 
   const hasGoals = !!dashboard?.has_goals;
   const stats = {
@@ -317,7 +317,7 @@ export default function Home() {
           </View>
 
           {/* ============================================================
-              TIER BANNER do membro — substitui o card BLEX e o card
+              TIER BANNER do membro — substitui o card PYX e o card
               "MARKETPLACE DIAMANTE". Mostra a arte oficial do tier
               (Diamante/Gold/Silver) com banner full-width clicável que
               leva direto ao marketplace correspondente.
@@ -384,7 +384,7 @@ export default function Home() {
 
           {/* ============================================================
               REMOVIDOS A PEDIDO DO USUÁRIO:
-              - Card BLEX TOKEN (saldo grande) → acesso via /wallet no TOPO
+              - Card PYX TOKEN (saldo grande) → acesso via /wallet no TOPO
               - Card MARKETPLACE DIAMANTE → substituído pelo tier banner acima
               - Seção CENTRAL DE PERFORMANCE → removida
               ============================================================ */}
@@ -496,7 +496,7 @@ const s = StyleSheet.create({
 
   // ====================== TIER BANNER (Home) ======================
   // Banner do plano do usuário (Diamante/Gold/Silver) — full-width clicável
-  // que substitui o card BLEX e o card MARKETPLACE DIAMANTE antigos.
+  // que substitui o card PYX e o card MARKETPLACE DIAMANTE antigos.
   tierBanner: {
     marginHorizontal: 16,
     marginBottom: 10,
@@ -530,8 +530,8 @@ const s = StyleSheet.create({
   greetHello: { color: "#FFF", fontSize: 20, fontWeight: "900", letterSpacing: -0.3, lineHeight: 24 },
   greetSub: { color: "#8A8A8A", fontSize: 12, marginTop: 2, fontWeight: "500", letterSpacing: 0 },
 
-  // Mini card BLX premium no topo (glance rápido)
-  blxCard: {
+  // Mini card PYX premium no topo (glance rápido)
+  pyxCard: {
     marginHorizontal: 12,
     marginBottom: 14,
     borderRadius: 14,
@@ -539,22 +539,22 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1F1F1F",
   },
-  blxInner: {
+  pyxInner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
-  blxIconWrap: {},
-  blxIcon: {
+  pyxIconWrap: {},
+  pyxIcon: {
     width: 34, height: 34, borderRadius: 10,
     alignItems: "center", justifyContent: "center",
   },
-  blxLbl: { fontSize: 9, fontWeight: "900", letterSpacing: 2 },
-  blxVal: { color: "#FFF", fontSize: 20, fontWeight: "900", letterSpacing: -0.5 },
-  blxUnit: { fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
-  blxReserved: { color: "#B79045", fontSize: 10, fontWeight: "700", marginTop: 3 },
+  pyxLbl: { fontSize: 9, fontWeight: "900", letterSpacing: 2 },
+  pyxVal: { color: "#FFF", fontSize: 20, fontWeight: "900", letterSpacing: -0.5 },
+  pyxUnit: { fontSize: 11, fontWeight: "900", letterSpacing: 1.2 },
+  pyxReserved: { color: "#B79045", fontSize: 10, fontWeight: "700", marginTop: 3 },
 
   // Marketplace Diamond — card especial no topo da home pra membros Diamond
   diamondMkt: {

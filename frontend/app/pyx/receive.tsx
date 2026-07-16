@@ -7,7 +7,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
 import * as Clipboard from "expo-clipboard";
-import { api, BlxWallet } from "../../src/api";
+import { api, PyxWallet } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { useTierAccent } from "../../src/use-tier-accent";
 
@@ -15,11 +15,11 @@ export default function Receive() {
   const router = useRouter();
   const { member } = useGate();
   const accent = useTierAccent();
-  const [w, setW] = useState<BlxWallet | null>(null);
+  const [w, setW] = useState<PyxWallet | null>(null);
 
   useEffect(() => {
     if (!member) return;
-    api.blxWallet(member.member_id).then(setW).catch(() => {});
+    api.pyxWallet(member.member_id).then(setW).catch(() => {});
   }, [member]);
 
   const copy = async () => {
@@ -32,7 +32,7 @@ export default function Receive() {
     if (!w?.wallet_number) return;
     try {
       await Share.share({
-        message: `Para me enviar BLEX Token (BLX), use este número de carteira no BLACKSCLUB:\n\n${w.wallet_number}`,
+        message: `Para me enviar PYX Token (PYX), use este número de carteira no BLACKSCLUB:\n\n${w.wallet_number}`,
       });
     } catch {}
   };
@@ -50,11 +50,11 @@ export default function Receive() {
       <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
         {/* Header */}
         <View style={styles.topBar}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} testID="blx-receive-back">
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} testID="pyx-receive-back">
             <Ionicons name="chevron-back" size={22} color="#FFF" />
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: "center" }}>
-            <Text style={styles.title}>RECEBER BLX</Text>
+            <Text style={styles.title}>RECEBER PYX</Text>
             <Text style={styles.sub}>Compartilhe sua carteira</Text>
           </View>
           <View style={{ width: 40 }} />
@@ -66,23 +66,23 @@ export default function Receive() {
             <View style={[styles.heroLogo, { backgroundColor: accent.accent + "1F", borderColor: accent.accent + "66" }]}>
               <MaterialCommunityIcons name="diamond-stone" size={30} color={accent.accent} />
             </View>
-            <Text style={[styles.heroKicker, { color: accent.accent }]}>CARTEIRA BLEX TOKEN</Text>
+            <Text style={[styles.heroKicker, { color: accent.accent }]}>CARTEIRA PYX TOKEN</Text>
             <Text style={styles.heroName}>{(member?.nickname || member?.name || "").toUpperCase()}</Text>
             <View style={styles.walletBox}>
               <Text style={[styles.walletNumber, { color: accent.accentLight }]}>{w.wallet_number}</Text>
             </View>
             <Text style={styles.heroTip}>
-              Envie este número para qualquer outro membro e receba BLX na hora.
+              Envie este número para qualquer outro membro e receba PYX na hora.
             </Text>
           </View>
 
           {/* Ações */}
-          <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accent.accent }]} onPress={copy} testID="blx-receive-copy">
+          <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: accent.accent }]} onPress={copy} testID="pyx-receive-copy">
             <Ionicons name="copy-outline" size={18} color="#0A0A0A" />
             <Text style={styles.primaryBtnText}>COPIAR NÚMERO</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.ghostBtn} onPress={share} testID="blx-receive-share">
+          <TouchableOpacity style={styles.ghostBtn} onPress={share} testID="pyx-receive-share">
             <Ionicons name="share-social-outline" size={18} color="#FFF" />
             <Text style={styles.ghostBtnText}>COMPARTILHAR</Text>
           </TouchableOpacity>
@@ -91,7 +91,7 @@ export default function Receive() {
           <View style={styles.infoBox}>
             <Ionicons name="information-circle" size={14} color="#7FD7E5" />
             <Text style={styles.infoText}>
-              Transferências BLX caem instantaneamente e são definitivas. Confirme que o remetente digitou o número correto.
+              Transferências PYX caem instantaneamente e são definitivas. Confirme que o remetente digitou o número correto.
             </Text>
           </View>
         </ScrollView>

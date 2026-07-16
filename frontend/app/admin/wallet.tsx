@@ -9,7 +9,7 @@ import { api } from "../../src/api";
 import { TIERS, TierId } from "../../src/theme";
 import ScreenHeader from "../../src/screen-header";
 import { notify } from "../../src/alerts";
-import { formatBLX, maskBLXInput, maskedToCents } from "../../src/blx";
+import { formatPYX, maskPYXInput, maskedToCents } from "../../src/pyx";
 
 type Member = {
   member_id: string;
@@ -25,12 +25,12 @@ const GREEN = "#2ECC71";
 const BG = "#050505";
 
 /**
- * ADMIN · CRÉDITO BLEX TOKEN (BLX)
+ * ADMIN · CRÉDITO PYX TOKEN (PYX)
  *
  * Lista todos os membros do clube e permite ao staff/admin/financeiro
- * creditar BLX (moeda interna) na carteira de cada membro.
+ * creditar PYX (moeda interna) na carteira de cada membro.
  *
- * Valores em centavos para precisão total (1 BLX = 100 centavos).
+ * Valores em centavos para precisão total (1 PYX = 100 centavos).
  * Endpoint backend: POST /api/wallet/topup  (require_staff).
  */
 export default function AdminWallet() {
@@ -49,12 +49,12 @@ export default function AdminWallet() {
     try {
       const list = await api.adminMembers();
       setMembers(list as Member[]);
-      // Busca saldo BLX em centavos dos 30 primeiros membros em paralelo
+      // Busca saldo PYX em centavos dos 30 primeiros membros em paralelo
       const slice = (list as Member[]).slice(0, 30);
       const results = await Promise.all(
         slice.map(async (m) => {
           try {
-            const w = await api.blxWallet(m.member_id);
+            const w = await api.pyxWallet(m.member_id);
             return [m.member_id, w.balance_centavos] as const;
           } catch { return [m.member_id, 0] as const; }
         })
@@ -93,7 +93,7 @@ export default function AdminWallet() {
     setSelectedWallet("");
     // Busca saldo + número de carteira atualizados
     try {
-      const w = await api.blxWallet(m.member_id);
+      const w = await api.pyxWallet(m.member_id);
       setBalances(b => ({ ...b, [m.member_id]: w.balance_centavos }));
       setSelectedWallet(w.wallet_number || "");
     } catch {}
@@ -109,7 +109,7 @@ export default function AdminWallet() {
     try {
       await api.walletTopupCents(selected.member_id, cents);
       setBalances(b => ({ ...b, [selected.member_id]: (b[selected.member_id] || 0) + cents }));
-      notify("Crédito realizado!", `+${formatBLX(cents)} BLX para ${selected.name}.`);
+      notify("Crédito realizado!", `+${formatPYX(cents)} PYX para ${selected.name}.`);
       setSelected(null);
       setMasked("0,00");
     } catch (e: any) {
@@ -123,7 +123,7 @@ export default function AdminWallet() {
       style={{ flex: 1, backgroundColor: BG }}
     >
       <Stack.Screen options={{ headerShown: false }} />
-      <ScreenHeader title="Crédito BLEX Token" subtitle="Adicionar BLX à carteira dos membros" />
+      <ScreenHeader title="Crédito PYX Token" subtitle="Adicionar PYX à carteira dos membros" />
 
       <View style={st.searchBox}>
         <Ionicons name="search" size={16} color="#888" />
@@ -174,7 +174,7 @@ export default function AdminWallet() {
                       <Text style={[st.tierPillTxt, { color: tier.color }]}>{tier.label.toUpperCase()}</Text>
                     </View>
                     <Text style={st.balance}>
-                      {typeof bal === "number" ? `${formatBLX(bal)} BLX` : "— BLX"}
+                      {typeof bal === "number" ? `${formatPYX(bal)} PYX` : "— PYX"}
                     </Text>
                   </View>
                 </View>
@@ -201,10 +201,10 @@ export default function AdminWallet() {
             <View style={st.modalCard}>
               <View style={st.modalHead}>
                 <View style={{ flex: 1 }}>
-                  <Text style={st.modalKicker}>CREDITAR BLEX TOKEN</Text>
+                  <Text style={st.modalKicker}>CREDITAR PYX TOKEN</Text>
                   <Text style={st.modalTitle} numberOfLines={1}>{selected?.name}</Text>
                   <Text style={st.modalSub}>
-                    Saldo atual: {selected ? formatBLX(balances[selected.member_id] || 0) : "0,00"} BLX
+                    Saldo atual: {selected ? formatPYX(balances[selected.member_id] || 0) : "0,00"} PYX
                   </Text>
                   {selectedWallet ? (
                     <Text style={st.modalWallet}>{selectedWallet}</Text>
@@ -215,26 +215,26 @@ export default function AdminWallet() {
                 </TouchableOpacity>
               </View>
 
-              <Text style={st.inpLbl}>VALOR EM BLX (CENTAVOS AUTOM.)</Text>
+              <Text style={st.inpLbl}>VALOR EM PYX (CENTAVOS AUTOM.)</Text>
               <View style={st.inpBox}>
                 <TextInput
                   style={st.inp}
                   value={masked}
-                  onChangeText={(t) => setMasked(maskBLXInput(t))}
+                  onChangeText={(t) => setMasked(maskPYXInput(t))}
                   placeholder="0,00"
                   placeholderTextColor="#3A3A3A"
                   keyboardType="number-pad"
                   autoFocus
                   selectTextOnFocus
                 />
-                <Text style={st.inpUnit}>BLX</Text>
+                <Text style={st.inpUnit}>PYX</Text>
               </View>
 
               {/* Atalhos */}
               <View style={st.quickRow}>
                 {[10000, 50000, 100000, 500000, 1000000].map(c => (
-                  <TouchableOpacity key={c} onPress={() => setMasked(maskBLXInput(String(c)))} style={st.quickChip}>
-                    <Text style={st.quickChipTxt}>+{formatBLX(c)}</Text>
+                  <TouchableOpacity key={c} onPress={() => setMasked(maskPYXInput(String(c)))} style={st.quickChip}>
+                    <Text style={st.quickChipTxt}>+{formatPYX(c)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -253,7 +253,7 @@ export default function AdminWallet() {
                 )}
               </TouchableOpacity>
               <Text style={st.hint}>
-                Registrado com seu usuário de staff. O membro verá o crédito no Extrato BLX imediatamente.
+                Registrado com seu usuário de staff. O membro verá o crédito no Extrato PYX imediatamente.
               </Text>
             </View>
           </View>

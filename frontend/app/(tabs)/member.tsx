@@ -25,7 +25,7 @@ export default function Member() {
     refreshMember();
   }, [refreshUser, refreshMember]));
   const isStaff = ["admin", "support", "financeiro"].includes(authUser?.role || "");
-  // Master = role admin (acesso total, troca senha, credita BLX, gerencia tudo)
+  // Master = role admin (acesso total, troca senha, credita PYX, gerencia tudo)
   const isMaster = authUser?.role === "admin";
   // Publisher Diamond — membro com permissão explícita (pode publicar anúncios)
   const canPublishAds = isStaff || !!member?.can_post_ads;

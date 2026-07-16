@@ -16,12 +16,12 @@ const BG = "#050505";
 
 /**
  * Barra superior premium — 3 elementos:
- *   [Perfil (avatar)] ........... [BLACKSCLUB logo centralizado] ........... [Banco (wallet) + saldo BLX]
+ *   [Perfil (avatar)] ........... [BLACKSCLUB logo centralizado] ........... [Banco (wallet) + saldo PYX]
  *
  * - Esquerda: avatar do membro (ou ícone person-circle como fallback). Toca → /member.
  * - Centro: logo BLACKSCLUB (mesma família/estilo do rodapé antigo).
  *           Toca → /home.
- * - Direita: ícone de carteira + saldo BLX abreviado (ex: "1.5K BLX") logo abaixo.
+ * - Direita: ícone de carteira + saldo PYX abreviado (ex: "1.5K PYX") logo abaixo.
  *           Toca → /wallet.
  *
  * O componente recebe BottomTabBarProps porque o expo-router usa este tabBar

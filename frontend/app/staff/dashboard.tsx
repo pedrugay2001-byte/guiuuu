@@ -148,7 +148,7 @@ export default function StaffDashboard() {
           />
         </View>
 
-        {/* BLX Metrics CTA */}
+        {/* PYX Metrics CTA */}
         {isAdmin && (
           <TouchableOpacity
             style={styles.metricsCard}
@@ -160,7 +160,7 @@ export default function StaffDashboard() {
               <Ionicons name="analytics" size={22} color="#D4AF37" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.metricsKicker}>PAINEL EXECUTIVO BLX</Text>
+              <Text style={styles.metricsKicker}>PAINEL EXECUTIVO PYX</Text>
               <Text style={styles.metricsTitle}>Métricas do ecossistema</Text>
               <Text style={styles.metricsSub}>Supply em circulação, top sellers e volume 30d</Text>
             </View>
@@ -198,7 +198,7 @@ export default function StaffDashboard() {
                 testID="staff-action-pix-orders"
               >
                 <Ionicons name="qr-code" size={18} color="#000" />
-                <Text style={[styles.actionText, { color: "#000" }]}>PEDIDOS PIX (BLX)</Text>
+                <Text style={[styles.actionText, { color: "#000" }]}>PEDIDOS PIX (PYX)</Text>
                 {pixPending > 0 && (
                   <View style={styles.pixBadge}>
                     <Text style={styles.pixBadgeTxt}>{pixPending > 9 ? "9+" : pixPending}</Text>
