@@ -101,7 +101,9 @@ export default function DMChat() {
       await api.dmDeleteThread(member.member_id, id);
       setConfirmThreadDelete(false);
       setMsgs([]);
-      router.back();
+      // Navigate back robustly (URL direto ou hard reload não tem histórico)
+      if (router.canGoBack()) router.back();
+      else router.replace("/community/messages");
     } catch (e: any) {
       Alert.alert("Erro", e?.message || "Não foi possível apagar a conversa.");
       setConfirmThreadDelete(false);
