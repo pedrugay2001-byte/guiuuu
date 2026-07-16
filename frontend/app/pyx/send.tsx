@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Image, Modal,
@@ -6,10 +6,11 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "../../src/icons";
-import { api, PyxContact, PyxWallet } from "../../src/api";
+import { api, PyxContact, PyxWallet, PyxReceipt } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { formatPYX, maskPYXInput, maskedToCents } from "../../src/pyx";
 import { TIERS } from "../../src/theme";
+import { ReceiptCard } from "../../src/receipt-card";
 
 type Step = "search" | "amount" | "review" | "success";
 
@@ -28,6 +29,7 @@ export default function Send() {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [txSuccess, setTxSuccess] = useState<any>(null);
+  const [receipt, setReceipt] = useState<PyxReceipt | null>(null);  // ETAPA 4
   const [pwdOpen, setPwdOpen] = useState(false);       // ETAPA 3: modal de senha
   const [pwd, setPwd] = useState("");
   const [pwdError, setPwdError] = useState<string | null>(null);
@@ -103,6 +105,11 @@ export default function Send() {
       setPwdOpen(false);
       setPwd("");
       setStep("success");
+      // ETAPA 4 — carrega comprovante enriquecido
+      try {
+        const rc = await api.pyxReceipt(tx.tx_id, member.member_id);
+        setReceipt(rc);
+      } catch { /* noop — mostraremos versão simplificada */ }
     } catch (e: any) {
       const msg = e?.message || "Erro inesperado";
       // 401 → senha incorreta ou não fornecida — mantém o modal aberto
@@ -397,32 +404,42 @@ export default function Send() {
             <Text style={styles.successAmount}>{formatPYX(amountCents)} PYX</Text>
             <Text style={styles.successSub}>enviados para {selected.nickname || selected.name}</Text>
 
-            <View style={[styles.reviewCard, { marginTop: 24, width: "100%" }]}>
-              <View style={styles.reviewRow}>
-                <Text style={styles.reviewLbl}>CÓDIGO</Text>
-                <Text style={styles.reviewVal}>{txSuccess.tx_id}</Text>
+            {/* ETAPA 4 — Comprovante inline (compact) + CTAs de compartilhamento */}
+            {receipt ? (
+              <View style={{ width: "100%", marginTop: 20 }}>
+                <ReceiptCard receipt={receipt} perspective={member.member_id} />
               </View>
-              <View style={styles.reviewRow}>
-                <Text style={styles.reviewLbl}>DATA</Text>
-                <Text style={styles.reviewVal}>
-                  {new Date(txSuccess.created_at).toLocaleString("pt-BR")}
-                </Text>
+            ) : (
+              <View style={[styles.reviewCard, { marginTop: 24, width: "100%" }]}>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLbl}>CÓDIGO</Text>
+                  <Text style={styles.reviewVal}>{txSuccess.tx_id}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLbl}>DATA</Text>
+                  <Text style={styles.reviewVal}>
+                    {new Date(txSuccess.created_at).toLocaleString("pt-BR")}
+                  </Text>
+                </View>
               </View>
-            </View>
+            )}
 
             <TouchableOpacity
               style={[styles.primaryBtn, { width: "100%" }]}
-              onPress={() => router.replace("/(tabs)/wallet" as any)}
-              testID="pyx-success-home"
+              onPress={() => router.push({ pathname: "/pyx/receipt/[txId]", params: { txId: txSuccess.tx_id } } as any)}
+              testID="pyx-success-open-receipt"
+              activeOpacity={0.85}
             >
-              <Text style={styles.primaryBtnText}>VOLTAR AO BANCO</Text>
+              <Ionicons name="share-social" size={18} color="#0A0A0A" />
+              <Text style={styles.primaryBtnText}>VER E COMPARTILHAR COMPROVANTE</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.ghostBtn}
-              onPress={() => router.replace("/pyx/history" as any)}
+              onPress={() => router.replace("/(tabs)/wallet" as any)}
+              testID="pyx-success-home"
             >
-              <Text style={styles.ghostBtnText}>VER EXTRATO</Text>
+              <Text style={styles.ghostBtnText}>VOLTAR AO BANCO</Text>
             </TouchableOpacity>
           </ScrollView>
         )}

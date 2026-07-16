@@ -2606,6 +2606,8 @@ async def community_member_detail(member_id: str):
 
 class DMSend(BaseModel):
     text: str
+    kind: Optional[str] = None       # ETAPA 4: 'text' (default) | 'receipt'
+    tx_id: Optional[str] = None      # ETAPA 4: id da transação quando kind=receipt
 
 
 def _dm_thread(a: str, b: str) -> str:
@@ -2621,9 +2623,25 @@ async def dm_list(me_id: str, other_id: str):
 
 @api_router.post("/community/dms/{me_id}/{other_id}")
 async def dm_send(me_id: str, other_id: str, data: DMSend):
-    text = data.text.strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="Mensagem vazia")
+    text = (data.text or "").strip()
+    kind = (data.kind or "text").lower()
+    if kind not in ("text", "receipt"):
+        kind = "text"
+    if kind == "receipt":
+        if not (data.tx_id or "").strip():
+            raise HTTPException(status_code=400, detail="tx_id obrigatório para comprovante")
+        # valida se o remetente participa da transação
+        tx = await db.wallet_txs.find_one({"tx_id": data.tx_id}, {"_id": 0, "from_id": 1, "to_id": 1})
+        if not tx:
+            raise HTTPException(status_code=404, detail="Transação não encontrada")
+        if me_id not in (tx.get("from_id"), tx.get("to_id")):
+            raise HTTPException(status_code=403, detail="Você não faz parte desta transação")
+        # texto default se vazio
+        if not text:
+            text = "Comprovante de transferência PYX"
+    else:
+        if not text:
+            raise HTTPException(status_code=400, detail="Mensagem vazia")
     tid = _dm_thread(me_id, other_id)
     doc = {
         "dm_id": f"dm_{uuid.uuid4().hex[:12]}",
@@ -2631,8 +2649,11 @@ async def dm_send(me_id: str, other_id: str, data: DMSend):
         "from_id": me_id,
         "to_id": other_id,
         "text": text,
+        "kind": kind,
         "created_at": datetime.now(timezone.utc),
     }
+    if kind == "receipt":
+        doc["tx_id"] = data.tx_id
     await db.dm_messages.insert_one(doc)
     doc.pop("_id", None)
     return doc
@@ -5304,6 +5325,48 @@ async def pyx_transactions(member_id: str, limit: int = 50, skip: int = 0):
         if t.get("to_id") in names_map and not t.get("to_name"):
             t["to_name"] = names_map[t["to_id"]]["name"]
     return txs
+
+
+# ---------- ETAPA 4: RECEIPT (comprovante) ----------
+
+@api_router.get("/pyx/receipt/{tx_id}")
+async def pyx_receipt(tx_id: str, member_id: Optional[str] = None):
+    """Retorna um comprovante detalhado de uma transação PYX.
+    O `member_id` (query param) deve ser um dos envolvidos na transação
+    (from_id ou to_id) — evita vazamento de dados de terceiros.
+    """
+    tx = await db.wallet_txs.find_one({"tx_id": tx_id}, {"_id": 0})
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transação não encontrada")
+
+    # Validação de acesso: quem consulta precisa ser parte da transação
+    if member_id and member_id not in (tx.get("from_id"), tx.get("to_id")):
+        # Staff pode ver qualquer comprovante
+        u = await db.users.find_one(
+            {"user_id": (await db.members.find_one({"member_id": member_id}, {"_id": 0, "user_id": 1}) or {}).get("user_id")},
+            {"_id": 0, "role": 1},
+        )
+        role = (u or {}).get("role")
+        if role not in ("admin", "support", "financeiro"):
+            raise HTTPException(status_code=403, detail="Você não faz parte desta transação")
+
+    # Enriquecer nomes/tier/avatar
+    async def _enrich(mid: Optional[str]) -> Dict[str, Any]:
+        if not mid:
+            return {}
+        m = await db.members.find_one(
+            {"member_id": mid},
+            {"_id": 0, "member_id": 1, "name": 1, "nickname": 1, "tier": 1, "avatar_base64": 1},
+        )
+        return m or {}
+
+    from_info = await _enrich(tx.get("from_id"))
+    to_info = await _enrich(tx.get("to_id"))
+
+    tx["amount_centavos"] = int(tx.get("amount_centavos") or round(float(tx.get("amount", 0)) * 100))
+    tx["from_info"] = from_info
+    tx["to_info"] = to_info
+    return tx
 
 
 # ---------- STORIES (24h) ----------

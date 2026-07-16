@@ -3300,3 +3300,45 @@ agent_communication:
       Build & deploy: `npm run build` → `cp dist/* backend/static_frontend/` → `supervisorctl restart expo`. Verificado HTTP 200.
 
       Status: COMPLETO — não precisa testes do agent (validei manualmente via screenshot e API).
+
+
+## 2026-07-16 — ETAPA 4: Comprovantes de Transferência PYX
+agent_communication:
+  - agent: main
+    message: |
+      Implementei a Etapa 4 — Comprovantes automáticos de transferência PYX com fluxo completo de compartilhamento:
+      
+      **Backend (`/app/backend/server.py`):**
+      1. Novo endpoint `GET /api/pyx/receipt/{tx_id}?member_id={id}` — retorna comprovante detalhado da transação (enriquecido com from_info / to_info: nome, tier, avatar). Valida que quem pede é from_id/to_id (staff pode ver qualquer um).
+      2. `DMSend` model extendido: agora aceita `kind: text|receipt` e `tx_id`. Se kind=receipt, valida que a transação existe e que o remetente participa dela.
+      3. `dm_send` endpoint: aceita e persiste `kind` + `tx_id`.
+      
+      **Frontend:**
+      - Novos arquivos:
+        - `/app/frontend/src/receipt-card.tsx` — componente reutilizável `<ReceiptCard>` (renderização premium do comprovante).
+        - `/app/frontend/src/receipt-share.ts` — helpers cross-platform: `shareReceiptImage()`, `saveReceiptImage()`, `shareToWhatsApp()` (Web: navigator.share + fallback download; Native: expo-sharing + expo-media-library).
+        - `/app/frontend/app/pyx/receipt/[txId].tsx` — tela dedicada de comprovante com 4 botões de compartilhamento: Chat interno, WhatsApp, Compartilhar OS, Salvar/Baixar. Captura do card via `react-native-view-shot`.
+      - Arquivos alterados:
+        - `/app/frontend/src/api.ts` — adicionado `PyxReceipt` type, `api.pyxReceipt(tx_id, member_id)`, `api.dmSend` agora aceita opts `{kind, tx_id}`, `DMMessage` type extendido com `kind` e `tx_id`.
+        - `/app/frontend/app/pyx/send.tsx` — após sucesso da transferência, carrega comprovante e renderiza `<ReceiptCard>`. CTA principal → "VER E COMPARTILHAR COMPROVANTE" abre a nova tela.
+        - `/app/frontend/app/community/dm/[id].tsx` — mensagens do tipo `receipt` renderizam bolha premium (dourada) com mini-comprovante clicável que abre a tela de comprovante.
+      
+      **Pacotes instalados:**
+      - `react-native-view-shot@4.0.3`
+      - `expo-sharing@~14.0.8`
+      - `expo-file-system@~19.0.23`
+      - `expo-media-library@~18.2.1`
+      
+      **Credenciais de teste (produção + preview):**
+      - Master Admin: `guilherme925145000@gmail.com` / `Shakira12@`
+      - Demo Diamond: `demo@blacksclub.com` / `novasenha123`
+      
+      **Testes necessários:**
+      1. Backend: `GET /api/pyx/receipt/{tx_id}` — status 200, campos completos (from_info, to_info, tx_id, amount_centavos, dates); 403/404 apropriados.
+      2. Backend: `POST /api/community/dms/{me}/{other}` com body `{text, kind: "receipt", tx_id}` — persiste e retorna kind + tx_id.
+      3. Backend: rejeitar kind=receipt sem tx_id, com tx inexistente, ou com remetente que não faz parte da transação (403).
+      4. Frontend: fazer uma transferência PYX de demo → admin, chegar em tela de sucesso e verificar que o `<ReceiptCard>` aparece inline com todos os campos.
+      5. Frontend: clicar em "VER E COMPARTILHAR COMPROVANTE" → tela `/pyx/receipt/{tx_id}` abre com card + 4 botões.
+      6. Frontend: enviar comprovante via "Chat interno" → aparece na conversa DM como bolha dourada; abrir clicando nela.
+      
+      Status: PRONTO PARA TESTE (backend + frontend).

@@ -1,0 +1,54 @@
+{
+  "summary": "Etapa 4 (Comprovantes PYX) testada end-to-end. Backend: 12/13 tests PASS (1 FAIL revelou bug real de staff-bypass). Frontend: /pyx/receipt/{tx_id} renderiza ReceiptCard com todos os campos (DE, PARA, valor, wallets, data/hora, LIQUIDADO, tx_id, nota), 4 botões de compartilhamento com testIDs corretos, e modal 'ENVIAR NO CHAT' abre com lista de contatos DM + campo de busca. Icons ausentes no fallback: 'chatbubble-ellipses', 'logo-whatsapp', 'download' — mostram HelpCircle ('?') em vez do ícone. Bug REAL encontrado: staff-bypass em GET /api/pyx/receipt/{tx_id} não funciona porque o lookup do user filtra apenas por member.user_id — no DB atual, admin master (mem_7a9d652945e7) tem role=admin em users mas o campo user_id NÃO está preenchido em members, resultando em 403 mesmo para admin não-participante. Regressões OK: POST /api/pyx/transfer sem senha=401, senha errada=401, POST DM texto=200 kind='text', POST DM receipt sem tx_id=400, tx_id inválido=404, não-participante=403. Deprecated packages detected: nenhum (expo-av/barcode-scanner/background-fetch não são usados neste fluxo).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/pyx/receipt/{tx_id}", "issue": "Staff bypass QUEBRADO quando member.user_id não está preenchido. server.py:5345-5348 busca user apenas por member.user_id sem fallback por email — resulta em 403 mesmo para admin master (que tem role=admin em users mas members.user_id=None). FIX: replicar o padrão do pyx_transfer server.py:5133-5138 que faz fallback por member.email. Impacto: staff não consegue auditar comprovantes de terceiros.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "GET /api/members/{member_id}", "issue": "(pre-existente iter_4) Vaza password_hash na projeção. server.py:555-559."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "src/icons.tsx", "issue": "Ionicons sem mapping: 'chatbubble-ellipses' (usado em receipt-card.tsx:137 e receipt/[txId].tsx:250,321), 'logo-whatsapp' (receipt/[txId].tsx:258), 'download' (receipt/[txId].tsx:274 no web). Fallback HelpCircle é exibido como '?'. Adicionar mappings em /app/frontend/src/icons.tsx.", "testID": "receipt-share-chat, receipt-share-whatsapp, receipt-share-save", "priority": "MEDIUM"},
+      {"component": "pyx/receipt/[txId].tsx doSaveImage (web)", "issue": "Clicar em 'Baixar imagem' (receipt-share-save) via Playwright não disparou evento de download em 6s. Provável: captureRef (react-native-view-shot) no web-preview pode falhar ou demorar mais. showToast('Falha ao gerar imagem') seria disparado se capture retornar null — não confirmei visualmente. Recomendo E1 testar manualmente ou aumentar timeout/adicionar console.log em capture().", "testID": "receipt-share-save", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Receipt Chat share → DM bubble", "issue": "Fluxo POST /api/community/dms com kind='receipt'+tx_id passa (backend test). Bolha visual na DM depende de dm/[id].tsx renderer — não foi testado E2E porque exigiria navegação até o chat, mas API está OK.", "affected_testIDs": ["receipt-share-chat", "receipt-share-to-{member_id}"]}
+    ],
+    "design_issues": [
+      {"screen": "/pyx/receipt/{tx_id}", "issues": ["Card renderiza perfeitamente com valor, DE/PARA, avatares, wallets, data/hora, LIQUIDADO, tx_id, nota — layout premium consistente. Botões de compartilhamento em grid 2x2 respeitam touch-target 44px."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pyx_receipt_etapa4.py",
+    "/app/test_reports/pytest/pyx_receipt_etapa4.xml",
+    "/app/test_reports/iteration_5.json"
+  ],
+  "action_items": [
+    "HIGH — server.py:5343-5351: staff-bypass em GET /api/pyx/receipt está QUEBRADO no DB atual. Aplicar fallback por email igual server.py:5137-5138. Sugestão de patch:\n```python\n    if member_id and member_id not in (tx.get('from_id'), tx.get('to_id')):\n        m = await db.members.find_one({'member_id': member_id}, {'_id': 0, 'user_id': 1, 'email': 1}) or {}\n        u = None\n        if m.get('user_id'):\n            u = await db.users.find_one({'user_id': m['user_id']}, {'_id': 0, 'role': 1})\n        if not u and m.get('email'):\n            u = await db.users.find_one({'email': m['email']}, {'_id': 0, 'role': 1})\n        role = (u or {}).get('role')\n        if role not in ('admin', 'support', 'financeiro'):\n            raise HTTPException(status_code=403, detail='Você não faz parte desta transação')\n```",
+    "MEDIUM — /app/frontend/src/icons.tsx: adicionar mappings para 'chatbubble-ellipses', 'logo-whatsapp', 'download' (usar ícones lucide equivalentes: MessageSquare, MessageCircleMore, Download). Sem isso, receipt-card e tela de comprovante mostram '?' em vez de ícones.",
+    "MEDIUM — Investigar se doSaveImage() (web) está falhando no captureRef. Adicionar console.log(uri) após capture e testar manualmente clicar 'Baixar imagem' no /pyx/receipt para confirmar geração e download do PNG.",
+    "OPTIONAL — Considerar também sincronizar members.user_id para todos os membros com user linkado (ETL/backfill) — isso corrigiria não só receipt-bypass mas outros lookups que dependam desse relacionamento."
+  ],
+  "critical_code_review_comments": [
+    "server.py:5343-5351 — staff-bypass depende do campo member.user_id existir. Como nem todos os members do preview têm esse campo populado (apesar do user existir em users com role=admin), o bypass falha. Isso não é hipótese: o teste TestReceiptGet.test_receipt_by_staff_admin_returns_200_bypass provou 403 real.",
+    "server.py:2607-2610 — DMSend com text: str (obrigatório). Quando kind='receipt' e text vazio, endpoint substitui por 'Comprovante de transferência PYX' (linha 2640-2641). OK — porém frontend sempre envia text não-vazio ('Comprovante — X PYX ...') em receipt/[txId].tsx:178-181.",
+    "receipt/[txId].tsx — bem estruturado: separação clara de estados (loading/error/receipt), ViewShot ref, showToast com auto-dismiss 2.5s, modal chat picker com busca debounced 250ms e enriquecimento de contatos via dmThreads+communityMember. testIDs adequados.",
+    "receipt-card.tsx — perspective prop bem pensada (destaca ENVIADO/RECEBIDO). Fallbacks defensivos para nickname/name/wallet ausentes.",
+    "receipt-share.ts — webDownload usa Blob + URL.createObjectURL + anchor.click — padrão correto para triggerar download no web. Se falhou no teste Playwright, provavelmente captureRef retornou null (view-shot em Expo Web tem limitações).",
+    "src/icons.tsx — mappings faltando para os 3 ícones novos usados na Etapa 4."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pyx_receipt_etapa4.py (novo)",
+    "/app/test_reports/pytest/pyx_receipt_etapa4.xml",
+    "/app/test_reports/iteration_5.json (novo)"
+  ],
+  "success_rate": {"backend": "92% (12/13) — 1 FAIL revela bug real de staff-bypass", "frontend": "receipt screen 100% render + testIDs, chat modal 100% abre, download-web NÃO confirmado (timeout)"},
+  "seed_data_creation": "1 transferência real 100 centavos admin→Mateus (tx criada durante o run do pytest, note='TEST_etapa4_receipt'). 2 mensagens DM inseridas via testes (kind='receipt' e kind='text'). Tx sintética criada e deletada dentro do teste de staff-bypass.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Etapa 4 backend está 92% verde. O único FAIL (staff-bypass 403 em vez de 200) é bug REAL do endpoint /api/pyx/receipt em server.py:5343-5351 — não é problema de fixture nem de dados. Para reproduzir: chamar GET /api/pyx/receipt/{tx_id}?member_id=mem_7a9d652945e7 com uma tx onde admin não seja parte → retorna 403 apesar dele ter role=admin em users. Causa raiz: members.user_id não está preenchido para o admin (só o email está). Fix é adicionar fallback por email (patch pronto em action_items). Frontend: verificar que ícones 'chatbubble-ellipses', 'logo-whatsapp', 'download' foram adicionados em /app/frontend/src/icons.tsx antes de rodar E2E de share. Test file reutilizável: /app/backend/tests/test_pyx_receipt_etapa4.py.",
+  "rca_of_issue": "BUG (staff bypass): server.py:5345-5348 constrói o filtro do users.find_one como `{'user_id': (members.find_one(...) or {}).get('user_id')}`. Se o member não tem `user_id` populado (caso do admin master mem_7a9d652945e7 no preview), o filtro vira `{'user_id': None}` que retorna None → role=None → 403 mesmo o usuário sendo admin em users (linkado pelo email). MITIGAÇÃO: adicionar fallback por email igual ao que já existe em pyx_transfer (server.py:5137-5138), OU rodar backfill que sincronize members.user_id ← users.user_id via join por email para todos os membros. Solução recomendada: as duas — código mais defensivo + dados corretos."
+}

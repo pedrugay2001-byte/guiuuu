@@ -6,11 +6,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "../../../src/icons";
-import { api, CommunityMember, DMMessage } from "../../../src/api";
+import { api, CommunityMember, DMMessage, PyxReceipt } from "../../../src/api";
 import { useGate } from "../../../src/gate";
 import { TIERS } from "../../../src/theme";
 import { pickCompressedImage } from "../../../src/imagepicker";
 import { AudioRecorderButton, AudioPlayer } from "../../../src/audio";
+import { formatPYX } from "../../../src/pyx";
 
 const EMOJIS = ["🔥", "💪", "❤️", "🙌", "👊", "✨", "🏋️", "🥶", "😂", "😎", "🎉", "💀", "🍏", "🥊", "🦾", "☀️", "🌙", "💯", "👁️", "🥵"];
 
@@ -28,6 +29,7 @@ export default function DMChat() {
   const [threadMenuOpen, setThreadMenuOpen] = useState(false);
   const [confirmThreadDelete, setConfirmThreadDelete] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [receiptCache, setReceiptCache] = useState<Record<string, PyxReceipt>>({});   // ETAPA 4: cache de comprovantes por tx_id
   const listRef = useRef<FlatList>(null);
 
   const load = useCallback(async () => {
@@ -41,6 +43,24 @@ export default function DMChat() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (msgs.length) setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80); }, [msgs]);
+
+  // ETAPA 4: pré-carrega os comprovantes das mensagens do tipo "receipt"
+  useEffect(() => {
+    if (!member) return;
+    const missing = Array.from(new Set(
+      msgs.filter((m) => m.kind === "receipt" && m.tx_id && !receiptCache[m.tx_id!])
+          .map((m) => m.tx_id!)
+    ));
+    if (missing.length === 0) return;
+    Promise.all(missing.map((id) => api.pyxReceipt(id, member.member_id).catch(() => null)))
+      .then((res) => {
+        const merged: Record<string, PyxReceipt> = {};
+        res.forEach((r, i) => { if (r) merged[missing[i]] = r; });
+        if (Object.keys(merged).length > 0) {
+          setReceiptCache((prev) => ({ ...prev, ...merged }));
+        }
+      });
+  }, [msgs, member, receiptCache]);
 
   useEffect(() => {
     if (!member || !id) return;
@@ -166,6 +186,66 @@ export default function DMChat() {
                 .replace(/\[IMG\][^[]+\[\/IMG\]/, "")
                 .replace(/\[AUD\][^[]+\[\/AUD\]/, "")
                 .trim();
+
+              // ETAPA 4 — bolha especial para comprovantes PYX
+              if (item.kind === "receipt" && item.tx_id) {
+                const rec = receiptCache[item.tx_id];
+                const isSenderOut = rec ? rec.from_id === member?.member_id : true;
+                return (
+                  <View style={[styles.row, mine ? styles.rowMe : styles.rowOther]}>
+                    <Pressable
+                      onLongPress={() => mine && setSelectedMsg(item)}
+                      delayLongPress={400}
+                      onPress={() => router.push({ pathname: "/pyx/receipt/[txId]", params: { txId: item.tx_id } } as any)}
+                      testID={`dm-receipt-${item.dm_id}`}
+                      style={({ pressed }) => [
+                        styles.receiptBubble,
+                        pressed && { opacity: 0.9 },
+                      ]}
+                    >
+                      <View style={styles.receiptHead}>
+                        <View style={styles.receiptHeadBrand}>
+                          <Ionicons name="diamond" size={12} color="#D4AF37" />
+                          <Text style={styles.receiptHeadTxt}>COMPROVANTE PYX</Text>
+                        </View>
+                        {rec ? (
+                          <Text style={[styles.receiptDir, { color: isSenderOut ? "#F87171" : "#4EE07F" }]}>
+                            {isSenderOut ? "ENVIADO" : "RECEBIDO"}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <View style={styles.receiptAmountRow}>
+                        <Text style={styles.receiptAmountVal}>
+                          {rec ? formatPYX(rec.amount_centavos) : "…"}
+                        </Text>
+                        <Text style={styles.receiptAmountUnit}>PYX</Text>
+                      </View>
+                      {rec ? (
+                        <>
+                          <Text style={styles.receiptParty} numberOfLines={1}>
+                            {isSenderOut
+                              ? `Para ${rec.to_info?.nickname || rec.to_info?.name || rec.to_name || "—"}`
+                              : `De ${rec.from_info?.nickname || rec.from_info?.name || rec.from_name || "—"}`}
+                          </Text>
+                          <Text style={styles.receiptMeta} numberOfLines={1}>
+                            {new Date(rec.created_at).toLocaleString("pt-BR")} · {rec.tx_id}
+                          </Text>
+                          {rec.note ? (
+                            <Text style={styles.receiptNote} numberOfLines={2}>“{rec.note}”</Text>
+                          ) : null}
+                        </>
+                      ) : (
+                        <ActivityIndicator size="small" color="#D4AF37" style={{ marginTop: 6 }} />
+                      )}
+                      <View style={styles.receiptCta}>
+                        <Ionicons name="open-outline" size={12} color="#D4AF37" />
+                        <Text style={styles.receiptCtaTxt}>Ver comprovante</Text>
+                      </View>
+                    </Pressable>
+                  </View>
+                );
+              }
+
               return (
                 <View style={[styles.row, mine ? styles.rowMe : styles.rowOther]}>
                   <Pressable
@@ -320,6 +400,38 @@ const styles = StyleSheet.create({
   bubbleOther: { backgroundColor: "#1A1A1A", borderBottomLeftRadius: 4 },
   bubbleTxt: { fontSize: 14, lineHeight: 19 },
   attachImg: { width: 220, height: 220, borderRadius: 10, backgroundColor: "#111" },
+
+  // ETAPA 4 — bolha de comprovante PYX no chat
+  receiptBubble: {
+    maxWidth: 280,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "#0B0B0B",
+    borderWidth: 1,
+    borderColor: "rgba(212,175,55,0.35)",
+  },
+  receiptHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  receiptHeadBrand: { flexDirection: "row", alignItems: "center", gap: 5 },
+  receiptHeadTxt: { color: "#D4AF37", fontSize: 9.5, fontWeight: "900", letterSpacing: 1.5 },
+  receiptDir: { fontSize: 9.5, fontWeight: "900", letterSpacing: 1.2 },
+  receiptAmountRow: { flexDirection: "row", alignItems: "baseline", gap: 5 },
+  receiptAmountVal: { color: "#FFF", fontSize: 22, fontWeight: "900", letterSpacing: -0.5, fontVariant: ["tabular-nums"] },
+  receiptAmountUnit: { color: "#C5D1DA", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
+  receiptParty: { color: "#EEE", fontSize: 12.5, fontWeight: "800", marginTop: 6 },
+  receiptMeta: { color: "#8A8A8A", fontSize: 10.5, marginTop: 3, letterSpacing: 0.3 },
+  receiptNote: { color: "#E8C77A", fontSize: 11.5, fontStyle: "italic", marginTop: 5 },
+  receiptCta: {
+    marginTop: 10, paddingTop: 8,
+    borderTopWidth: 1, borderTopColor: "#1A1A1A",
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
+  },
+  receiptCtaTxt: { color: "#D4AF37", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
+
   emojiPanel: { flexDirection: "row", flexWrap: "wrap", padding: 10, backgroundColor: "#0F0F0F", borderTopWidth: 1, borderTopColor: "#1A1A1A" },
   emojiBtn: { width: "10%", paddingVertical: 8, alignItems: "center" },
   emojiTxt: { fontSize: 22 },

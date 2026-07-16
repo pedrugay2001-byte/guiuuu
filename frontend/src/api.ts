@@ -316,8 +316,16 @@ export const api = {
     request<CommunityMember>(`/community/members/${id}`),
   dmList: (me: string, other: string) =>
     request<DMMessage[]>(`/community/dms/${me}/${other}`),
-  dmSend: (me: string, other: string, text: string) =>
-    request<DMMessage>(`/community/dms/${me}/${other}`, { method: "POST", body: JSON.stringify({ text }) }),
+  dmSend: (
+    me: string,
+    other: string,
+    text: string,
+    opts?: { kind?: "text" | "receipt"; tx_id?: string }
+  ) =>
+    request<DMMessage>(`/community/dms/${me}/${other}`, {
+      method: "POST",
+      body: JSON.stringify({ text, ...(opts || {}) }),
+    }),
   dmDeleteMessage: (me: string, other: string, dm_id: string) =>
     request<{ ok: boolean; deleted: string }>(`/community/dms/${me}/${other}/message/${dm_id}`, { method: "DELETE" }),
   dmDeleteThread: (me: string, other: string) =>
@@ -453,6 +461,12 @@ export const api = {
       available_centavos: number;
       month_start: string;
     }>(`/pyx/transfer/limits/${member_id}`),
+
+  // ETAPA 4 — Comprovante de transferência
+  pyxReceipt: (tx_id: string, member_id?: string) =>
+    request<PyxReceipt>(
+      `/pyx/receipt/${tx_id}${member_id ? `?member_id=${encodeURIComponent(member_id)}` : ""}`
+    ),
 
   // ----- PYX Orders (escrow marketplace) -----
   pyxOrders: (member_id: string, role: "buyer" | "seller" | "all" = "all") =>
@@ -818,6 +832,22 @@ export type PyxTx = {
   shipped_at?: string;   // vendedor marcou como entregue (escrow intermediário)
   shipped_by?: string;
 };
+export type PyxReceipt = PyxTx & {
+  from_info?: {
+    member_id?: string;
+    name?: string;
+    nickname?: string | null;
+    tier?: TierId;
+    avatar_base64?: string | null;
+  } | null;
+  to_info?: {
+    member_id?: string;
+    name?: string;
+    nickname?: string | null;
+    tier?: TierId;
+    avatar_base64?: string | null;
+  } | null;
+};
 export type PyxOrder = PyxTx & {
   i_am_buyer: boolean;
   i_am_seller: boolean;
@@ -906,7 +936,15 @@ export type CommunityMember = {
   bio?: string | null;
   is_online: boolean;
 };
-export type DMMessage = { dm_id?: string; from_id: string; to_id: string; text: string; created_at: string };
+export type DMMessage = {
+  dm_id?: string;
+  from_id: string;
+  to_id: string;
+  text: string;
+  created_at: string;
+  kind?: "text" | "receipt";
+  tx_id?: string;
+};
 export type DMThread = { partner_id: string; last_text: string; last_at: string };
 export type Group = { group_id: string; name: string; description: string; icon: string; color: string; members_count: number };
 export type GroupMsg = { gm_id?: string; group_id: string; member_id: string; text: string; created_at: string; nickname: string; avatar_base64?: string | null; tier: TierId };
