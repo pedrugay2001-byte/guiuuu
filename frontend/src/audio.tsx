@@ -191,7 +191,7 @@ export function AudioRecorderButton({
       <TouchableOpacity
         style={[recStyles.recActive, { backgroundColor: "#F87171" }]}
         onPress={stop}
-        testID={testID || "audio-recorder-stop"}
+        testID={testID ? `${testID}-stop` : "audio-recorder-stop"}
       >
         <View style={recStyles.dot} />
         <Text style={recStyles.recTimer}>{mm}:{ss}</Text>

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  ActivityIndicator, FlatList, TextInput, Alert, Pressable,
+  ActivityIndicator, FlatList, TextInput, Alert, Pressable, Modal,
 } from "react-native";
 import { Stack, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "../../src/icons";
@@ -21,6 +21,7 @@ export default function Messages() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null); // partner_id sendo deletado
+  const [confirm, setConfirm] = useState<Thread | null>(null);
   void members;
   void useEffect;
 
@@ -44,27 +45,20 @@ export default function Messages() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // Apagar conversa via long-press
-  const promptDeleteThread = (t: Thread) => {
-    if (!member) return;
-    Alert.alert(
-      `Apagar conversa com ${t.partner.nickname}?`,
-      "Todas as mensagens serão apagadas permanentemente para você e para o(a) outro(a) participante. Esta ação não pode ser desfeita.",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Apagar", style: "destructive", onPress: async () => {
-            setBusy(t.partner.member_id);
-            try {
-              await api.dmDeleteThread(member.member_id, t.partner.member_id);
-              setThreads(prev => prev.filter(x => x.partner.member_id !== t.partner.member_id));
-            } catch (e: any) {
-              Alert.alert("Erro", e?.message || "Não foi possível apagar a conversa.");
-            } finally { setBusy(null); }
-          },
-        },
-      ],
-    );
+  // Abre modal in-app (Alert.alert com botões custom não funciona no react-native-web).
+  const promptDeleteThread = (t: Thread) => setConfirm(t);
+
+  const doDeleteThread = async () => {
+    if (!member || !confirm) return;
+    const partnerId = confirm.partner.member_id;
+    setBusy(partnerId);
+    try {
+      await api.dmDeleteThread(member.member_id, partnerId);
+      setThreads(prev => prev.filter(x => x.partner.member_id !== partnerId));
+      setConfirm(null);
+    } catch (e: any) {
+      Alert.alert("Erro", e?.message || "Não foi possível apagar a conversa.");
+    } finally { setBusy(null); }
   };
 
   const filtered = threads.filter(t => !q || t.partner.nickname.toLowerCase().includes(q.toLowerCase()));
@@ -165,6 +159,41 @@ export default function Messages() {
           );
         })}
       </ScrollView>
+
+      {/* MODAL: confirmação de apagar conversa */}
+      <Modal visible={!!confirm} transparent animationType="fade" onRequestClose={() => !busy && setConfirm(null)}>
+        <View style={styles.confirmBackdrop}>
+          <View style={styles.confirmCard}>
+            <View style={{ alignItems: "center", gap: 8 }}>
+              <Ionicons name="trash" size={44} color="#F87171" />
+              <Text style={styles.confirmTitle}>Apagar conversa com {confirm?.partner.nickname}?</Text>
+              <Text style={styles.confirmDesc}>
+                Todas as mensagens serão apagadas permanentemente para você e para o(a) outro(a) participante. Esta ação não pode ser desfeita.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.confirmBtn, !!busy && { opacity: 0.6 }]}
+              disabled={!!busy}
+              onPress={doDeleteThread}
+              testID="thread-delete-confirm"
+            >
+              {busy ? <ActivityIndicator color="#FFF" /> : (
+                <>
+                  <Ionicons name="trash" size={16} color="#FFF" />
+                  <Text style={styles.confirmBtnTxt}>APAGAR TUDO</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.confirmCancel}
+              disabled={!!busy}
+              onPress={() => setConfirm(null)}
+            >
+              <Text style={styles.confirmCancelTxt}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -186,4 +215,14 @@ const styles = StyleSheet.create({
   onlineDot: { position: "absolute", right: -1, bottom: -1, width: 12, height: 12, borderRadius: 6, backgroundColor: "#4EE07F", borderWidth: 2, borderColor: "#050505" },
   name: { color: "#EEE", fontSize: 14, fontWeight: "800" },
   preview: { color: "#888", fontSize: 12, marginTop: 2 },
+
+  // Confirmação in-app (substitui Alert.alert que não funciona no RN-Web)
+  confirmBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", padding: 24 },
+  confirmCard: { backgroundColor: "#0C0C0C", borderRadius: 14, borderWidth: 1, borderColor: "#1F1F1F", minWidth: 280, padding: 18, gap: 12 },
+  confirmTitle: { color: "#FFF", fontSize: 15, fontWeight: "900", textAlign: "center" },
+  confirmDesc: { color: "#AAA", fontSize: 12, textAlign: "center", lineHeight: 17 },
+  confirmBtn: { backgroundColor: "#F87171", paddingVertical: 12, borderRadius: 10, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 },
+  confirmBtnTxt: { color: "#FFF", fontSize: 13, fontWeight: "900", letterSpacing: 0.5 },
+  confirmCancel: { paddingVertical: 10, alignItems: "center" },
+  confirmCancelTxt: { color: "#888", fontSize: 12, fontWeight: "800", letterSpacing: 0.3 },
 });

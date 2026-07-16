@@ -26,6 +26,7 @@ export default function DMChat() {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [selectedMsg, setSelectedMsg] = useState<DMMessage | null>(null); // long-press seleção
   const [threadMenuOpen, setThreadMenuOpen] = useState(false);
+  const [confirmThreadDelete, setConfirmThreadDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const listRef = useRef<FlatList>(null);
 
@@ -87,29 +88,24 @@ export default function DMChat() {
     } finally { setBusy(false); }
   };
 
-  // Confirma e apaga toda a conversa (ambos os lados)
-  const doDeleteThread = async () => {
-    if (!member || !id) return;
+  // Abre o modal in-app de confirmação (Alert.alert com botões custom não funciona no react-native-web).
+  const doDeleteThread = () => {
     setThreadMenuOpen(false);
-    Alert.alert(
-      "Apagar conversa?",
-      "Todas as mensagens desta conversa serão apagadas permanentemente para você e para o(a) outro(a) participante. Esta ação não pode ser desfeita.",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Apagar tudo", style: "destructive", onPress: async () => {
-            setBusy(true);
-            try {
-              await api.dmDeleteThread(member.member_id, id);
-              setMsgs([]);
-              router.back();
-            } catch (e: any) {
-              Alert.alert("Erro", e?.message || "Não foi possível apagar a conversa.");
-            } finally { setBusy(false); }
-          },
-        },
-      ],
-    );
+    setConfirmThreadDelete(true);
+  };
+
+  const confirmDeleteThreadNow = async () => {
+    if (!member || !id) return;
+    setBusy(true);
+    try {
+      await api.dmDeleteThread(member.member_id, id);
+      setConfirmThreadDelete(false);
+      setMsgs([]);
+      router.back();
+    } catch (e: any) {
+      Alert.alert("Erro", e?.message || "Não foi possível apagar a conversa.");
+      setConfirmThreadDelete(false);
+    } finally { setBusy(false); }
   };
 
   if (loading || !partner) return <View style={{ flex: 1, backgroundColor: "#050505", justifyContent: "center" }}><ActivityIndicator color="#FFF" /></View>;
@@ -268,6 +264,40 @@ export default function DMChat() {
             </TouchableOpacity>
           </View>
         </Pressable>
+      </Modal>
+      {/* MODAL: Confirmação de apagar conversa completa */}
+      <Modal visible={confirmThreadDelete} transparent animationType="fade" onRequestClose={() => !busy && setConfirmThreadDelete(false)}>
+        <View style={styles.menuBackdrop}>
+          <View style={[styles.menuCard, { minWidth: 280, padding: 18, gap: 12 }]}>
+            <View style={{ alignItems: "center", gap: 8 }}>
+              <Ionicons name="trash" size={44} color="#F87171" />
+              <Text style={{ color: "#FFF", fontSize: 15, fontWeight: "900", textAlign: "center" }}>Apagar conversa?</Text>
+              <Text style={{ color: "#AAA", fontSize: 12, textAlign: "center", lineHeight: 17 }}>
+                Todas as mensagens desta conversa serão apagadas permanentemente para você e para o(a) outro(a) participante. Esta ação não pode ser desfeita.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={{ backgroundColor: "#F87171", paddingVertical: 12, borderRadius: 10, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, opacity: busy ? 0.6 : 1 }}
+              disabled={busy}
+              onPress={confirmDeleteThreadNow}
+              testID="dm-thread-delete-confirm"
+            >
+              {busy ? <ActivityIndicator color="#FFF" /> : (
+                <>
+                  <Ionicons name="trash" size={16} color="#FFF" />
+                  <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "900", letterSpacing: 0.5 }}>APAGAR TUDO</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ paddingVertical: 10, alignItems: "center" }}
+              disabled={busy}
+              onPress={() => setConfirmThreadDelete(false)}
+            >
+              <Text style={{ color: "#888", fontSize: 12, fontWeight: "800", letterSpacing: 0.3 }}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </KeyboardAvoidingView>
   );

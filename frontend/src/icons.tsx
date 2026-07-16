@@ -76,6 +76,8 @@ import {
   Mic,
   Headphones,
   Megaphone,
+  Smile,
+  MoreVertical,
   // Media / Visual
   Camera,
   Image as LucideImage,
@@ -252,6 +254,10 @@ const IONICONS_MAP: Record<string, React.ComponentType<any>> = {
   "headset": Headphones,
   "megaphone": Megaphone,
   "megaphone-outline": Megaphone,
+  "happy": Smile,
+  "happy-outline": Smile,
+  "ellipsis-vertical": MoreVertical,
+  "ellipsis-horizontal": MoreVertical,
   // Media / Visual
   "camera": Camera,
   "image": LucideImage,

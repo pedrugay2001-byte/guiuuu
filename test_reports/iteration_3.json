@@ -1,0 +1,46 @@
+{
+  "summary": "Re-test after Etapa 1 fixes. ALL 3 PRIORITY FLOWS PASS on web (390x844). (1) Delete DM thread from chat screen: login demo → /community/dm/mem_7a9d652945e7 → send 2 msgs → tap ⋮ (dm-thread-menu, now renders MoreVertical correctly) → tap 'Apagar conversa' (dm-thread-delete) → in-app Modal 'Apagar conversa?' with red 'APAGAR TUDO' button (dm-thread-delete-confirm) OPENS as expected → tap → messages cleared, backend GET /api/community/dms/{demo}/{admin} returns count=0. (2) Delete thread from list at /community/messages: long-press thread-mem_7a9d652945e7 → in-app Modal 'Apagar conversa com Luis Guilherme?' with red APAGAR TUDO (thread-delete-confirm) OPENS → tap → thread disappears from list, backend count=0. (3) Regression: single-message delete (long-press bubble → dm-msg-delete) still works (2→1). Also confirmed: text send, ⋮ icon renders correctly (MoreVertical), audio bubble persists across reloads. Backend Alert.alert bug from iteration_2 is FIXED — Modal replacement works end-to-end.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "DMChat.confirmDeleteThreadNow router.back() fallback", "issue": "After successful thread deletion via /community/dm/{id} screen, router.back() fails with console error 'The action GO_BACK was not handled by any navigator. Is there any screen to go back to?' when the DM was opened via direct URL (no history). UI still works (msgs cleared to []) but user stays on the empty DM screen. Recommend `router.canGoBack() ? router.back() : router.replace('/community/messages')`. Reference: /app/frontend/app/community/dm/[id].tsx:104", "testID": "dm-thread-delete-confirm", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "DM chat", "issues": ["Ionicon 'chatbubble-ellipses-outline' STILL has no mapping in /app/frontend/src/icons.tsx — falls back to HelpCircle. Used at DMChat.empty state (line 147) and menuHeader (line 245). The mapping added in this iteration covered 'happy', 'happy-outline', 'ellipsis-vertical', 'ellipsis-horizontal' but not this one. Console warning: `[icons] Ionicons: missing mapping for \"chatbubble-ellipses-outline\". Falling back to HelpCircle.`"]}
+    ],
+    "react_native_issues": [
+      {"component": "Deprecated RN style props (unchanged from iteration_2)", "issue": "Console warnings persist: 'textShadow*' → 'textShadow', 'shadow*' → 'boxShadow', 'props.pointerEvents' → 'style.pointerEvents'. Non-blocking. Pre-existing across multiple files under /app/frontend."},
+      {"component": "Expo Router missing routes (unchanged from iteration_2)", "issue": "Console warnings: 'No route named onboarding/notifications/wallet exists in nested children' — Stack.Screen declared without matching file in /app/frontend/app/_layout.tsx. Non-blocking noise."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_dm_delete.py",
+    "/app/test_reports/pytest/dm_delete_results.xml",
+    "/app/test_reports/iteration_3.json"
+  ],
+  "action_items": [
+    "LOW: In /app/frontend/app/community/dm/[id].tsx:104, wrap `router.back()` with a canGoBack check: `router.canGoBack() ? router.back() : router.replace('/community/messages')` — avoids GO_BACK error when DM opened via direct URL/notification.",
+    "LOW: Add mapping for `chatbubble-ellipses-outline` in /app/frontend/src/icons.tsx (e.g. → MessageCircle or MessagesSquare). Currently falls back to HelpCircle in DM empty state and message actions modal header.",
+    "LOW (pre-existing): Clean deprecated RN style props (textShadow*, shadow*, props.pointerEvents) and remove Stack.Screen entries for onboarding/notifications/wallet or add the missing route files."
+  ],
+  "critical_code_review_comments": [
+    "The Alert.alert → Modal migration was implemented correctly in both files. Modal in dm/[id].tsx uses a separate `confirmThreadDelete` boolean state gated by `busy` (prevents double-tap during API call) and shows ActivityIndicator while pending — good UX. Same pattern in messages.tsx via `confirm: Thread | null` state and `busy: partner_id`.",
+    "testID contract verified end-to-end: `dm-thread-menu`, `dm-thread-delete`, `dm-thread-delete-confirm` (dm screen); `thread-{partner_id}`, `thread-delete-confirm` (list screen); `dm-msg-{id}`, `dm-msg-delete` (single message). All resolve to data-testid on RN Web and are stable.",
+    "AudioRecorderButton testID fix confirmed at /app/frontend/src/audio.tsx:194 — active/stop button now uses `${testID}-stop` suffix (was dead code). Idle button keeps parent testID.",
+    "Icons fix confirmed at /app/frontend/src/icons.tsx:257-260 — happy/happy-outline map to Smile, ellipsis-vertical/-horizontal map to MoreVertical. Header ⋮ button now renders MoreVertical (visible in screenshots) instead of HelpCircle fallback.",
+    "Backend endpoints untouched — the same suite from iteration_2 (test_dm_delete.py, 6/6 PASS) still applies. Live curl during this run reconfirmed DELETE thread returns count=0 after each modal-triggered call."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_3.json (new)"
+  ],
+  "success_rate": {"backend": "100% (regression untouched — 6/6 from iteration_2 still valid)", "frontend": "100% on the 3 priority flows (delete-thread-from-DM, delete-thread-from-list, delete-single-message) + text send + icons rendering"},
+  "seed_data_creation": "Test messages 'retest-msg-1', 'retest-msg-2', 'thread-list-test-1', 'thread-list-test-2' were created between demo (mem_e5bb9b5878dd) and admin (mem_7a9d652945e7) then deleted as part of the flow. Final backend state: thread empty (count=0).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Etapa 1 DM chat refactor is complete and green. The Alert.alert-on-web bug reported in iteration_2 is fully fixed by replacing with in-app Modal. All 3 priority flows pass, backend confirmed clean each time. Only two LOW items remain: router.back() edge case when DM is opened via direct URL (add canGoBack guard) and one missing Ionicon mapping (chatbubble-ellipses-outline). No retest required — main agent can move to Etapa 2. For any future DM regression, reuse /app/backend/tests/test_dm_delete.py and the selectors documented in critical_code_review_comments above.",
+  "rca_of_issue": "Not applicable — the previously reported CRITICAL bug (Alert.alert no-op on react-native-web) was correctly root-caused and mitigated by replacing the confirmation with an in-app Modal in both dm/[id].tsx and messages.tsx. Verified end-to-end with real network calls (no mocks) against MongoDB-backed backend."
+}
