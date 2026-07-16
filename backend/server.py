@@ -5341,11 +5341,16 @@ async def pyx_receipt(tx_id: str, member_id: Optional[str] = None):
 
     # Validação de acesso: quem consulta precisa ser parte da transação
     if member_id and member_id not in (tx.get("from_id"), tx.get("to_id")):
-        # Staff pode ver qualquer comprovante
-        u = await db.users.find_one(
-            {"user_id": (await db.members.find_one({"member_id": member_id}, {"_id": 0, "user_id": 1}) or {}).get("user_id")},
-            {"_id": 0, "role": 1},
-        )
+        # Staff pode ver qualquer comprovante — resolve user por user_id OU email
+        m = await db.members.find_one(
+            {"member_id": member_id},
+            {"_id": 0, "user_id": 1, "email": 1},
+        ) or {}
+        u = None
+        if m.get("user_id"):
+            u = await db.users.find_one({"user_id": m["user_id"]}, {"_id": 0, "role": 1})
+        if not u and m.get("email"):
+            u = await db.users.find_one({"email": (m["email"] or "").lower()}, {"_id": 0, "role": 1})
         role = (u or {}).get("role")
         if role not in ("admin", "support", "financeiro"):
             raise HTTPException(status_code=403, detail="Você não faz parte desta transação")

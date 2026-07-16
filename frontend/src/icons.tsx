@@ -166,6 +166,10 @@ import {
   ArrowLeftCircle,
   Play,
   Pause,
+  // ETAPA 4 — icons for receipt sharing
+  Download,
+  ExternalLink,
+  Phone,
   // Misc additions for MCI
   HandCoins,
 } from "lucide-react-native";
@@ -397,6 +401,15 @@ const IONICONS_MAP: Record<string, React.ComponentType<any>> = {
   "alert-circle-outline": AlertCircle,
   "warning-outline": AlertTriangle,
   "bag": ShoppingBag,
+  // ETAPA 4 — comprovantes / share
+  "download": Download,
+  "download-outline": Download,
+  "cloud-download": Download,
+  "cloud-download-outline": Download,
+  "open-outline": ExternalLink,
+  "open": ExternalLink,
+  "images": Images,
+  "logo-whatsapp": Phone,   // lucide não tem logo whatsapp — usa ícone de telefone tintado verde
 };
 
 // =============================================================================

@@ -1,0 +1,50 @@
+{
+  "summary": "Re-teste Etapa 4 (comprovantes PYX) após fixes de E1. BACKEND: 13/13 testes PASS em /app/backend/tests/test_pyx_receipt_etapa4.py — o bug HIGH de staff-bypass (iteration_5) foi CORRIGIDO em server.py:5343-5356 (fallback por email agora funciona). FRONTEND: (1) 4 botões de compartilhamento em /pyx/receipt/{tx_id} renderizam ícones corretos — chatbubble/WhatsApp (phone verde)/share-social/download — hasSVG=True em todos, nenhum '?' visível. (2) Bolha 'COMPROVANTE PYX' em community/dm/{id} renderiza corretamente com ícone diamond (Gem verde) e link 'Ver comprovante' com ícone open-outline (ExternalLink) — mappings novos em icons.tsx OK. (3) Fluxo 'ENVIAR NO CHAT' → clicar contato → mensagem persistida + bolha visual OK. (4) Toast de erro agora aparece com mensagem clara quando capture falha. FALHA CONHECIDA (não-bloqueante web-only): 'Baixar imagem' NÃO gera download em Expo Web — react-native-view-shot lança 'findNodeHandle is not supported on web' tanto no path ref.capture() quanto no captureRef fallback. O usuário vê a mensagem de erro correta via toast (fix de UX aplicado). Em iOS/Android native isso funciona normalmente, mas no preview web precisa de uma implementação alternativa (html2canvas / dom-to-image). Warning cosmético persiste no console: 'Ionicons missing mapping for chatbubble-ellipses' mesmo com o mapping presente em icons.tsx:251 — SVG rende corretamente (hasSVG=True, sem '?'), então é warning espúrio (possivelmente race condition de HMR ou wrapper duplicado).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/members/{member_id}", "issue": "(pre-existente iter_4/5) Vaza password_hash na projeção. server.py:555-559. Não relacionado à Etapa 4."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "pyx/receipt/[txId].tsx doSaveImage (WEB ONLY)", "issue": "react-native-view-shot NÃO suporta captura em Expo Web — findNodeHandle undefined. Tanto ref.capture() quanto captureRef() falham. Toast de erro é exibido corretamente ('findNodeHandle is not supported on web'), mas o download real não acontece. FIX sugerido: no doSaveImage/doShareOS, quando Platform.OS==='web', usar html2canvas ou dom-to-image para gerar o PNG a partir do DOM do ReceiptCard, e só cair no captureRef nos nativos.", "testID": "receipt-share-save", "priority": "MEDIUM"},
+      {"component": "src/icons.tsx (Ionicons wrapper)", "issue": "Console warning espúrio: '[icons] Ionicons: missing mapping for chatbubble-ellipses' — MAS o mapping EXISTE em icons.tsx:251 e o SVG renderiza corretamente (hasSVG=True, sem '?'). Warning persiste mesmo após restart do expo. Provável: race condition de import HMR ou wrapper duplicado. Cosmético (dev-only, não afeta usuário). Vale um review rápido de por que o Ionicons wrapper está recebendo o nome antes do mapa estar populado.", "testID": "n/a", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/pyx/receipt/{tx_id}", "issues": ["Card renderiza perfeitamente: BLACKSCLUB header, ENVIADO chip, valor destacado, DE/PARA com avatares e wallets PYX-XXXX, nota, data/hora, LIQUIDADO, tx_id, mensagem de segurança. Grid 2x2 dos botões de compartilhamento com touch-targets adequados."]},
+      {"screen": "/community/dm/{id} (bolha de comprovante)", "issues": ["Bolha aparece com ícone Gem verde + 'COMPROVANTE PYX' + chip 'ENVIADO' + valor + 'Para Mateus' + data · tx_id + note em itálico + botão 'Ver comprovante' com ícone ExternalLink. Visual premium, alinhamento correto, contraste adequado."]}
+    ],
+    "react_native_issues": [
+      {"component": "react-native-view-shot", "issue": "Biblioteca não suporta Expo Web (findNodeHandle undefined). Recurso funciona no build nativo mas quebra silenciosamente no preview web — precisa de fallback web (html2canvas). Reference: /app/frontend/app/pyx/receipt/[txId].tsx:60-85."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pyx_receipt_etapa4.py",
+    "/app/test_reports/pytest/pyx_receipt_etapa4.xml",
+    "/app/test_reports/iteration_6.json"
+  ],
+  "action_items": [
+    "MEDIUM — /app/frontend/app/pyx/receipt/[txId].tsx capture(): implementar fallback específico para Platform.OS==='web' usando html2canvas ou dom-to-image em vez de react-native-view-shot. Exemplo:\n```ts\nif (Platform.OS === 'web') {\n  const html2canvas = (await import('html2canvas')).default;\n  const el = (viewShotRef.current as any)?._raw?._nativeTag ? document.querySelector('[data-testid=\"receipt-card-root\"]') : null;\n  if (el) { const canvas = await html2canvas(el as HTMLElement, {backgroundColor: '#050505'}); return canvas.toDataURL('image/png'); }\n}\n```\nOU marcar o ViewShot com um id/testID no root e usar document.querySelector. Sem isso, 'Baixar imagem'/'Compartilhar' via OS nunca funcionará no web preview.",
+    "LOW — /app/frontend/src/icons.tsx: investigar por que o wrapper Ionicons dispara 'missing mapping' para 'chatbubble-ellipses' mesmo com o mapping presente. Possíveis: (a) HMR consumindo bundle antigo (rodar com --clear no metro); (b) alguém importando Ionicons de outro lugar (rgrep '@expo/vector-icons' no node_modules em uso). O ícone renderiza OK, apenas o warning polui o console.",
+    "OPTIONAL — Adicionar testID='receipt-toast' no <View style={styles.toast}> em receipt/[txId].tsx:299 para facilitar testes E2E do estado de erro/sucesso.",
+    "OPTIONAL — Considerar sincronizar members.user_id via backfill para todos os membros com user linkado (join por email) — não é mais necessário para o receipt (fallback resolvido em código), mas manteria consistência de dados para outros lookups."
+  ],
+  "critical_code_review_comments": [
+    "server.py:5343-5356 — FIX CORRETO: staff-bypass agora resolve user por member.user_id OU por member.email (lowercase), replicando o padrão de pyx_transfer. Coberto pelo teste test_receipt_by_staff_admin_returns_200_bypass que agora passa.",
+    "src/icons.tsx:405-412 — mappings novos ('download', 'download-outline', 'cloud-download', 'open-outline', 'open', 'images', 'logo-whatsapp') presentes e funcionando. WhatsApp usa Phone (lucide não tem logo). Aceitável.",
+    "receipt/[txId].tsx:60-85 — capture() melhorado com try/catch + toast de erro + normalização data:image/png. Bem estruturado. Única limitação é que a lib subjacente não suporta web — não é bug do código do E1.",
+    "receipt/[txId].tsx:298-302 — Toast sem testID dificulta assertions E2E. Recomendo adicionar."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_6.json (novo)",
+    "/app/test_reports/pytest/pyx_receipt_etapa4.xml (regravado, 13/13 PASS)"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "receipt screen icons 100% + DM bubble icons 100% + chat share flow 100% + download-web 0% (limitação de lib)"},
+  "seed_data_creation": "Nenhum dado novo além do que os testes pytest já criam/limpam. Durante o teste de UI enviei 1 mensagem DM real de comprovante para mem_5c0fee9f50c1 (RHIAN) — kind='receipt', tx_id='tx_653627dd5ab0'. Pode ser deixada como demo ou removida.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Etapa 4 backend está 100% verde. Bugs HIGH e MEDIUM anteriores resolvidos: staff-bypass funciona via fallback email, ícones (chatbubble-ellipses, logo-whatsapp, download, open-outline) mapeados e renderizando. Único ponto aberto: react-native-view-shot NÃO funciona no Expo Web preview — 'Baixar imagem' e 'Compartilhar' via OS sempre disparam o toast de erro no web (mas funcionarão em builds nativos). Warning cosmético 'missing mapping chatbubble-ellipses' persiste mas UI está OK. Test file reutilizável: /app/backend/tests/test_pyx_receipt_etapa4.py.",
+  "rca_of_issue": "BUG WEB DOWNLOAD (não-crítico para native): react-native-view-shot v4.x depende de findNodeHandle do react-native, que não é exportado no react-native-web. Tanto o método ref.capture() da instância ViewShot quanto o helper captureRef() acabam chamando findNodeHandle internamente e lançam 'findNodeHandle is not supported on web. Use the ref property on the component instead.'. O fix aplicado por E1 (toast + fallback) melhora o UX no erro, mas não resolve o download no web. MITIGAÇÃO: implementar branch Platform.OS==='web' usando html2canvas ou dom-to-image (~10 KB adicionais) sobre o DOM do ReceiptCard identificado por testID/id. Em iOS/Android o fluxo original continua funcionando via ViewShot."
+}

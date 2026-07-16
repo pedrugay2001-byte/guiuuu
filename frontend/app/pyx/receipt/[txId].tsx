@@ -59,13 +59,26 @@ export default function ReceiptScreen() {
 
   const capture = async (): Promise<string | null> => {
     try {
-      const uri = await captureRef(viewShotRef, {
-        format: "png",
-        quality: 1,
-        result: "data-uri",
-      });
-      return uri;
+      const ref: any = viewShotRef.current;
+      if (!ref) {
+        showToast("Comprovante ainda não renderizado", false);
+        return null;
+      }
+      // ViewShot v4 expõe .capture() no ref; fallback para captureRef.
+      const uri: string | undefined =
+        typeof ref.capture === "function"
+          ? await ref.capture()
+          : await captureRef(ref, { format: "png", quality: 1, result: "data-uri" });
+      if (!uri || typeof uri !== "string") {
+        showToast("Não foi possível gerar a imagem", false);
+        return null;
+      }
+      // Alguns backends retornam base64 sem prefixo; normaliza para dataURI
+      const dataUri = uri.startsWith("data:") ? uri : `data:image/png;base64,${uri}`;
+      return dataUri;
     } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.warn("[receipt] capture failed:", e);
       showToast(e?.message || "Falha ao gerar imagem", false);
       return null;
     }
