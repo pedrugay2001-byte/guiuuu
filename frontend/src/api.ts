@@ -440,6 +440,7 @@ export const api = {
     to_member_id?: string;
     amount_centavos: number;
     note?: string;
+    password: string;  // ETAPA 3: senha do remetente (obrigatória)
   }) => request<PyxTx>("/pyx/transfer", { method: "POST", body: JSON.stringify(body) }),
 
   pyxTransferLimits: (member_id: string) =>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Image,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Image, Modal,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -28,6 +28,9 @@ export default function Send() {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [txSuccess, setTxSuccess] = useState<any>(null);
+  const [pwdOpen, setPwdOpen] = useState(false);       // ETAPA 3: modal de senha
+  const [pwd, setPwd] = useState("");
+  const [pwdError, setPwdError] = useState<string | null>(null);
   const [limits, setLimits] = useState<{
     unlimited: boolean;
     limit_centavos: number;
@@ -75,20 +78,40 @@ export default function Send() {
     setStep("review");
   };
 
-  const submitTransfer = async () => {
+  const submitTransfer = () => {
+    // ETAPA 3: em vez de fazer a request direto, abre o modal de senha
     if (!member || !selected) return;
+    setPwd("");
+    setPwdError(null);
+    setPwdOpen(true);
+  };
+
+  const confirmWithPassword = async () => {
+    if (!member || !selected) return;
+    if (!pwd.trim()) { setPwdError("Digite sua senha para autorizar."); return; }
     setSubmitting(true);
+    setPwdError(null);
     try {
       const tx = await api.pyxTransfer({
         from_member_id: member.member_id,
         to_member_id: selected.member_id,
         amount_centavos: amountCents,
         note: note.trim() || undefined,
+        password: pwd,
       });
       setTxSuccess(tx);
+      setPwdOpen(false);
+      setPwd("");
       setStep("success");
     } catch (e: any) {
-      Alert.alert("Erro na transferência", e.message || "Tente novamente.");
+      const msg = e?.message || "Erro inesperado";
+      // 401 → senha incorreta ou não fornecida — mantém o modal aberto
+      if (msg.toLowerCase().includes("senha")) {
+        setPwdError(msg);
+      } else {
+        setPwdOpen(false);
+        Alert.alert("Erro na transferência", msg);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -404,6 +427,76 @@ export default function Send() {
           </ScrollView>
         )}
       </SafeAreaView>
+
+      {/* ETAPA 3 — MODAL DE SENHA para autorizar transferência */}
+      <Modal
+        visible={pwdOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !submitting && setPwdOpen(false)}
+      >
+        <View style={styles.pwdBackdrop}>
+          <View style={styles.pwdCard}>
+            <View style={{ alignItems: "center", gap: 6 }}>
+              <View style={styles.pwdIcon}>
+                <Ionicons name="lock-closed" size={26} color="#D4AF37" />
+              </View>
+              <Text style={styles.pwdTitle}>Autorizar transferência</Text>
+              <Text style={styles.pwdSub}>
+                Digite sua senha de login para confirmar o envio de{" "}
+                <Text style={{ color: "#FFF", fontWeight: "900" }}>{formatPYX(amountCents)} PYX</Text>
+                {selected ? ` para ${selected.nickname || selected.name}` : ""}.
+              </Text>
+            </View>
+
+            <View style={{ marginTop: 18 }}>
+              <Text style={styles.label}>SENHA</Text>
+              <TextInput
+                style={[styles.pwdInput, pwdError && { borderColor: "#F87171" }]}
+                value={pwd}
+                onChangeText={(t) => { setPwd(t); setPwdError(null); }}
+                placeholder="Sua senha"
+                placeholderTextColor="#6B6B6B"
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!submitting}
+                testID="pyx-transfer-password"
+                onSubmitEditing={confirmWithPassword}
+              />
+              {pwdError ? (
+                <View style={styles.pwdErrRow}>
+                  <Ionicons name="alert-circle" size={13} color="#F87171" />
+                  <Text style={styles.pwdErrTxt}>{pwdError}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.pwdConfirm, (submitting || !pwd.trim()) && { opacity: 0.6 }]}
+              onPress={confirmWithPassword}
+              disabled={submitting || !pwd.trim()}
+              testID="pyx-transfer-password-confirm"
+              activeOpacity={0.85}
+            >
+              {submitting ? <ActivityIndicator color="#0A0A0A" /> : (
+                <>
+                  <Ionicons name="checkmark-circle" size={16} color="#0A0A0A" />
+                  <Text style={styles.pwdConfirmTxt}>AUTORIZAR</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.pwdCancel}
+              onPress={() => { setPwdOpen(false); setPwd(""); setPwdError(null); }}
+              disabled={submitting}
+            >
+              <Text style={styles.pwdCancelTxt}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -594,4 +687,41 @@ const styles = StyleSheet.create({
   limitSub: {
     color: "#888", fontSize: 10.5, fontWeight: "600", marginTop: 8,
   },
+
+  // ETAPA 3 — Modal de senha para autorizar transferência
+  pwdBackdrop: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center", alignItems: "center", padding: 24,
+  },
+  pwdCard: {
+    width: "100%", maxWidth: 380,
+    backgroundColor: "#0C0C0C",
+    borderRadius: 16, borderWidth: 1, borderColor: "#1F1F1F",
+    padding: 22,
+  },
+  pwdIcon: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: "rgba(212,175,55,0.10)",
+    borderWidth: 1.5, borderColor: "#D4AF37",
+    alignItems: "center", justifyContent: "center", marginBottom: 4,
+  },
+  pwdTitle: { color: "#FFF", fontSize: 15, fontWeight: "900", letterSpacing: 0.3 },
+  pwdSub: { color: "#AAA", fontSize: 12.5, lineHeight: 17, textAlign: "center", paddingHorizontal: 4 },
+  pwdInput: {
+    backgroundColor: "#0E0E0E",
+    borderRadius: 10,
+    borderWidth: 1, borderColor: "#1F1F1F",
+    paddingHorizontal: 14, paddingVertical: 13,
+    color: "#FFF", fontSize: 14,
+  },
+  pwdErrRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
+  pwdErrTxt: { color: "#F87171", fontSize: 11.5, fontWeight: "700", flex: 1 },
+  pwdConfirm: {
+    marginTop: 16, paddingVertical: 14,
+    borderRadius: 10, backgroundColor: "#D4AF37",
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+  },
+  pwdConfirmTxt: { color: "#0A0A0A", fontSize: 12.5, fontWeight: "900", letterSpacing: 1.4 },
+  pwdCancel: { paddingVertical: 10, alignItems: "center", marginTop: 4 },
+  pwdCancelTxt: { color: "#888", fontSize: 12, fontWeight: "800", letterSpacing: 0.3 },
 });

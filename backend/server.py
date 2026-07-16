@@ -5017,6 +5017,7 @@ class PyxTransferRequest(BaseModel):
     to_member_id: Optional[str] = None   # ou direto por id interno
     amount_centavos: int                 # valor em centavos
     note: Optional[str] = None
+    password: Optional[str] = None       # ETAPA 3: senha de login do remetente (obrigatória)
 
 
 @api_router.get("/pyx/wallet/{member_id}")
@@ -5094,12 +5095,34 @@ async def pyx_lookup(q: str):
 async def pyx_transfer(data: PyxTransferRequest):
     """Transferência P2P instantânea em PYX entre dois membros.
     Valor em centavos. Não exige escrow — liquidação imediata.
-    Sujeito a limite mensal por tier (ver PYX_MONTHLY_TRANSFER_LIMITS_CENTAVOS)."""
+    Sujeito a limite mensal por tier (ver PYX_MONTHLY_TRANSFER_LIMITS_CENTAVOS).
+    ETAPA 3: exige senha de login do remetente para autorizar a transferência."""
     amt = int(data.amount_centavos or 0)
     if amt <= 0:
         raise HTTPException(status_code=400, detail="Valor inválido")
     if amt > 1_000_000_000:  # teto sanitário: 10M PYX por operação
         raise HTTPException(status_code=400, detail="Valor acima do permitido")
+
+    # ===== VALIDAÇÃO DE SENHA =====
+    if not data.password:
+        raise HTTPException(status_code=401, detail="Senha obrigatória para autorizar transferência")
+    sender_member = await db.members.find_one({"member_id": data.from_member_id}, {"_id": 0, "user_id": 1, "email": 1})
+    if not sender_member:
+        raise HTTPException(status_code=404, detail="Remetente não encontrado")
+    # Busca o user vinculado (pelo user_id do member OU pelo email do member)
+    sender_user = None
+    if sender_member.get("user_id"):
+        sender_user = await db.users.find_one({"user_id": sender_member["user_id"]}, {"_id": 0, "password_hash": 1})
+    if not sender_user and sender_member.get("email"):
+        sender_user = await db.users.find_one({"email": sender_member["email"]}, {"_id": 0, "password_hash": 1})
+    if not sender_user or not sender_user.get("password_hash"):
+        raise HTTPException(status_code=401, detail="Usuário sem senha configurada — contate o suporte")
+    try:
+        ok = bcrypt.checkpw(data.password.encode(), sender_user["password_hash"].encode())
+    except Exception:
+        ok = False
+    if not ok:
+        raise HTTPException(status_code=401, detail="Senha incorreta. Verifique e tente novamente.")
 
     # Resolve destinatário
     to_member_id: Optional[str] = data.to_member_id
