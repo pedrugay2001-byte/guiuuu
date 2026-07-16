@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  ActivityIndicator, FlatList, TextInput,
+  ActivityIndicator, FlatList, TextInput, Alert, Pressable,
 } from "react-native";
 import { Stack, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "../../src/icons";
@@ -20,6 +20,9 @@ export default function Messages() {
   const [stories, setStories] = useState<StoryGroup[]>([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null); // partner_id sendo deletado
+  void members;
+  void useEffect;
 
   const load = useCallback(async () => {
     if (!member) return;
@@ -30,7 +33,6 @@ export default function Messages() {
         api.dmThreads(member.member_id),
       ]);
       setMembers(mems); setStories(ss);
-      // Enrich threads with partner info
       const enriched: Thread[] = [];
       for (const t of tdata) {
         const p = mems.find(m => m.member_id === t.partner_id);
@@ -41,6 +43,29 @@ export default function Messages() {
   }, [member]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Apagar conversa via long-press
+  const promptDeleteThread = (t: Thread) => {
+    if (!member) return;
+    Alert.alert(
+      `Apagar conversa com ${t.partner.nickname}?`,
+      "Todas as mensagens serão apagadas permanentemente para você e para o(a) outro(a) participante. Esta ação não pode ser desfeita.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Apagar", style: "destructive", onPress: async () => {
+            setBusy(t.partner.member_id);
+            try {
+              await api.dmDeleteThread(member.member_id, t.partner.member_id);
+              setThreads(prev => prev.filter(x => x.partner.member_id !== t.partner.member_id));
+            } catch (e: any) {
+              Alert.alert("Erro", e?.message || "Não foi possível apagar a conversa.");
+            } finally { setBusy(null); }
+          },
+        },
+      ],
+    );
+  };
 
   const filtered = threads.filter(t => !q || t.partner.nickname.toLowerCase().includes(q.toLowerCase()));
 
@@ -102,14 +127,24 @@ export default function Messages() {
           <View style={styles.empty}>
             <Ionicons name="mail-outline" size={40} color="#444" />
             <Text style={styles.emptyTxt}>Sem conversas ainda.</Text>
-            <Text style={styles.emptyHint}>Abra o perfil de um membro e toque em "Puxar conversa".</Text>
+            <Text style={styles.emptyHint}>Abra o perfil de um membro e toque em “Puxar conversa”.</Text>
           </View>
         ) : filtered.map((t) => {
           const tier = TIERS[t.partner.tier] || TIERS.silver;
-          const imgMatch = /\[IMG\][^\[]+\[\/IMG\]/.test(t.last_text);
-          const preview = imgMatch ? "📷 Foto" : t.last_text;
+          const imgMatch = /\[IMG\][^[]+\[\/IMG\]/.test(t.last_text);
+          const audMatch = /\[AUD\][^[]+\[\/AUD\]/.test(t.last_text);
+          const preview = audMatch ? "🎤 Áudio" : imgMatch ? "📷 Foto" : t.last_text;
+          const isBusy = busy === t.partner.member_id;
           return (
-            <TouchableOpacity key={t.partner.member_id} style={styles.threadRow} onPress={() => router.push(`/community/dm/${t.partner.member_id}`)}>
+            <Pressable
+              key={t.partner.member_id}
+              style={({ pressed }) => [styles.threadRow, pressed && { backgroundColor: "#0A0A0A" }]}
+              onPress={() => router.push(`/community/dm/${t.partner.member_id}`)}
+              onLongPress={() => promptDeleteThread(t)}
+              delayLongPress={400}
+              disabled={isBusy}
+              testID={`thread-${t.partner.member_id}`}
+            >
               <View style={[styles.avWrap, { borderColor: tier.color }]}>
                 {t.partner.avatar_base64 ? <Image source={{ uri: t.partner.avatar_base64 }} style={styles.av} /> : (
                   <View style={[styles.av, { backgroundColor: "#2A2A2A", alignItems: "center", justifyContent: "center" }]}>
@@ -125,7 +160,8 @@ export default function Messages() {
                 </View>
                 <Text style={styles.preview} numberOfLines={1}>{preview || "..."}</Text>
               </View>
-            </TouchableOpacity>
+              {isBusy && <ActivityIndicator color="#F87171" />}
+            </Pressable>
           );
         })}
       </ScrollView>

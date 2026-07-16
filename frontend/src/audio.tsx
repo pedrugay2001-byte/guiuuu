@@ -1,29 +1,42 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, Image } from "react-native";
 import { Ionicons } from "./icons";
-import { Audio } from "expo-av";
+import {
+  useAudioRecorder,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+  AudioModule,
+  RecordingPresets,
+  setAudioModeAsync,
+} from "expo-audio";
 
 /**
  * Cross-platform audio helpers for BLACKSCLUB.
- * - Recorder: hold-to-record (web + native). Emits base64 data URL + mime.
+ * - Recorder: tap-to-record (web + native). Emits base64 data URL + mime.
  * - Player: play/pause a recorded audio (base64 data URL).
  *
- * Audio is stored inline in chat messages as:   [AUD]<data-url>[/AUD]
+ * Uses expo-audio (moderno, substitui o deprecado expo-av).
+ * Web: usa MediaRecorder API com preferência por audio/mp4 (mais compatível
+ *      cross-browser — Safari + Chrome + Firefox tocam sem problema).
+ *
+ * Audio é armazenado inline em mensagens de chat como: [AUD]<data-url>[/AUD]
  */
 
 export type RecordedAudio = {
-  base64: string;       // data URL (audio/webm;base64,... or audio/m4a;base64,...)
+  base64: string;       // data URL (audio/webm;base64,... or audio/mp4;base64,...)
   mime: string;         // MIME
   duration_ms: number;
 };
 
 // ---------- RECORDER ----------
 
-async function _requestPerm() {
+async function _requestPerm(): Promise<boolean> {
   try {
-    const r = await Audio.requestPermissionsAsync();
+    const r = await AudioModule.requestRecordingPermissionsAsync();
     return r.granted || r.status === "granted";
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 export function AudioRecorderButton({
@@ -39,28 +52,45 @@ export function AudioRecorderButton({
 }) {
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const recRef = useRef<Audio.Recording | null>(null);
+
+  // Native recorder (expo-audio) — usado em iOS/Android
+  const nativeRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+
+  // Web recorder (MediaRecorder API)
   const webRecRef = useRef<any>(null);
+  const webStreamRef = useRef<MediaStream | null>(null);
   const webChunksRef = useRef<Blob[]>([]);
   const webMimeRef = useRef<string>("audio/webm");
+
   const startTsRef = useRef<number>(0);
   const timerRef = useRef<any>(null);
+  const stoppingRef = useRef<boolean>(false);
 
-  const stop = async () => {
-    if (!recording) return;
+  const stopWebStream = () => {
+    if (webStreamRef.current) {
+      webStreamRef.current.getTracks().forEach((t) => t.stop());
+      webStreamRef.current = null;
+    }
+  };
+
+  const stop = useCallback(async () => {
+    if (!recording || stoppingRef.current) return;
+    stoppingRef.current = true;
     setRecording(false);
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     const duration_ms = Date.now() - startTsRef.current;
+
     try {
       if (Platform.OS === "web" && webRecRef.current) {
         const rec = webRecRef.current;
         await new Promise<void>((resolve) => {
-          rec.onstop = async () => {
+          const done = async () => {
             const blob = new Blob(webChunksRef.current, { type: webMimeRef.current });
             webChunksRef.current = [];
             const dataUrl = await new Promise<string>((res) => {
               const r = new FileReader();
               r.onloadend = () => res((r.result as string) || "");
+              r.onerror = () => res("");
               r.readAsDataURL(blob);
             });
             if (dataUrl && duration_ms > 400) {
@@ -68,32 +98,39 @@ export function AudioRecorderButton({
             }
             resolve();
           };
-          try { rec.stop(); } catch { resolve(); }
+          rec.onstop = done;
+          try { rec.stop(); } catch { done(); }
         });
         webRecRef.current = null;
-      } else if (recRef.current) {
-        const rec = recRef.current;
-        await rec.stopAndUnloadAsync();
-        const uri = rec.getURI();
-        recRef.current = null;
+        stopWebStream();
+      } else {
+        // Native (expo-audio) — para de gravar e lê o arquivo
+        try {
+          await nativeRecorder.stop();
+        } catch { /* já parado */ }
+        const uri = nativeRecorder.uri;
         if (uri && duration_ms > 400) {
-          const res = await fetch(uri);
-          const blob = await res.blob();
-          const dataUrl = await new Promise<string>((r) => {
-            const fr = new FileReader();
-            fr.onloadend = () => r((fr.result as string) || "");
-            fr.readAsDataURL(blob);
-          });
-          const mime = blob.type || "audio/m4a";
-          onRecorded({ base64: dataUrl, mime, duration_ms });
+          try {
+            const res = await fetch(uri);
+            const blob = await res.blob();
+            const dataUrl = await new Promise<string>((r) => {
+              const fr = new FileReader();
+              fr.onloadend = () => r((fr.result as string) || "");
+              fr.onerror = () => r("");
+              fr.readAsDataURL(blob);
+            });
+            const mime = blob.type || "audio/m4a";
+            if (dataUrl) onRecorded({ base64: dataUrl, mime, duration_ms });
+          } catch { /* ignora falha de leitura */ }
         }
       }
     } catch { /* silencia */ }
     setElapsed(0);
-  };
+    stoppingRef.current = false;
+  }, [recording, nativeRecorder, onRecorded]);
 
   const start = async () => {
-    if (recording) return;
+    if (recording || stoppingRef.current) return;
     const ok = await _requestPerm();
     if (!ok) return;
     try {
@@ -101,11 +138,19 @@ export function AudioRecorderButton({
         const nav: any = (globalThis as any).navigator;
         if (!nav?.mediaDevices?.getUserMedia) return;
         const stream = await nav.mediaDevices.getUserMedia({ audio: true });
+        webStreamRef.current = stream;
         const MR: any = (globalThis as any).MediaRecorder;
-        const mimeCandidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+        if (!MR) { stopWebStream(); return; }
+        // Prefere codecs mais compatíveis cross-browser (mp4 toca em Safari + Chrome + Firefox modernos)
+        const mimeCandidates = [
+          "audio/mp4;codecs=mp4a.40.2",
+          "audio/mp4",
+          "audio/webm;codecs=opus",
+          "audio/webm",
+        ];
         let mime = "audio/webm";
         for (const c of mimeCandidates) {
-          if (MR && MR.isTypeSupported && MR.isTypeSupported(c)) { mime = c; break; }
+          if (MR.isTypeSupported && MR.isTypeSupported(c)) { mime = c; break; }
         }
         webMimeRef.current = mime.split(";")[0];
         const rec = new MR(stream, { mimeType: mime });
@@ -114,14 +159,13 @@ export function AudioRecorderButton({
         rec.start(250);
         webRecRef.current = rec;
       } else {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
+        // Native (expo-audio)
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
         } as any);
-        const rec = new Audio.Recording();
-        await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-        await rec.startAsync();
-        recRef.current = rec;
+        await nativeRecorder.prepareToRecordAsync();
+        nativeRecorder.record();
       }
       startTsRef.current = Date.now();
       setRecording(true);
@@ -134,7 +178,10 @@ export function AudioRecorderButton({
     } catch { setRecording(false); }
   };
 
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+  useEffect(() => () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    stopWebStream();
+  }, []);
 
   if (recording) {
     const sec = Math.floor(elapsed / 1000);
@@ -184,47 +231,50 @@ export function AudioPlayer({
   senderAvatar?: string | null;
   senderName?: string;
 }) {
-  const [playing, setPlaying] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(0); // 0..1
-  const [durationMs, setDurationMs] = useState<number | null>(durationHintMs || null);
-  const [positionMs, setPositionMs] = useState(0);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const [errored, setErrored] = useState(false);
+  const player = useAudioPlayer({ uri: src });
+  const status = useAudioPlayerStatus(player);
 
-  useEffect(() => () => { if (soundRef.current) { soundRef.current.unloadAsync().catch(() => {}); } }, []);
+  const playing = !!status?.playing;
+  const loading = !!status?.isBuffering && !playing && !status?.currentTime;
+  const durationMs = ((status?.duration ?? 0) * 1000) || durationHintMs || 0;
+  const positionMs = (status?.currentTime ?? 0) * 1000;
+  const progress = durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
 
-  const toggle = async () => {
-    if (playing) {
-      await soundRef.current?.pauseAsync();
-      setPlaying(false);
-      return;
+  // Ao terminar, volta para 0 e pausa
+  useEffect(() => {
+    if (status?.didJustFinish) {
+      try {
+        player.pause();
+        player.seekTo(0);
+      } catch { /* ignora */ }
     }
-    setLoading(true);
+  }, [status?.didJustFinish, player]);
+
+  // Se o player falha ao carregar (áudio corrompido / codec não suportado)
+  useEffect(() => {
+    // expo-audio expõe status.reasonForWaitingToPlay / status.playbackError em algumas versões
+    const err = (status as any)?.playbackError;
+    if (err) setErrored(true);
+  }, [status]);
+
+  useEffect(() => {
+    // Cleanup ao desmontar
+    return () => {
+      try { player.pause(); } catch { /* noop */ }
+    };
+  }, [player]);
+
+  const toggle = () => {
+    if (errored) return;
     try {
-      if (!soundRef.current) {
-        const { sound, status } = await Audio.Sound.createAsync({ uri: src }, { shouldPlay: true });
-        soundRef.current = sound;
-        if (status.isLoaded && status.durationMillis) setDurationMs(status.durationMillis);
-        sound.setOnPlaybackStatusUpdate((s: any) => {
-          if (!s.isLoaded) return;
-          if (s.durationMillis) setDurationMs(s.durationMillis);
-          setPositionMs(s.positionMillis || 0);
-          if (s.durationMillis) setProgress((s.positionMillis || 0) / s.durationMillis);
-          if (s.didJustFinish) {
-            setPlaying(false); setProgress(0); setPositionMs(0);
-            sound.setPositionAsync(0).catch(() => {});
-          }
-        });
-      } else {
-        await soundRef.current.playAsync();
-      }
-      setPlaying(true);
-    } catch { setPlaying(false); }
-    finally { setLoading(false); }
+      if (playing) player.pause();
+      else player.play();
+    } catch {
+      setErrored(true);
+    }
   };
 
-  const total = durationMs || durationHintMs || 0;
-  const pos = positionMs || 0;
   const fmt = (ms: number) => {
     const s = Math.floor(ms / 1000);
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -241,15 +291,21 @@ export function AudioPlayer({
         </View>
       ) : null}
 
-      {/* Play/Pause — BRILHANTE com glow dourado */}
+      {/* Play/Pause / Erro */}
       <TouchableOpacity
-        style={[plStyles.playBtn, { backgroundColor: "#FFFFFF", shadowColor: accent }]}
+        style={[plStyles.playBtn, { backgroundColor: "#FFFFFF", shadowColor: accent, opacity: errored ? 0.5 : 1 }]}
         onPress={toggle}
+        disabled={errored}
         testID="audio-player-toggle"
         activeOpacity={0.8}
       >
         {loading ? <ActivityIndicator color="#000" size="small" /> : (
-          <Ionicons name={playing ? "pause" : "play"} size={18} color="#000" style={{ marginLeft: playing ? 0 : 2 }} />
+          <Ionicons
+            name={errored ? "alert-circle" : (playing ? "pause" : "play")}
+            size={18}
+            color="#000"
+            style={{ marginLeft: errored ? 0 : (playing ? 0 : 2) }}
+          />
         )}
       </TouchableOpacity>
       <View style={{ flex: 1, minWidth: 80 }}>
@@ -257,8 +313,8 @@ export function AudioPlayer({
           <View style={[plStyles.fill, { width: `${Math.max(4, progress * 100)}%`, backgroundColor: accent }]} />
         </View>
         <View style={plStyles.timeRow}>
-          <Text style={[plStyles.time, { color: textColor }]}>{fmt(pos)}</Text>
-          {total > 0 ? <Text style={[plStyles.time, { color: textColor }]}>{fmt(total)}</Text> : null}
+          <Text style={[plStyles.time, { color: textColor }]}>{errored ? "Falha ao carregar áudio" : fmt(positionMs)}</Text>
+          {!errored && durationMs > 0 ? <Text style={[plStyles.time, { color: textColor }]}>{fmt(durationMs)}</Text> : null}
         </View>
       </View>
     </View>
@@ -292,12 +348,10 @@ const plStyles = StyleSheet.create({
   playBtn: {
     width: 38, height: 38, borderRadius: 19,
     alignItems: "center", justifyContent: "center",
-    // Glow dourado para destaque
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6,
     shadowRadius: 8,
     elevation: 6,
-    // Borda sutil dourada
     borderWidth: 1.5,
     borderColor: "#D4AF37",
   },

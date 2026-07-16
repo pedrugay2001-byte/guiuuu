@@ -1,0 +1,52 @@
+{
+  "summary": "Etapa 1 DM chat refactor tested end-to-end. Backend 6/6 PASS (delete individual message 200, non-sender 403, missing 404, delete thread with count, symmetric-order delete, empty-thread ok). Frontend on 390x844 mobile viewport: login as demo works, DM screen loads with header ⋮, sending text messages works, LONG-PRESS on own bubble opens 'Ações da mensagem' modal with red 'Apagar mensagem' which correctly deletes the message (UI + DB). Header ⋮ opens thread menu with red 'Apagar conversa'. AUDIO recording+playback FULLY WORKS on web: audio/mp4 codec, MediaRecorder → base64 → [AUD] tag → AudioPlayer bubble with sender avatar, play/pause, progress bar and timer that advances (0:01→0:02) and resets on end (didJustFinish handler OK). CRITICAL BUG FOUND: the delete-thread confirmation via Alert.alert(...) never fires on React Native Web — clicking 'Apagar conversa' (both from DM header and from Messages long-press) closes the menu but NO confirmation dialog appears, no dialog event on window, and the destructive onPress callback is NEVER invoked → user cannot actually delete a thread on the web preview. Backend endpoint is correct; the frontend Alert.alert path on web is the culprit. Same pattern in /community/messages.tsx promptDeleteThread — same bug expected there.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "DMChat.doDeleteThread + Messages.promptDeleteThread", "issue": "Alert.alert(title, msg, [Cancelar, Apagar]) does NOT show a confirm dialog on React Native Web — no window.confirm/alert is invoked (dialog listener captured 0 events) and the destructive onPress that calls api.dmDeleteThread is never executed. Result: clicking 'Apagar conversa' silently closes the menu without deleting anything. Repro: login demo → /community/dm/mem_7a9d652945e7 → tap ⋮ → tap 'Apagar conversa' → nothing happens, URL stays on DM, thread still present in /community/messages.", "testID": "dm-thread-delete", "priority": "HIGH"},
+      {"component": "AudioRecorderButton (src/audio.tsx line 194 and 207)", "issue": "Both idle (mic) and active (stop) TouchableOpacity share the same testID because the ternary `testID || 'audio-recorder-stop'` uses the parent-passed testID ('dm-audio') for both states — the '-stop' fallback is dead code. Makes it impossible to detect recording state from tests via testID alone. Recommend `testID={testID ? testID + '-stop' : 'audio-recorder-stop'}` on the active button (or separate props).", "testID": "dm-audio (same for both states)", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Delete DM thread (web preview)", "issue": "Frontend calls Alert.alert for confirmation which is a no-op on react-native-web for buttoned alerts. Backend DELETE /api/community/dms/{me}/{other} works when called directly (verified). Need to swap Alert.alert for a Modal-based confirmation (same pattern already used for the ⋮ menu).", "affected_testIDs": ["dm-thread-delete", "thread-<partner_id>"]}
+    ],
+    "design_issues": [
+      {"screen": "DM chat", "issues": ["Ionicons 'chatbubble-ellipses-outline', 'happy', 'ellipsis-vertical' have no mapping — fall back to HelpCircle. Emoji-toggle icon and header ⋮ therefore render as generic ? icons on the web preview.", "Layout warnings on load: routes 'onboarding', 'notifications', 'wallet' declared in a Stack.Screen but no matching file — pre-existing noise."]}
+    ],
+    "react_native_issues": [
+      {"component": "Deprecated style props", "issue": "Console warnings: 'textShadow*' deprecated (use textShadow), 'shadow*' deprecated (use boxShadow), 'props.pointerEvents' deprecated (use style.pointerEvents), Image 'style.resizeMode' deprecated. Non-blocking but should be cleaned. Reference: multiple files across /app/frontend."},
+      {"component": "Alert.alert on web", "issue": "react-native-web Alert.alert with multiple buttons is not implemented — destructive onPress callback never fires. Use in-app Modal + TouchableOpacity for confirmation flows on web (a Modal is already used for the ⋮ menu in dm/[id].tsx and works fine). Reference: /app/frontend/app/community/dm/[id].tsx:94 and /app/frontend/app/community/messages.tsx:50."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_dm_delete.py",
+    "/app/test_reports/pytest/dm_delete_results.xml"
+  ],
+  "action_items": [
+    "HIGH: Replace Alert.alert(...) confirmation in doDeleteThread (/app/frontend/app/community/dm/[id].tsx:94) with an in-app <Modal> confirmation (reuse the existing menu Modal pattern in the same file). Same change for promptDeleteThread in /app/frontend/app/community/messages.tsx:50. Without this fix, users on web cannot delete DM threads.",
+    "LOW: Fix testID collision in AudioRecorderButton (/app/frontend/src/audio.tsx): the active/stop state should have a distinct testID (e.g. `${testID}-stop`) so tests can detect recording state.",
+    "LOW: Add missing Ionicons mappings 'chatbubble-ellipses-outline', 'happy', 'ellipsis-vertical' in /app/frontend/src/icons.tsx (currently falling back to HelpCircle — the header ⋮ button renders as a generic ? on web).",
+    "LOW: Clean up deprecated RN style props (textShadow*, shadow*, props.pointerEvents, Image style.resizeMode) — pre-existing noise."
+  ],
+  "critical_code_review_comments": [
+    "Backend DM endpoints look correct: DELETE /message/{id} validates sender ownership (403 on non-sender), 404 on missing; DELETE /thread returns {ok, deleted_count} — all as spec.",
+    "_dm_thread(a,b) sorts the IDs so both (me,other) and (other,me) hit the same thread — verified with test_delete_thread_symmetric.",
+    "Frontend: DMChat correctly uses api.dmDeleteMessage/dmDeleteThread and optimistically updates local state on success — good.",
+    "audio.tsx correctly prefers audio/mp4 on web (best cross-browser codec) and falls back to webm. Native path uses expo-audio (already migrated from expo-av per spec) — no deprecated audio libs in use.",
+    "AudioPlayer has an errored fallback (alert-circle icon + 'Falha ao carregar áudio' text) instead of crashing when player fails — good defensive UI.",
+    "server.py is 7184 lines — well above the 700-line guideline. Should be split into routers/ modules (community, dm, marketplace, wallet, etc.) in a future refactor pass. Not blocking for this iteration."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_dm_delete.py (new — 6 pytest cases for DM delete flows)",
+    "/app/test_reports/pytest/dm_delete_results.xml (new)",
+    "/app/test_reports/iteration_2.json (new)"
+  ],
+  "success_rate": {"backend": "100% (6/6 delete flows)", "frontend": "~70% — text-send + long-press message-delete + audio record/play/timer all work; thread-delete confirmation is broken on web (see action_items)"},
+  "seed_data_creation": "Tests create/delete transient DM messages between demo (mem_e5bb9b5878dd) and admin (mem_7a9d652945e7). autouse fixture wipes the thread before/after each test, so no residual data in DB after suite runs. Playwright tests left one audio message in the thread (last test) — safe to leave or the next test run's cleanup will remove.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend DM delete endpoints are solid — reuse /app/backend/tests/test_dm_delete.py for regression. For frontend re-test, after main agent replaces Alert.alert with a Modal confirmation for delete-thread, run: (1) login demo → DM with admin → send 2 msgs → ⋮ → 'Apagar conversa' → confirm in modal → expect router.back() and thread gone from /community/messages; (2) same via /community/messages long-press on the row. Individual message delete (dm-msg-delete) and audio (dm-audio → audio-player-toggle) already verified working. Ionicons missing mappings still cause fallback icons on the DM header ⋮ (renders as ? on web) — worth adding.",
+  "rca_of_issue": "Root cause of delete-thread web bug: react-native-web's Alert module does not implement a real confirm dialog for multi-button alerts. Alert.alert(title, msg, [{style:'cancel'}, {style:'destructive', onPress}]) silently no-ops on web; the callback bound to the destructive button is never invoked. Reproduction: from a browser on the DM screen, tap ⋮ then 'Apagar conversa' — the modal closes (from setThreadMenuOpen(false) that runs before Alert.alert) but no browser dialog appears, no network request is made, and the thread remains. Mitigation: replace Alert.alert with the same <Modal> pattern already used for the ⋮ menu — a small overlay with 'Cancelar' and 'Apagar tudo' TouchableOpacities that calls api.dmDeleteThread inline. Native (iOS/Android) is unaffected because Alert.alert works natively — but the web preview is the current test surface."
+}

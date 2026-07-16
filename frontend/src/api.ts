@@ -318,6 +318,10 @@ export const api = {
     request<DMMessage[]>(`/community/dms/${me}/${other}`),
   dmSend: (me: string, other: string, text: string) =>
     request<DMMessage>(`/community/dms/${me}/${other}`, { method: "POST", body: JSON.stringify({ text }) }),
+  dmDeleteMessage: (me: string, other: string, dm_id: string) =>
+    request<{ ok: boolean; deleted: string }>(`/community/dms/${me}/${other}/message/${dm_id}`, { method: "DELETE" }),
+  dmDeleteThread: (me: string, other: string) =>
+    request<{ ok: boolean; deleted_count: number }>(`/community/dms/${me}/${other}`, { method: "DELETE" }),
   dmThreads: (me: string) =>
     request<DMThread[]>(`/community/dms/${me}`),
   groupsList: (member_id?: string) =>

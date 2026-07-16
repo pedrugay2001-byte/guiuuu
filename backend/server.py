@@ -2600,6 +2600,27 @@ async def dm_send(me_id: str, other_id: str, data: DMSend):
     return doc
 
 
+@api_router.delete("/community/dms/{me_id}/{other_id}/message/{dm_id}")
+async def dm_delete_message(me_id: str, other_id: str, dm_id: str):
+    """Apaga uma mensagem individual. Apenas o remetente pode apagar."""
+    tid = _dm_thread(me_id, other_id)
+    msg = await db.dm_messages.find_one({"dm_id": dm_id, "thread_id": tid})
+    if not msg:
+        raise HTTPException(status_code=404, detail="Mensagem não encontrada")
+    if msg.get("from_id") != me_id:
+        raise HTTPException(status_code=403, detail="Você só pode apagar mensagens que enviou")
+    await db.dm_messages.delete_one({"dm_id": dm_id})
+    return {"ok": True, "deleted": dm_id}
+
+
+@api_router.delete("/community/dms/{me_id}/{other_id}")
+async def dm_delete_thread(me_id: str, other_id: str):
+    """Apaga TODAS as mensagens da conversa entre os dois usuários (afeta ambos os lados)."""
+    tid = _dm_thread(me_id, other_id)
+    res = await db.dm_messages.delete_many({"thread_id": tid})
+    return {"ok": True, "deleted_count": res.deleted_count}
+
+
 @api_router.get("/community/dms/{me_id}")
 async def dm_threads(me_id: str):
     """List all DM partners with last message + unread-ish info"""
