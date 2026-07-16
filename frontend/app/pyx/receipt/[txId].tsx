@@ -59,12 +59,32 @@ export default function ReceiptScreen() {
 
   const capture = async (): Promise<string | null> => {
     try {
+      // Web: usa html2canvas diretamente no DOM (react-native-view-shot lança
+      // "findNodeHandle is not supported on web" na v4). Aponta para um id
+      // definido em style prop do <ViewShot> abaixo.
+      if (Platform.OS === "web") {
+        const el = (globalThis as any).document?.getElementById("pyx-receipt-shot");
+        if (!el) {
+          showToast("Comprovante ainda não renderizado", false);
+          return null;
+        }
+        const mod = await import("html2canvas");
+        const html2canvas = (mod as any).default || mod;
+        const canvas = await html2canvas(el, {
+          backgroundColor: "#050505",
+          scale: 2,
+          logging: false,
+          useCORS: true,
+          allowTaint: true,
+        });
+        return canvas.toDataURL("image/png");
+      }
+      // Native: usa react-native-view-shot
       const ref: any = viewShotRef.current;
       if (!ref) {
         showToast("Comprovante ainda não renderizado", false);
         return null;
       }
-      // ViewShot v4 expõe .capture() no ref; fallback para captureRef.
       const uri: string | undefined =
         typeof ref.capture === "function"
           ? await ref.capture()
@@ -73,7 +93,6 @@ export default function ReceiptScreen() {
         showToast("Não foi possível gerar a imagem", false);
         return null;
       }
-      // Alguns backends retornam base64 sem prefixo; normaliza para dataURI
       const dataUri = uri.startsWith("data:") ? uri : `data:image/png;base64,${uri}`;
       return dataUri;
     } catch (e: any) {
@@ -247,13 +266,17 @@ export default function ReceiptScreen() {
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-          {/* Captura o card como imagem */}
+          {/* Captura o card como imagem.
+              - Native: react-native-view-shot usa o ref
+              - Web: html2canvas seleciona por id do DOM (nativeID no wrapper) */}
           <ViewShot
             ref={viewShotRef}
             options={{ format: "png", quality: 1, result: "data-uri" }}
             style={{ backgroundColor: "#050505" }}
           >
-            <ReceiptCard receipt={receipt} perspective={member?.member_id} />
+            <View nativeID="pyx-receipt-shot" style={{ backgroundColor: "#050505" }}>
+              <ReceiptCard receipt={receipt} perspective={member?.member_id} />
+            </View>
           </ViewShot>
 
           {/* SHARE ACTIONS */}
@@ -296,7 +319,10 @@ export default function ReceiptScreen() {
 
         {/* Toast simples */}
         {toast && (
-          <View style={[styles.toast, { backgroundColor: toast.ok ? "#0F3320" : "#3B1414", borderColor: toast.ok ? "#4EE07F" : "#F87171" }]}>
+          <View
+            testID="receipt-toast"
+            style={[styles.toast, { backgroundColor: toast.ok ? "#0F3320" : "#3B1414", borderColor: toast.ok ? "#4EE07F" : "#F87171" }]}
+          >
             <Ionicons name={toast.ok ? "checkmark-circle" : "alert-circle"} size={16} color={toast.ok ? "#4EE07F" : "#F87171"} />
             <Text style={[styles.toastTxt, { color: toast.ok ? "#4EE07F" : "#F87171" }]}>{toast.msg}</Text>
           </View>
