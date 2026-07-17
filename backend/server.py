@@ -5124,24 +5124,54 @@ async def pyx_transfer(data: PyxTransferRequest):
     if amt > 1_000_000_000:  # teto sanitário: 10M PYX por operação
         raise HTTPException(status_code=400, detail="Valor acima do permitido")
 
-    # ===== VALIDAÇÃO DE SENHA =====
+    # ===== VALIDAÇÃO DE SENHA (ETAPA 3 — corrigido para membros comuns) =====
     if not data.password:
         raise HTTPException(status_code=401, detail="Senha obrigatória para autorizar transferência")
-    sender_member = await db.members.find_one({"member_id": data.from_member_id}, {"_id": 0, "user_id": 1, "email": 1})
+    sender_member = await db.members.find_one(
+        {"member_id": data.from_member_id},
+        {"_id": 0, "user_id": 1, "email": 1, "password_hash": 1},
+    )
     if not sender_member:
         raise HTTPException(status_code=404, detail="Remetente não encontrado")
-    # Busca o user vinculado (pelo user_id do member OU pelo email do member)
+
+    # A senha de login pode estar em DOIS lugares:
+    #  1) members.password_hash  → membros comuns (fluxo /api/members/login)
+    #  2) users.password_hash    → staff/admin (fluxo /api/auth/login)
+    # Um mesmo e-mail pode ter ambos (ex.: admin com conta member também).
+    # Aceitamos qualquer um dos dois hashes para autorizar a transferência.
+    candidate_hashes: list[str] = []
+    if sender_member.get("password_hash"):
+        candidate_hashes.append(sender_member["password_hash"])
+
+    sender_email = (sender_member.get("email") or "").lower().strip()
     sender_user = None
     if sender_member.get("user_id"):
-        sender_user = await db.users.find_one({"user_id": sender_member["user_id"]}, {"_id": 0, "password_hash": 1})
-    if not sender_user and sender_member.get("email"):
-        sender_user = await db.users.find_one({"email": sender_member["email"]}, {"_id": 0, "password_hash": 1})
-    if not sender_user or not sender_user.get("password_hash"):
-        raise HTTPException(status_code=401, detail="Usuário sem senha configurada — contate o suporte")
-    try:
-        ok = bcrypt.checkpw(data.password.encode(), sender_user["password_hash"].encode())
-    except Exception:
-        ok = False
+        sender_user = await db.users.find_one(
+            {"user_id": sender_member["user_id"]},
+            {"_id": 0, "password_hash": 1},
+        )
+    if not sender_user and sender_email:
+        sender_user = await db.users.find_one(
+            {"email": sender_email},
+            {"_id": 0, "password_hash": 1},
+        )
+    if sender_user and sender_user.get("password_hash"):
+        candidate_hashes.append(sender_user["password_hash"])
+
+    if not candidate_hashes:
+        raise HTTPException(
+            status_code=401,
+            detail="Não foi possível validar sua senha. Entre em contato com o suporte.",
+        )
+
+    ok = False
+    for h in candidate_hashes:
+        try:
+            if bcrypt.checkpw(data.password.encode(), h.encode()):
+                ok = True
+                break
+        except Exception:
+            continue
     if not ok:
         raise HTTPException(status_code=401, detail="Senha incorreta. Verifique e tente novamente.")
 

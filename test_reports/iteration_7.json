@@ -1,0 +1,43 @@
+{
+  "summary": "BUG PRINCIPAL VALIDADO — Membros comuns agora conseguem transferir PYX com sua senha de login. Suite nova /app/backend/tests/test_pyx_transfer_member_password.py (6/6 PASS em 4.28s) cobre TODOS os 6 cenários solicitados: S1 (membro comum sem entrada em db.users transfere OK → 200 + tx_id), S2 (senha errada → 401 'Senha incorreta'), S3 (sem password → 401 'Senha obrigatória'), S4 (admin master via fallback users.password_hash → 200), S5 (saldo debitou de 10.000 para 9.900 centavos + wallet_tx persistido no extrato), S6 (edge case membro com hashes DIFERENTES em members vs users — a senha ATUAL bate via users.password_hash E a senha ANTIGA bate via members.password_hash, ambas retornam 200; senha aleatória → 401). Suite baseline /app/backend/tests/test_pyx_transfer_password.py também continua verde (6/6 PASS). O fix em server.py:5127-5176 está correto: monta lista candidate_hashes com members.password_hash + users.password_hash (resolvido por user_id OU email lowercase) e aceita a senha se bater com QUALQUER um.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/members/{member_id}", "issue": "(pre-existente, arrastado de iter_4/5/6) Endpoint ainda pode vazar password_hash na projeção — não relacionado ao bug atual mas continua aberto."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pyx_transfer_member_password.py",
+    "/app/backend/tests/test_pyx_transfer_password.py",
+    "/app/test_reports/pytest/pyx_transfer_member_password.xml",
+    "/app/test_reports/iteration_7.json"
+  ],
+  "action_items": [
+    "Nenhuma ação obrigatória — fix validado end-to-end com Mongo real. E1 pode marcar o bug como resolvido.",
+    "OPCIONAL: adicionar índice único em db.authorized.{code, name_norm, phone_norm} se ainda não houver, para evitar colisões em seeds concorrentes.",
+    "OPCIONAL (arrasto): sanitizar GET /api/members/{member_id} para nunca retornar password_hash, mesmo em queries privadas."
+  ],
+  "critical_code_review_comments": [
+    "server.py:5127-5176 — implementação CORRETA e defensiva: (a) exige data.password antes de qualquer lookup; (b) busca sender_member com projeção mínima; (c) monta candidate_hashes com members.password_hash + users.password_hash (resolvido primeiro por user_id, senão por email lowercase); (d) itera com bcrypt.checkpw em try/except (hash malformado não trava o loop); (e) mensagens distintas para 'sem hash configurado' vs 'senha incorreta' vs 'obrigatória'. Boa cobertura de edge cases.",
+    "server.py:5146 sender_email = (sender_member.get('email') or '').lower().strip() — normalização consistente com o padrão do resto do server.py (member_enter faz .strip().lower() no email).",
+    "server.py:5170 bcrypt.checkpw(data.password.encode(), h.encode()) — correto; ambos os hashes em members e users são gerados por hash_password() (bcrypt gensalt), então o formato $2b$ é garantido.",
+    "OBSERVAÇÃO: o fluxo tolerante do S6 (aceita QUALQUER um dos hashes) é intencional segundo o problem statement e útil para migração — mas deixa uma janela: se um staff mudar a senha em /api/auth/login mas o hash antigo persistir em members.password_hash, o hash antigo continua válido para transferências até ser sobrescrito. Se isso for indesejado no futuro, invalidar members.password_hash quando users.password_hash for atualizado (via endpoint de reset)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pyx_transfer_member_password.py (NOVO — 6 testes, seeda Mongo direto + cleanup)",
+    "/app/test_reports/pytest/pyx_transfer_member_password.xml (regenerado, 6/6 PASS)",
+    "/app/test_reports/iteration_7.json (novo)"
+  ],
+  "success_rate": {"backend": "100% (12/12 — 6 novos + 6 baseline)", "frontend": "N/A (não testado nesta iteração)"},
+  "seed_data_creation": "Cada teste cria/limpa seus próprios docs em db.authorized/members/wallets/wallet_txs/users com prefixo 'TEST' e flag _test=True. Fixtures usam scope=module com yield+cleanup automático. Nenhum dado orphan após execução.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Fix do /api/pyx/transfer para membros comuns está 100% validado. Suite reutilizável: /app/backend/tests/test_pyx_transfer_member_password.py — seed Mongo direto para authorized+members+wallets, cleanup via fixture yield. Pattern importante para futuros testes de endpoints que exigem senha: (1) inserir authorized fixture ANTES de /members/enter; (2) creditar saldo via mongo.wallets.update_one + $inc balance_centavos (uspert); (3) chamar GET /api/pyx/wallet/{id} para forçar backfill. Senha do admin master validada: Shakira12@ (mem_7a9d652945e7). Tier silver dá limite mensal de 200.000 centavos = 2.000 PYX (mais do que suficiente para testes).",
+  "rca_of_issue": "RCA — Bug de transferência PYX para membros comuns: (1) CAUSA: implementação anterior de /api/pyx/transfer só validava senha via db.users.password_hash. Membros comuns cadastrados por /api/members/enter só existem em db.members (com password_hash bcrypt lá), não em db.users. Resultado: 401 'Usuário sem senha configurada' mesmo com senha correta. (2) FIX: server.py:5127-5176 agora monta candidate_hashes = [members.password_hash] + [users.password_hash resolvido por user_id OU email] e aceita a senha se qualquer hash bater via bcrypt.checkpw. (3) VALIDAÇÃO: S1 comprova o fluxo positivo do bug reportado (membro comum sem entrada em users → 200); S4 comprova regressão zero para admin master (fallback via users); S6 comprova tolerância a hashes dessincronizados. (4) REPRODUÇÃO ORIGINAL: seed member via /api/members/enter → sem entrada em db.users → POST /api/pyx/transfer com password correta retornava 401. Agora retorna 200 + tx_id + saldo debitado + wallet_tx persistido."
+}
