@@ -52,3 +52,52 @@ export function maskedToCents(masked: string): number {
   if (!digits) return 0;
   return parseInt(digits, 10);
 }
+
+// ============================================================================
+// PYX ↔ USD — cotação configurada pelo Master Admin
+// ============================================================================
+// `rateCentavos` = quantos centavos de PYX equivalem a 1 USD.
+// Ex: 500 → 5,00 PYX = 1 USD.
+
+/** Converte um valor de PYX (em centavos) para USD (float). */
+export function pyxCentavosToUSD(
+  pyxCentavos: number | null | undefined,
+  rateCentavos: number | null | undefined,
+): number {
+  const c = Number(pyxCentavos || 0);
+  const r = Number(rateCentavos || 0);
+  if (!r || r <= 0) return 0;
+  return c / r;
+}
+
+/** Formata valor de USD como "$1,234.56" (padrão en-US). */
+export function formatUSD(
+  pyxCentavos: number | null | undefined,
+  rateCentavos: number | null | undefined,
+  opts: { compact?: boolean; withSign?: boolean } = {},
+): string {
+  const usd = pyxCentavosToUSD(pyxCentavos, rateCentavos);
+  const abs = Math.abs(usd);
+  const sign = opts.withSign && usd < 0 ? "-" : "";
+  if (opts.compact && abs >= 1000) {
+    // "1.2K" / "1.5M"
+    const K = abs / 1000;
+    if (K >= 1000) return `${sign}$${(K / 1000).toFixed(1)}M`;
+    return `${sign}$${K.toFixed(1)}K`;
+  }
+  return `${sign}$${abs.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/** Formata a cotação para exibição: "1 USD = 5,00 PYX". */
+export function formatRate(rateCentavos: number | null | undefined): string {
+  const c = Number(rateCentavos || 0);
+  if (!c) return "1 USD = —";
+  const val = (c / 100).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `1 USD = ${val} PYX`;
+}

@@ -8,6 +8,7 @@ import { CartProvider } from "../src/cart";
 import { GateProvider, useGate } from "../src/gate";
 import { ErrorBoundary } from "../src/error-boundary";
 import { MessageInboxProvider } from "../src/message-inbox";
+import { PYXRateProvider } from "../src/pyx-rate";
 import ChatHeadsOverlay from "../src/chat-heads";
 import BottomBrandBar from "../src/bottom-brand-bar";
 
@@ -48,6 +49,7 @@ export default function RootLayout() {
             <AuthProvider>
               <CartProvider>
                 <MessageInboxProvider>
+                <PYXRateProvider>
                 <StatusBar style="light" />
                 <View style={{ flex: 1 }}>
                   <View style={{ flex: 1 }}>
@@ -96,6 +98,7 @@ export default function RootLayout() {
             <Stack.Screen name="staff/dashboard" options={{ title: "Painel" }} />
             <Stack.Screen name="staff/inbox" options={{ title: "Caixa de Mensagens" }} />
             <Stack.Screen name="staff/pix-orders" options={{ title: "Pedidos PIX → PYX", headerShown: false }} />
+            <Stack.Screen name="staff/pyx-rate" options={{ headerShown: false }} />
             <Stack.Screen name="staff/team" options={{ title: "Gestão de Equipe", headerShown: false }} />
             <Stack.Screen name="staff/publishers" options={{ title: "Publicadores", headerShown: false }} />
             <Stack.Screen name="staff/metrics" options={{ title: "Métricas PYX", headerShown: false }} />
@@ -110,6 +113,7 @@ export default function RootLayout() {
                   <GlobalBottomBar />
                 </View>
                 <ChatHeadsOverlay />
+                </PYXRateProvider>
                 </MessageInboxProvider>
               </CartProvider>
             </AuthProvider>

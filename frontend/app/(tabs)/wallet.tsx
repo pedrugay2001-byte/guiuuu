@@ -9,8 +9,10 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
 import { api, PyxWallet, PyxTx } from "../../src/api";
 import { useGate } from "../../src/gate";
-import { formatPYX, formatPYXShort } from "../../src/pyx";
+import { formatPYX, formatPYXShort, formatUSD } from "../../src/pyx";
 import { TIERS } from "../../src/theme";
+import { usePYXRate } from "../../src/pyx-rate";
+import { useBalanceVisibility } from "../../src/use-balance-visibility";
 
 // Paleta platinum/prata metálica — efeito azul-prateado premium (Diamond)
 const GOLD_LIGHT = "#EAF1F6";   // reflexo prata
@@ -21,11 +23,12 @@ const GOLD_DEEP = "#2A3744";    // azul-aço profundo
 export default function WalletScreen() {
   const router = useRouter();
   const { member } = useGate();
+  const { rate, rateCentavos } = usePYXRate();
   const [w, setW] = useState<PyxWallet | null>(null);
   const [txs, setTxs] = useState<PyxTx[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [hideBalance, setHideBalance] = useState(false);
+  const { hidden: hideBalance, toggle: toggleHide } = useBalanceVisibility(member?.member_id);
 
   const load = useCallback(async () => {
     if (!member) return;
@@ -97,7 +100,7 @@ export default function WalletScreen() {
             </View>
             <TouchableOpacity
               style={styles.eyeBtn}
-              onPress={() => setHideBalance((v) => !v)}
+              onPress={toggleHide}
               testID="pyx-toggle-hide"
             >
               <Ionicons
@@ -158,6 +161,16 @@ export default function WalletScreen() {
                   {hideBalance ? "••••••" : balance}
                 </Text>
                 <Text style={styles.balanceUnit}>PYX</Text>
+              </View>
+              <View style={styles.usdRow}>
+                <Text style={styles.usdValue}>
+                  {hideBalance ? "$•••••" : formatUSD(w.balance_centavos, rateCentavos)}
+                </Text>
+                {rate ? (
+                  <Text style={styles.usdRate}>
+                    · 1 USD = {rate.pyx_per_usd_display} PYX
+                  </Text>
+                ) : null}
               </View>
 
               {/* Linha dourada divisória com fade */}
@@ -441,6 +454,26 @@ const styles = StyleSheet.create({
   balanceRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginTop: 6 },
   balanceValue: { color: "#FFF", fontSize: 40, fontWeight: "900", letterSpacing: -1.2 },
   balanceUnit: { color: GOLD_LIGHT, fontSize: 14, fontWeight: "900", letterSpacing: 1.5, marginBottom: 10 },
+  usdRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    marginTop: 4,
+    flexWrap: "wrap",
+  },
+  usdValue: {
+    color: "#4EE07F",
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: -0.3,
+    fontVariant: ["tabular-nums"] as any,
+  },
+  usdRate: {
+    color: "#7A7A7A",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    marginLeft: 6,
+  },
 
   goldDivider: {
     height: 1, marginTop: 18, marginBottom: 2,

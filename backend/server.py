@@ -5436,6 +5436,111 @@ async def pyx_receipt(tx_id: str, member_id: Optional[str] = None):
     return tx
 
 
+# ============================================================================
+# PYX/USD RATE — cotação configurável pelo Master Admin
+# ============================================================================
+# O rate é armazenado como `pyx_per_usd_centavos` (int). Ex: 500 = 5,00 PYX/USD.
+# USD = pyx_centavos / pyx_per_usd_centavos.
+# Documento único em db.pyx_settings com _id="singleton".
+# Histórico de alterações em db.pyx_rate_history para auditoria.
+
+DEFAULT_PYX_PER_USD_CENTAVOS = 500  # 1 USD = 5,00 PYX (default inicial)
+
+
+async def _get_pyx_rate_doc() -> Dict[str, Any]:
+    doc = await db.pyx_settings.find_one({"_id": "singleton"}, {"_id": 0})
+    if not doc:
+        now = datetime.now(timezone.utc)
+        doc = {
+            "pyx_per_usd_centavos": DEFAULT_PYX_PER_USD_CENTAVOS,
+            "updated_at": now,
+            "updated_by": None,
+            "updated_by_name": "sistema",
+        }
+        await db.pyx_settings.update_one(
+            {"_id": "singleton"},
+            {"$setOnInsert": {**doc, "_id": "singleton"}},
+            upsert=True,
+        )
+    return doc
+
+
+@api_router.get("/pyx/rate")
+async def pyx_rate_get():
+    """Público: qualquer membro logado pode consultar a cotação vigente."""
+    doc = await _get_pyx_rate_doc()
+    rate_c = int(doc.get("pyx_per_usd_centavos") or DEFAULT_PYX_PER_USD_CENTAVOS)
+    # Formatações prontas para exibição no app
+    pyx_per_usd_display = f"{rate_c / 100:.2f}".replace(".", ",")  # "5,00"
+    return {
+        "pyx_per_usd_centavos": rate_c,
+        "pyx_per_usd": rate_c / 100,             # float 5.0
+        "pyx_per_usd_display": pyx_per_usd_display,  # "5,00"
+        "updated_at": doc.get("updated_at"),
+        "updated_by_name": doc.get("updated_by_name"),
+    }
+
+
+class PyxRateUpdate(BaseModel):
+    # Aceitamos qualquer um: centavos (int) OU valor decimal (float).
+    # Ex: 500 (centavos) ou 5.0 (PYX por USD) ou 5,25 → 525.
+    pyx_per_usd_centavos: Optional[int] = None
+    pyx_per_usd: Optional[float] = None
+
+
+@api_router.put("/pyx/rate")
+async def pyx_rate_set(data: PyxRateUpdate, user: dict = Depends(require_admin)):
+    """Admin only: atualiza a cotação PYX/USD."""
+    if data.pyx_per_usd_centavos is not None:
+        rate_c = int(data.pyx_per_usd_centavos)
+    elif data.pyx_per_usd is not None:
+        rate_c = int(round(float(data.pyx_per_usd) * 100))
+    else:
+        raise HTTPException(status_code=400, detail="Informe pyx_per_usd_centavos ou pyx_per_usd")
+    if rate_c < 1:
+        raise HTTPException(status_code=400, detail="Cotação inválida (mínimo 0,01 PYX/USD)")
+    if rate_c > 10_000_000:  # 100.000,00 PYX/USD — sanidade
+        raise HTTPException(status_code=400, detail="Cotação muito alta")
+
+    now = datetime.now(timezone.utc)
+    prev = await db.pyx_settings.find_one({"_id": "singleton"}, {"_id": 0, "pyx_per_usd_centavos": 1})
+    prev_c = int((prev or {}).get("pyx_per_usd_centavos") or DEFAULT_PYX_PER_USD_CENTAVOS)
+
+    await db.pyx_settings.update_one(
+        {"_id": "singleton"},
+        {"$set": {
+            "pyx_per_usd_centavos": rate_c,
+            "updated_at": now,
+            "updated_by": user.get("user_id"),
+            "updated_by_name": user.get("name") or user.get("email"),
+        }},
+        upsert=True,
+    )
+    await db.pyx_rate_history.insert_one({
+        "history_id": f"prh_{uuid.uuid4().hex[:12]}",
+        "prev_pyx_per_usd_centavos": prev_c,
+        "new_pyx_per_usd_centavos": rate_c,
+        "changed_at": now,
+        "changed_by": user.get("user_id"),
+        "changed_by_name": user.get("name") or user.get("email"),
+    })
+    try:
+        await _audit_log(
+            user, "pyx_rate_update",
+            details={"prev": prev_c, "new": rate_c},
+        )
+    except Exception:
+        pass
+    return await pyx_rate_get()
+
+
+@api_router.get("/pyx/rate/history")
+async def pyx_rate_history(limit: int = 50, user: dict = Depends(require_admin)):
+    """Admin only: histórico das alterações da cotação (auditoria)."""
+    cur = db.pyx_rate_history.find({}, {"_id": 0}).sort("changed_at", -1).limit(min(200, max(1, limit)))
+    return await cur.to_list(length=200)
+
+
 # ---------- STORIES (24h) ----------
 
 class StoryCreate(BaseModel):

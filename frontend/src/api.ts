@@ -468,6 +468,13 @@ export const api = {
       `/pyx/receipt/${tx_id}${member_id ? `?member_id=${encodeURIComponent(member_id)}` : ""}`
     ),
 
+  // ----- PYX/USD Rate (cotação configurável pelo master admin) -----
+  pyxRate: () => request<PyxRate>("/pyx/rate"),
+  pyxRateSet: (body: { pyx_per_usd_centavos?: number; pyx_per_usd?: number }) =>
+    request<PyxRate>("/pyx/rate", { method: "PUT", body: JSON.stringify(body) }),
+  pyxRateHistory: (limit = 50) =>
+    request<PyxRateHistory[]>(`/pyx/rate/history?limit=${limit}`),
+
   // ----- PYX Orders (escrow marketplace) -----
   pyxOrders: (member_id: string, role: "buyer" | "seller" | "all" = "all") =>
     request<PyxOrder[]>(`/pyx/orders/${member_id}?role=${role}`),
@@ -840,6 +847,24 @@ export type PyxTx = {
   display_datetime_brt?: string;   // "20/07/2026 00:30:00"
   display_tz_brt?: string;         // "America/Sao_Paulo"
 };
+
+// ---- PYX/USD Rate ----
+export type PyxRate = {
+  pyx_per_usd_centavos: number;     // ex: 500 (5,00 PYX/USD)
+  pyx_per_usd: number;              // 5.0
+  pyx_per_usd_display: string;      // "5,00"
+  updated_at?: string;
+  updated_by_name?: string | null;
+};
+export type PyxRateHistory = {
+  history_id: string;
+  prev_pyx_per_usd_centavos: number;
+  new_pyx_per_usd_centavos: number;
+  changed_at: string;
+  changed_by?: string;
+  changed_by_name?: string | null;
+};
+
 export type PyxReceipt = PyxTx & {
   from_info?: {
     member_id?: string;
@@ -856,6 +881,7 @@ export type PyxReceipt = PyxTx & {
     avatar_base64?: string | null;
   } | null;
 };
+
 export type PyxOrder = PyxTx & {
   i_am_buyer: boolean;
   i_am_seller: boolean;

@@ -1,0 +1,38 @@
+{
+  "summary": "PYX/USD conversion + admin config + shared eye-toggle feature validated end-to-end. Backend: created /app/backend/tests/test_pyx_rate.py with 14 tests covering (a) GET /api/pyx/rate público — 200 com pyx_per_usd_centavos, pyx_per_usd, pyx_per_usd_display 'X,YZ', updated_at, updated_by_name, sem _id; (b) PUT sem auth → 401; (c) PUT com role=support → 403 'Admin access required'; (d) PUT centavos=0 → 400 'inválida'; (e) PUT centavos=20_000_000 → 400 'muito alta'; (f) PUT body vazio → 400; (g) PUT com pyx_per_usd_centavos=750 → 200 (persiste, GET reflete 7,50, updated_by_name='Luis'); (h) PUT com pyx_per_usd=6.25 → 200, converte para 625 centavos; (i) GET /api/pyx/rate/history sem auth → 401; (j) history como support → 403; (k) history admin retorna array com history_id, prev/new_pyx_per_usd_centavos, changed_at, changed_by_name (mais recente = new=555); (l) regressão: /api/pyx/transfer sem senha → 401, /api/pyx/receipt inexistente → 404, /api/pyx/transactions/{member_id} → 200. Teardown restaura rate para 500. Resultado: 14/14 PASSED. Regressão adicional: test_pyx_receipt_etapa4.py (13/13) + test_pyx_transfer_member_password.py (6/6). Total 33/33 backend. Frontend (Expo web preview 390x844): login Master Admin OK. Home canto sup esq: '60.915 PYX' linha 1 + '$12,183.04' verde linha 2 + eye icon — testID='home-balance-widget' e 'home-balance-eye-toggle' presentes. Rate stripe pill verde 'Cotação do dia · 1 USD = 5,00 PYX' com testID='home-rate-stripe' visível. Eye toggle clica → PYX vira '•••• PYX' e USD vira '$••••'. Preferência persiste em AsyncStorage entre reloads (verificado — estado sobreviveu ao reload). SHARED eye toggle verificado nos dois sentidos: (i) mask no home → wallet abre com valores mascarados ('•••••• PYX' / '$•••••'); (ii) toggle pyx-toggle-hide na wallet → voltar ao home o widget também está mascarado. Wallet mostra abaixo do saldo grande: '$12,183.04 · 1 USD = 5,00 PYX' em verde ✅. /staff/pyx-rate carrega com COTAÇÃO VIGENTE '1 USD = 5,00 PYX' (prefixo + valor + sufixo NUMA ÚNICA LINHA — confirmed via screenshot), input testID='pyx-rate-input', botão testID='pyx-rate-save', histórico com N alterações listadas. Alterei para 10,00: cotação vigente atualizou para 10,00, histórico ganhou entrada '5,00 → 10,00 PYX/USD'. Voltando à home: pill mudou para '1 USD = 10,00 PYX' e widget mostrou '$6,091.52' (esperado ~$6,091.70; a diferença de $0.18 se deve ao saldo real ser 6.091.520 centavos, não 6.091.700 — rounding esperado, não é bug). Wallet reflete '$6,091.52 · 1 USD = 10,00 PYX'. REVERTIDO para 5,00 ao final — GET /api/pyx/rate confirma pyx_per_usd_centavos=500. Nenhum bug encontrado. Nenhum problema React Native/Expo detectado.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pyx_rate.py",
+    "/app/test_reports/pytest/pyx_rate.xml",
+    "/app/test_reports/pytest/pyx_rate_and_regression.xml"
+  ],
+  "action_items": [
+    "Nenhum item crítico. Observação: expected USD após rate=10,00 era $6,091.70 no request, veio $6,091.52 — corresponde exatamente ao saldo real do admin (6.091.520 centavos ÷ 1000 = 6091.52). Não é bug, apenas a projeção do valor USD esperado no request considerou 60.917 PYX round enquanto o saldo exato é 60.915,20 PYX. A aritmética do frontend (usePYXRate + formatUSD) está 100% correta."
+  ],
+  "critical_code_review_comments": [
+    "server.py:5468-5481 — GET /pyx/rate retorna pyx_per_usd_display formatado 'X,YZ' (vírgula BR) via replace('.', ','). Sem _id no payload (projeção {'_id': 0}). Público (sem auth) por design. Correto.",
+    "server.py:5491-5534 — PUT /pyx/rate valida rate_c<1 → 400 e rate_c>10_000_000 → 400. Aceita centavos (int) OU decimal (float). Registra history entry em db.pyx_rate_history com prev/new/changed_by_name. Chama _audit_log para trilha. Correto.",
+    "server.py:180-183 — require_admin verifica user.role=='admin', 403 'Admin access required' caso contrário. Support/financeiro/member = 403. Correto.",
+    "frontend/src/pyx-rate.tsx — PYXRateProvider com polling 30s + AppState.active + web visibilitychange. refresh() imediato após save via useCallback. rateCentavos default=500 fallback seguro.",
+    "frontend/src/use-balance-visibility.ts — persist em AsyncStorage @bc:balance_hidden (global, não por memberId). Correto para 'shared' entre home + wallet — o hook é chamado sem memberId nas duas telas, então lê/escreve na mesma chave. Confirmado no teste E2E que toggle em uma tela reflete na outra.",
+    "frontend/src/balance-widget.tsx — usa flexShrink:1 + numberOfLines:1 + allowFontScaling:false — layout robusto em canto superior esquerdo estreito. Área do olho hitSlop 8px em todos os lados garante alvo ≥44pt.",
+    "frontend/app/staff/pyx-rate.tsx (linhas 131,146) — testIDs corretos em input e save. Layout '1 USD = X,XX PYX' numa única linha confirmado via screenshot.",
+    "SEM issues de expo/react native (nenhum deprecated: expo-av/expo-barcode-scanner/expo-background-fetch encontrado no fluxo)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pyx_rate.py (novo)",
+    "/app/test_reports/iteration_10.json (novo)"
+  ],
+  "success_rate": {"backend": "100% (14/14 pyx_rate + 13/13 receipt_etapa4 + 6/6 transfer_member_password = 33/33)", "frontend": "100% (login OK; home widget + stripe + eye toggle OK; wallet USD + rate + eye toggle OK; shared toggle sync home↔wallet verificado; /staff/pyx-rate save + histórico + propagação de rate para home/wallet OK; revert 10,00→5,00 OK)"},
+  "seed_data_creation": "Nenhum seed persistente. Alterei rate durante os testes (500→750→625→555→500 no backend; 500→10,00→5,00 no frontend), sempre restaurado para 500 centavos no teardown do módulo e ao final do fluxo UI. Estado final verificado via curl: pyx_per_usd_centavos=500.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Feature PYX/USD rate + eye toggle 100% validada. Backend endpoints: GET /api/pyx/rate (público), PUT /api/pyx/rate (admin, aceita pyx_per_usd_centavos OU pyx_per_usd), GET /api/pyx/rate/history (admin). Storage: db.pyx_settings _id='singleton', db.pyx_rate_history entries. Default rate = 500 centavos (5,00 PYX/USD). Frontend testIDs: home-balance-widget, home-balance-eye-toggle, home-rate-stripe, pyx-toggle-hide (wallet header), pyx-rate-input, pyx-rate-save. Eye state persistido em AsyncStorage sob chave '@bc:balance_hidden' (global) — compartilhado home↔wallet. PYXRateProvider polling 30s + focus. IMPORTANTE: sempre restaurar rate para 500 (centavos) ao final de qualquer teste que altere. Screenshots: /tmp/step2_home.png, /tmp/step3_home_masked.png, /tmp/step4_wallet_masked.png (na verdade wallet visible pois home estava visible naquele momento), /tmp/step5_wallet_visible.png (na verdade masked), /tmp/step6_staff_rate.png, /tmp/step7_after_save.png, /tmp/step8_home_rate10.png, /tmp/step9_wallet_rate10.png.",
+  "rca_of_issue": "N/A — nenhum bug encontrado. Feature funcionando 100% de acordo com a especificação. A única discrepância cosmética ($6,091.52 vs $6,091.70 esperado) é aritmética correta baseada no saldo real do admin em centavos (6.091.520), não um erro no cálculo."
+}

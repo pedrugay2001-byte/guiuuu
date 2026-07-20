@@ -1,10 +1,12 @@
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { Ionicons } from "./icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useGate } from "./gate";
 import { useMessageInbox } from "./message-inbox";
 import { BrandLogo } from "./brand";
+import { BalanceWidget } from "./balance-widget";
+import { api, PyxWallet } from "./api";
 
 // Paleta por tier:
 // - diamond → azul-prateado (platinum) #C5D1DA / highlight #EAF1F6
@@ -34,14 +36,29 @@ export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
   const isDiamond = member?.tier === "diamond";
   const ACCENT = isDiamond ? ACCENT_PLATINUM : ACCENT_GOLD;
 
-  // Detecta se estamos nas rotas de "member" ou "wallet" para destacar
+  // Saldo PYX para o widget do canto superior esquerdo (só busca na home).
+  const [wallet, setWallet] = useState<PyxWallet | null>(null);
   const currentRouteName = state.routes[state.index]?.name;
+  const isOnHome = currentRouteName === "home";
+
+  const loadWallet = useCallback(async () => {
+    if (!member || !isOnHome) return;
+    try {
+      const w = await api.pyxWallet(member.member_id);
+      setWallet(w);
+    } catch { /* silencioso */ }
+  }, [member, isOnHome]);
+
+  useEffect(() => {
+    if (isOnHome) loadWallet();
+  }, [isOnHome, loadWallet]);
+
+  // Detecta se estamos nas rotas de "member" ou "wallet" para destacar
   // CABEÇALHO BLACKSCLUB + Perfil é exibido APENAS na Home a pedido do usuário.
   // Demais abas (catalog/community/performance/wallet/member) renderizam null aqui
   // — área útil maior e barra inferior continua sempre visível como menu principal.
   if (currentRouteName !== "home") return null;
   const isOnMember = currentRouteName === "member";
-  const isOnWallet = currentRouteName === "wallet";
 
   // Helper para navegar até uma tab (usa o navigation do tabBar)
   const goto = (routeName: string) => {
@@ -62,8 +79,13 @@ export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
 
   return (
     <View style={st.bar}>
-      {/* ESQUERDA — vazio para balancear o layout (Perfil agora fica à direita) */}
-      <View style={st.side} />
+      {/* ESQUERDA — Saldo PYX + equivalente em USD + toggle de mostrar/ocultar */}
+      <View style={[st.side, { alignItems: "flex-start" }]}>
+        <BalanceWidget
+          memberId={member?.member_id}
+          balanceCentavos={wallet?.balance_centavos ?? 0}
+        />
+      </View>
 
       {/* CENTRO — Logo BLACKSCLUB */}
       <TouchableOpacity

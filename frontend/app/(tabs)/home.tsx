@@ -11,6 +11,7 @@ import { api, GoalDashboard, PyxWallet, Ad } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { useTierAccent } from "../../src/use-tier-accent";
 import { formatPYX } from "../../src/pyx";
+import { usePYXRate } from "../../src/pyx-rate";
 import HomeBannerCarousel from "../../src/home-banner-carousel";
 
 // Banner do Marketplace de Elite (BLACKSCLUB) — versão limpa SEM o texto "O MARKETPLACE DE ELITE"
@@ -310,10 +311,11 @@ export default function Home() {
         showsVerticalScrollIndicator={false}
         testID="home-scroll"
       >
-          {/* GREETING compacto + nome do membro */}
+          {/* GREETING compacto + nome do membro + cotação do dia */}
           <View style={s.greet}>
             <Text style={s.greetHello}>Olá, {name}</Text>
             <Text style={s.greetSub}>🔒 Bem-vindo ao círculo onde poucos chegam.</Text>
+            <RateStripe />
           </View>
 
           {/* ============================================================
@@ -474,6 +476,19 @@ function RingProgress({ size, stroke, progress, label }: { size: number; stroke:
 }
 
 
+/** Faixa fina "1 USD = X,XX PYX" na home. Auto-atualiza via PYXRateProvider. */
+function RateStripe() {
+  const { rate } = usePYXRate();
+  if (!rate) return null;
+  return (
+    <View style={s.rateStripe} testID="home-rate-stripe">
+      <View style={s.rateDot} />
+      <Text style={s.rateTxt}>Cotação do dia · </Text>
+      <Text style={s.rateVal}>1 USD = {rate.pyx_per_usd_display} PYX</Text>
+    </View>
+  );
+}
+
 
 /* ------------ STYLES ------------ */
 
@@ -529,6 +544,38 @@ const s = StyleSheet.create({
   tierBannerCtaTxt: { color: "#050505", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
   greetHello: { color: "#FFF", fontSize: 20, fontWeight: "900", letterSpacing: -0.3, lineHeight: 24 },
   greetSub: { color: "#8A8A8A", fontSize: 12, marginTop: 2, fontWeight: "500", letterSpacing: 0 },
+
+  // Cotação do dia (RateStripe)
+  rateStripe: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(78,224,127,0.30)",
+    backgroundColor: "rgba(78,224,127,0.06)",
+    alignSelf: "flex-start",
+  },
+  rateDot: {
+    width: 6, height: 6, borderRadius: 3,
+    backgroundColor: "#4EE07F",
+    marginRight: 6,
+  },
+  rateTxt: {
+    color: "#8A8A8A",
+    fontSize: 10.5,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  rateVal: {
+    color: "#4EE07F",
+    fontSize: 10.5,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+    fontVariant: ["tabular-nums"] as any,
+  },
 
   // Mini card PYX premium no topo (glance rápido)
   pyxCard: {
