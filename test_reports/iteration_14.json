@@ -1,0 +1,34 @@
+{
+  "summary": "Frontend v4 refinamentos do painel financeiro na Home APROVADO 100% (10/10 critérios). Login master (guilherme925145000@gmail.com) → /home carrega OK em 390x844. (1) 'Acesso restrito' e 'Benefícios reais' REMOVIDOS do body.innerText — apenas 'Olá, Luis' visível. (2) FinanceHeroBanner (testID='home-finance-hero') presente logo abaixo do greeting. (3) Layout interno conforme spec: coluna esquerda 'SALDO PYX' → '50.915' grande dourado → ' PYX' pequeno → pill 'Valor convertido (US$)' com 'US$ 9.983,37'; coluna direita 'COTAÇÃO DO DIA' → pill '1 USD = 5,10 PYX' — SEM % nem setas (▲/▼). (4) Tipografia premium confirmada via computed CSS: backgroundImage='linear-gradient(rgb(255, 224, 130) 0%, rgb(245, 193, 80) 45%, rgb(184, 134, 11) 100%)', backgroundClip='text', webkitTextFillColor='rgba(0,0,0,0)', filter='drop-shadow(rgba(0,0,0,0.4) 0px 1px 0px) drop-shadow(rgba(212,175,55,0.35) 0px 0px 8px)', fontSize=34px, fontWeight=900. (5) 'PYX' menor visível ao lado do saldo. (6) Títulos brancos discretos (#DDE4EA). (7) Pills modernas: backgroundColor='rgba(0,0,0,0.55)', borderColor='rgba(212,175,55,0.5)', borderRadius=22px, boxShadow='rgba(0,0,0,0.5) 0px 2px 10px 0px, rgba(212,175,55,0.1) 0px 0px 0px 1px inset', backdropFilter='blur(6px)' — idênticas para USD e Rate. (8) Rate exibe 'Valor convertido (US$)' + '1 USD = 5,10 PYX' sem setas/%. (9) style.grid.marginTop=20px confirmado (era 4). (10) Home NÃO gera scroll: scrollerScrollHeight=715 < clientHeight=844. Eye toggle funciona: 50.915→•••• e 'US$ 9.983,37'→'US$ ••••'; segundo clique reverte. Imagem custom (moedas + gráfico verde/dourado) aparecendo — cotação atual 5,10 (como notado no note do main agent). Warnings herdados (textShadow*/shadow*/pointerEvents e layout children onboarding/notifications/wallet) permanecem — não regressão.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "styles-bundle-wide", "issue": "Herdado (não regressão): 'textShadow*' → use 'textShadow'; 'shadow*' → use 'boxShadow'; props.pointerEvents → style.pointerEvents. Aparece nos warnings do bundle."},
+      {"component": "app/_layout.tsx", "issue": "Herdado: rotas 'onboarding', 'notifications', 'wallet' referenciadas em Stack mas ausentes em nested children. Reference: /app/frontend/app/_layout.tsx."}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "OPCIONAL/limpeza: remover refs a 'onboarding'/'notifications'/'wallet' em /app/frontend/app/_layout.tsx para eliminar warnings herdados.",
+    "OPCIONAL: substituir textShadow*/shadow*/pointerEvents pelas APIs novas do RN Web para eliminar deprecation warnings."
+  ],
+  "critical_code_review_comments": [
+    "/app/frontend/src/finance-hero-banner.tsx:42-83 — GoldenText corretamente aplica gradient dourado via CSS background-clip:text no web e fallback nativo com textShadow. Computed style validado em runtime.",
+    "/app/frontend/src/finance-hero-banner.tsx:349-410 — usdPill e ratePill compartilham exatamente o mesmo tratamento visual (bg rgba(0,0,0,0.55), borderColor rgba(212,175,55,0.5), borderRadius 22, shadow + backdrop-filter blur), consistente com spec v4.",
+    "/app/frontend/src/finance-hero-banner.tsx:265 — card.marginTop=4 encosta o painel no greeting conforme spec (9).",
+    "/app/frontend/app/(tabs)/home.tsx:706 — style.grid.marginTop=20 confere com spec (9) para respiro entre banner e atalhos.",
+    "/app/frontend/app/(tabs)/home.tsx:317-320 — apenas greetHello renderizado; greetSubRow removido conforme spec (1)."
+  ],
+  "updated_files": ["/app/test_reports/iteration_14.json (novo)"],
+  "success_rate": {
+    "backend": "N/A (frontend-only conforme review_request)",
+    "frontend": "100% (10/10) — layout ✓, tipografia gradient dourado ✓, pills modernas ✓, sem setas/% ✓, grid marginTop=20 ✓, sem scroll ✓, eye toggle mask/unmask ✓, imagem custom ✓."
+  },
+  "seed_data_creation": "Nenhum.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Refinamentos v4 do painel financeiro da Home totalmente validados. GoldenText renderiza gradient metálico via background-clip:text no web (confirmado em computed style). USD pill e Rate pill compartilham o mesmo look (bg preta 55% opacidade, border dourada 50%, radius 22, box-shadow + backdrop-blur). Grid de atalhos tem marginTop=20. Home cabe em 390x844 sem gerar scroll (scrollHeight 715 < 844). Eye toggle no TopTabBar mascara tanto o valor principal quanto o pill USD. Screenshots: /tmp/home_v4.png, /tmp/home_v4_hidden.png, /tmp/home_v4_final.png. Credenciais: guilherme925145000@gmail.com / Shakira12@."
+}

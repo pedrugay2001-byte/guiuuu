@@ -1,19 +1,21 @@
 /**
- * FinanceHeroBanner — Painel financeiro premium na home (substitui o tier banner).
+ * FinanceHeroBanner — Painel financeiro premium da home.
  *
- * Layout (responsivo em 16:9 aproximado):
- *   ┌─────────────────────────────────────────────────────────┐
- *   │  SALDO PYX           │  COTAÇÃO DO DIA                  │
- *   │  50.915 pyx          │  ● 1 USD = 5,00 PYX  (pill verde)│
- *   │  US$ 10.183,04       │                                  │
- *   │  (pill dourada)      │         (gráfico + moedas)       │
- *   └─────────────────────────────────────────────────────────┘
+ * Layout revisado (v3 — nova hierarquia visual):
  *
- * Background:
- *  - Se o admin subiu imagem custom → usa ela via <Image>
- *  - Caso contrário → SVG default (verde escuro + dourado + gráfico ascendente + moedas)
+ *   ┌────────────────────────────────────────────────────────────┐
+ *   │  SALDO PYX                       COTAÇÃO DO DIA            │
+ *   │  50.915 PYX (gradient metálico) ┃  ┌ 1 USD = 5,00 PYX ┐   │
+ *   │  ┌ Valor convertido (US$) ┐    ┃  └───────────────────┘   │
+ *   │  │ US$ 10.183,04          │    ┃                          │
+ *   │  └────────────────────────┘    ┃    (gráfico + moedas)    │
+ *   └────────────────────────────────────────────────────────────┘
  *
- * Respeita o toggle olho (mostrar/ocultar) via useBalanceVisibility.
+ * Tipografia:
+ *  - Valor principal (50.915): degradê dourado metálico + 3D + glow discreto
+ *  - "PYX" em maiúsculas menor, mesma família dourada
+ *  - Títulos em cinza claro / branco discreto para hierarquia
+ *  - Aba USD e Cotação: preto fosco + borda dourada fina + sombra suave
  */
 
 import React from "react";
@@ -27,8 +29,58 @@ import { usePYXRate } from "./pyx-rate";
 import { useBalanceVisibility, maskAmount } from "./use-balance-visibility";
 
 const GOLD = "#F5C150";
+const GOLD_LIGHT = "#FFE082";
+const GOLD_DEEP = "#B8860B";
 const GREEN = "#4EE07F";
 const GREEN_DEEP = "#0F5A3A";
+
+/**
+ * <GoldenText/> — renderiza texto com efeito de degradê dourado metálico.
+ * Web: CSS background-clip:text (gradiente vertical clara → dourado → escuro)
+ * Native: fallback para cor dourada sólida + textShadow (glow + 3D).
+ */
+function GoldenText({
+  children, style,
+}: { children: React.ReactNode; style?: any }) {
+  if (Platform.OS === "web") {
+    return (
+      <Text
+        style={[
+          style,
+          {
+            // @ts-ignore — RN Web aceita propriedades CSS raw
+            backgroundImage: `linear-gradient(180deg, ${GOLD_LIGHT} 0%, ${GOLD} 45%, ${GOLD_DEEP} 100%)`,
+            WebkitBackgroundClip: "text",
+            backgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            color: "transparent",
+            filter: `drop-shadow(0 1px 0 rgba(0,0,0,0.4)) drop-shadow(0 0 8px rgba(212,175,55,0.35))`,
+          } as any,
+        ]}
+        allowFontScaling={false}
+      >
+        {children}
+      </Text>
+    );
+  }
+  // Fallback nativo — cor dourada sólida + glow + sombra 3D
+  return (
+    <Text
+      style={[
+        style,
+        {
+          color: GOLD_LIGHT,
+          textShadowColor: "rgba(212,175,55,0.55)",
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 6,
+        },
+      ]}
+      allowFontScaling={false}
+    >
+      {children}
+    </Text>
+  );
+}
 
 export function FinanceHeroBanner({
   memberId,
@@ -53,41 +105,41 @@ export function FinanceHeroBanner({
 
   return (
     <View style={[s.card, { height }]} testID="home-finance-hero">
-      {/* BACKGROUND: imagem custom OU SVG default */}
+      {/* BACKGROUND — imagem custom OU SVG default */}
       {customBg ? (
         <Image source={{ uri: customBg }} style={s.bgImage} resizeMode="cover" />
       ) : (
         <DefaultFinanceBackground />
       )}
 
-      {/* Overlay escuro sutil pra legibilidade */}
+      {/* Overlay escuro sutil para legibilidade */}
       <View style={s.overlay} pointerEvents="none" />
 
-      {/* CONTEÚDO em duas colunas */}
+      {/* CONTEÚDO */}
       <View style={s.content}>
-        {/* ESQUERDA — Saldo PYX */}
+        {/* Coluna esquerda — SALDO */}
         <View style={s.left}>
-          <Text style={s.label}>SALDO PYX</Text>
-          <View style={s.pyxRow}>
-            <Text style={s.pyxValue} numberOfLines={1} allowFontScaling={false}>
-              {pyxStr}
-            </Text>
-            <Text style={s.pyxUnit} allowFontScaling={false}>pyx</Text>
+          <Text style={s.title}>SALDO PYX</Text>
+          <View style={s.balanceRow}>
+            <GoldenText style={s.balanceValue}>{pyxStr}</GoldenText>
+            <GoldenText style={s.balanceUnit}> PYX</GoldenText>
           </View>
           <View style={s.usdPill}>
-            <Text style={s.usdTxt} numberOfLines={1}>{usdStr}</Text>
+            <Text style={s.usdLbl}>Valor convertido (US$)</Text>
+            <Text style={s.usdVal} numberOfLines={1}>{usdStr}</Text>
           </View>
         </View>
 
-        {/* Divisor vertical sutil */}
+        {/* Divisor sutil */}
         <View style={s.divider} pointerEvents="none" />
 
-        {/* DIREITA — Cotação do dia */}
+        {/* Coluna direita — COTAÇÃO */}
         <View style={s.right}>
-          <Text style={s.label}>COTAÇÃO DO DIA</Text>
+          <Text style={s.title}>COTAÇÃO DO DIA</Text>
           <View style={s.ratePill}>
-            <View style={s.rateDot} />
-            <Text style={s.rateTxt} numberOfLines={1}>1 USD = {rateDisplay} PYX</Text>
+            <Text style={s.rateTxt} numberOfLines={1}>
+              1 USD = {rateDisplay} PYX
+            </Text>
           </View>
         </View>
       </View>
@@ -98,44 +150,36 @@ export function FinanceHeroBanner({
 /**
  * SVG default: gradiente verde escuro + dourado, com gráfico de linha
  * ascendente verde à direita e moedas douradas empilhadas.
- * Totalmente vetorial — sem depender de asset externo.
  */
 function DefaultFinanceBackground() {
   return (
     <View style={s.bgSvg}>
       <Svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice">
         <Defs>
-          {/* Gradiente base: preto → verde escuro → preto */}
           <SvgGradient id="baseBg" x1="0%" y1="0%" x2="100%" y2="100%">
             <Stop offset="0%" stopColor="#0A1F14" stopOpacity="1" />
             <Stop offset="50%" stopColor="#0D2E1E" stopOpacity="1" />
             <Stop offset="100%" stopColor="#050F0A" stopOpacity="1" />
           </SvgGradient>
-          {/* Glow dourado radial no canto direito */}
           <SvgGradient id="goldGlow" x1="0%" y1="0%" x2="100%" y2="100%">
             <Stop offset="0%" stopColor="#D4AF37" stopOpacity="0" />
             <Stop offset="80%" stopColor="#D4AF37" stopOpacity="0.15" />
             <Stop offset="100%" stopColor="#F5C150" stopOpacity="0.25" />
           </SvgGradient>
-          {/* Gradiente dourado das moedas */}
           <SvgGradient id="coinGold" x1="0%" y1="0%" x2="0%" y2="100%">
             <Stop offset="0%" stopColor="#FFE082" stopOpacity="1" />
             <Stop offset="50%" stopColor="#F5C150" stopOpacity="1" />
             <Stop offset="100%" stopColor="#B8860B" stopOpacity="1" />
           </SvgGradient>
-          {/* Gradiente da área do gráfico (verde translúcido) */}
           <SvgGradient id="chartFill" x1="0%" y1="0%" x2="0%" y2="100%">
             <Stop offset="0%" stopColor="#4EE07F" stopOpacity="0.35" />
             <Stop offset="100%" stopColor="#4EE07F" stopOpacity="0" />
           </SvgGradient>
         </Defs>
 
-        {/* Camada base */}
         <Rect x="0" y="0" width="400" height="200" fill="url(#baseBg)" />
-        {/* Glow dourado */}
         <Rect x="0" y="0" width="400" height="200" fill="url(#goldGlow)" />
 
-        {/* Linhas de grade sutis */}
         <G opacity="0.06">
           {[40, 80, 120, 160].map((y) => (
             <Rect key={y} x="0" y={y} width="400" height="0.5" fill="#4EE07F" />
@@ -145,7 +189,6 @@ function DefaultFinanceBackground() {
           ))}
         </G>
 
-        {/* Candles no fundo (financeiro) — coluna direita */}
         <G opacity="0.28">
           {[
             { x: 220, y: 130, h: 40, w: 6, c: GREEN },
@@ -162,7 +205,6 @@ function DefaultFinanceBackground() {
           ))}
         </G>
 
-        {/* Área do gráfico ascendente (verde translúcido) + linha superior */}
         <Path
           d="M 40 160 L 90 145 L 130 135 L 170 118 L 210 105 L 250 82 L 290 65 L 330 50 L 370 30 L 370 200 L 40 200 Z"
           fill="url(#chartFill)"
@@ -173,7 +215,6 @@ function DefaultFinanceBackground() {
           strokeWidth="2"
           fill="none"
         />
-        {/* Ponta da linha (seta cima) */}
         <Path
           d="M 370 30 L 362 42 M 370 30 L 358 32"
           stroke="#4EE07F"
@@ -181,7 +222,6 @@ function DefaultFinanceBackground() {
           strokeLinecap="round"
           fill="none"
         />
-        {/* Pontos verdes ao longo da linha */}
         {[
           [90, 145], [130, 135], [170, 118], [210, 105],
           [250, 82], [290, 65], [330, 50], [370, 30],
@@ -189,27 +229,19 @@ function DefaultFinanceBackground() {
           <Circle key={i} cx={cx} cy={cy} r="2.5" fill="#4EE07F" opacity="0.9" />
         ))}
 
-        {/* Moedas empilhadas (canto inferior direito) — estilizadas */}
         <G opacity="0.85">
-          {/* Pilha 1 — atrás */}
           <Ellipse cx="270" cy="180" rx="14" ry="4" fill="url(#coinGold)" />
           <Ellipse cx="270" cy="175" rx="14" ry="4" fill="url(#coinGold)" />
           <Ellipse cx="270" cy="170" rx="14" ry="4" fill="url(#coinGold)" />
           <Ellipse cx="270" cy="165" rx="14" ry="4" fill="url(#coinGold)" />
-
-          {/* Pilha 2 — meio (maior) */}
           <Ellipse cx="310" cy="180" rx="16" ry="5" fill="url(#coinGold)" />
           <Ellipse cx="310" cy="174" rx="16" ry="5" fill="url(#coinGold)" />
           <Ellipse cx="310" cy="168" rx="16" ry="5" fill="url(#coinGold)" />
           <Ellipse cx="310" cy="162" rx="16" ry="5" fill="url(#coinGold)" />
           <Ellipse cx="310" cy="156" rx="16" ry="5" fill="url(#coinGold)" />
-
-          {/* Pilha 3 — direita */}
           <Ellipse cx="350" cy="180" rx="13" ry="4" fill="url(#coinGold)" />
           <Ellipse cx="350" cy="175" rx="13" ry="4" fill="url(#coinGold)" />
           <Ellipse cx="350" cy="170" rx="13" ry="4" fill="url(#coinGold)" />
-
-          {/* Moeda destaque (grande, com $) */}
           <Circle cx="330" cy="130" r="18" fill="url(#coinGold)" stroke="#8B6914" strokeWidth="0.5" />
           <Circle cx="330" cy="130" r="14" fill="none" stroke="#8B6914" strokeWidth="0.4" opacity="0.5" />
           <Text
@@ -230,12 +262,11 @@ const s = StyleSheet.create({
     borderRadius: 14,
     overflow: "hidden",
     marginHorizontal: 12,
-    marginTop: 8,
+    marginTop: 4,               // encostado no greeting (foi 8)
     borderWidth: 1,
     borderColor: "rgba(212,175,55,0.30)",
     backgroundColor: "#050505",
     position: "relative",
-    // Sombra premium (efeito 3D discreto)
     ...Platform.select({
       web: {
         // @ts-ignore
@@ -254,94 +285,131 @@ const s = StyleSheet.create({
   bgSvg: { ...StyleSheet.absoluteFillObject as any, width: "100%", height: "100%" },
   overlay: {
     ...StyleSheet.absoluteFillObject as any,
-    backgroundColor: "rgba(0,0,0,0.15)",
+    backgroundColor: "rgba(0,0,0,0.18)",
   },
 
   content: {
     flex: 1,
     flexDirection: "row",
-    padding: 16,
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingTop: 10,          // conteúdo colado no topo (foi 16)
+    paddingBottom: 14,
+    gap: 10,
     zIndex: 2,
   },
-  left: { flex: 1.05, justifyContent: "center", gap: 6 },
-  divider: {
-    width: 1,
-    backgroundColor: "rgba(212,175,55,0.30)",
-    alignSelf: "stretch",
-    marginVertical: 8,
-  },
-  right: { flex: 1, justifyContent: "center", gap: 6, alignItems: "flex-start" },
-
-  label: {
-    color: "#EAF1F6",
-    fontSize: 10.5,
-    fontWeight: "900",
-    letterSpacing: 1.8,
-    opacity: 0.85,
-  },
-  pyxRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
+  left: {
+    flex: 1.1,
+    justifyContent: "flex-start", // saldo próximo ao topo
     gap: 4,
   },
-  pyxValue: {
-    color: GOLD,
-    fontSize: 32,
+  divider: {
+    width: 1,
+    backgroundColor: "rgba(212,175,55,0.28)",
+    alignSelf: "stretch",
+    marginVertical: 4,
+  },
+  right: {
+    flex: 1,
+    justifyContent: "flex-start",  // cotação alinhada ao topo do saldo
+    gap: 6,
+    alignItems: "flex-start",
+  },
+
+  // Título (SALDO PYX / COTAÇÃO DO DIA)
+  title: {
+    color: "#DDE4EA",
+    fontSize: 10.5,
     fontWeight: "900",
-    letterSpacing: -1,
+    letterSpacing: 1.9,
+    opacity: 0.8,
+    marginBottom: 3,
+  },
+
+  // Saldo principal — degradê dourado metálico
+  balanceRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    marginTop: 2,
+  },
+  balanceValue: {
+    fontSize: 34,
+    fontWeight: "900",
+    letterSpacing: -1.2,
     fontVariant: ["tabular-nums"] as any,
-    // Sombra sutil dourada
+    lineHeight: 40,
+  },
+  balanceUnit: {
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+    lineHeight: 40,
+  },
+
+  // Pill "Valor convertido (US$)" — preto fosco + borda dourada + shadow
+  usdPill: {
+    marginTop: 6,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderWidth: 1,
+    borderColor: "rgba(212,175,55,0.50)",
     ...Platform.select({
-      web: { textShadow: "0 2px 8px rgba(212,175,55,0.35)" } as any,
+      web: {
+        // @ts-ignore
+        boxShadow: "0 2px 10px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.10) inset",
+        backdropFilter: "blur(6px)",
+      } as any,
       default: {
-        textShadowColor: "rgba(212,175,55,0.4)",
-        textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 4,
+        shadowColor: "#000",
+        shadowOpacity: 0.4,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
       },
     }),
   },
-  pyxUnit: {
-    color: "#EAF1F6",
-    fontSize: 12,
-    fontWeight: "900",
-    letterSpacing: 1.2,
-    opacity: 0.75,
+  usdLbl: {
+    color: "#B7BEC5",
+    fontSize: 9.5,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    marginBottom: 1,
   },
-  usdPill: {
-    marginTop: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.55)",
-    backgroundColor: "rgba(212,175,55,0.10)",
-    alignSelf: "flex-start",
-  },
-  usdTxt: {
+  usdVal: {
     color: GOLD,
-    fontSize: 13.5,
+    fontSize: 15,
     fontWeight: "900",
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
     fontVariant: ["tabular-nums"] as any,
   },
+
+  // Pill "Cotação do dia" — mesmo padrão visual da USD pill (menor)
   ratePill: {
-    flexDirection: "row",
-    alignItems: "center",
+    marginTop: 2,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 24,
-    backgroundColor: "rgba(15,42,26,0.65)",
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.55)",
     borderWidth: 1,
-    borderColor: "rgba(78,224,127,0.55)",
-    gap: 8,
-  },
-  rateDot: {
-    width: 7, height: 7, borderRadius: 4,
-    backgroundColor: GREEN,
+    borderColor: "rgba(212,175,55,0.50)",
+    alignSelf: "flex-start",
+    ...Platform.select({
+      web: {
+        // @ts-ignore
+        boxShadow: "0 2px 10px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.10) inset",
+        backdropFilter: "blur(6px)",
+      } as any,
+      default: {
+        shadowColor: "#000",
+        shadowOpacity: 0.4,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+      },
+    }),
   },
   rateTxt: {
-    color: GREEN,
+    color: GOLD,
     fontSize: 13,
     fontWeight: "900",
     letterSpacing: 0.4,

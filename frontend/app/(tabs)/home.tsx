@@ -145,10 +145,11 @@ export default function Home() {
   const heroBannerH = Math.floor((screenW * 9) / 16) + 4;
   const tileH = ((screenW - 12 * 2 - 8 * 2) / 3) / 1.45 + 4;
   const HEADER_TOP = 62;
-  const GREET_H = 62;       // "Olá, X" + subtitle + spacing
+  const GREET_H = 32;       // apenas "Olá, X" (subtitle removido → mais compacto)
   const BOTTOM_BAR = 80;
   const SCROLL_PADS = 14;
-  const occupied = HEADER_TOP + GREET_H + heroBannerH + tileH + BOTTOM_BAR + SCROLL_PADS;
+  const SHORTCUTS_GAP = 16; // respiro adicional entre banner e atalhos
+  const occupied = HEADER_TOP + GREET_H + heroBannerH + SHORTCUTS_GAP + tileH + BOTTOM_BAR + SCROLL_PADS;
   // Carrossel inferior (marketplace) — usa TODO o espaço que sobra, sem gerar rolagem
   const bannerH = Math.max(90, Math.min(180, Math.floor(screenH - occupied)));
 
@@ -313,15 +314,9 @@ export default function Home() {
         showsVerticalScrollIndicator={false}
         testID="home-scroll"
       >
-          {/* GREETING — Olá + subtítulo Acesso restrito */}
+          {/* GREETING — apenas "Olá, {nome}" (subtítulo removido) */}
           <View style={s.greet}>
             <Text style={s.greetHello}>Olá, {name}</Text>
-            <View style={s.greetSubRow}>
-              <View style={s.greetDot} />
-              <Text style={s.greetSubLbl}>Acesso restrito</Text>
-              <Text style={s.greetSubSep}>·</Text>
-              <Text style={s.greetSubHi}>Benefícios reais</Text>
-            </View>
           </View>
 
           {/* ============================================================
@@ -708,7 +703,7 @@ const s = StyleSheet.create({
   seeAllGold: { color: GOLD, fontSize: 11, fontWeight: "800" },
 
   // TILES 3 col — design espelhado da Carteira (borda gold gradient + ícone oval slate + label + sub)
-  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 8, justifyContent: "space-between", marginTop: 4 },
+  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 8, justifyContent: "space-between", marginTop: 20 },
   tile: {
     flexBasis: "31.5%",
     aspectRatio: 1.45,
