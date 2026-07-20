@@ -12,6 +12,7 @@ import { useGate } from "../../src/gate";
 import { useTierAccent } from "../../src/use-tier-accent";
 import { formatPYX } from "../../src/pyx";
 import { usePYXRate } from "../../src/pyx-rate";
+import { FinanceHeroBanner } from "../../src/finance-hero-banner";
 import HomeBannerCarousel from "../../src/home-banner-carousel";
 
 // Banner do Marketplace de Elite (BLACKSCLUB) — versão limpa SEM o texto "O MARKETPLACE DE ELITE"
@@ -140,15 +141,16 @@ export default function Home() {
    *  - Paddings da ScrollView:            ~22
    */
   const screenW = width;
-  const tierBannerH = (screenW * 9) / 16 + 10;
+  // Painel financeiro (hero) — mantém proporção ~16:9 do banner antigo
+  const heroBannerH = Math.floor((screenW * 9) / 16) + 4;
   const tileH = ((screenW - 12 * 2 - 8 * 2) / 3) / 1.45 + 4;
   const HEADER_TOP = 62;
-  const GREET_H = 44;       // subtítulo removido — bloco mais compacto
+  const GREET_H = 62;       // "Olá, X" + subtitle + spacing
   const BOTTOM_BAR = 80;
-  const SCROLL_PADS = 18;
-  const occupied = HEADER_TOP + GREET_H + tierBannerH + tileH + BOTTOM_BAR + SCROLL_PADS;
-  // Carrossel preenche o restante (min 110 pra caber em iPhone SE, max 200 pra não inflar em desktop)
-  const bannerH = Math.max(110, Math.min(200, Math.floor(screenH - occupied)));
+  const SCROLL_PADS = 14;
+  const occupied = HEADER_TOP + GREET_H + heroBannerH + tileH + BOTTOM_BAR + SCROLL_PADS;
+  // Carrossel inferior (marketplace) — usa TODO o espaço que sobra, sem gerar rolagem
+  const bannerH = Math.max(90, Math.min(180, Math.floor(screenH - occupied)));
 
   const load = useCallback(async () => {
     try {
@@ -311,77 +313,29 @@ export default function Home() {
         showsVerticalScrollIndicator={false}
         testID="home-scroll"
       >
-          {/* GREETING compacto + nome do membro + cotação do dia */}
+          {/* GREETING — Olá + subtítulo Acesso restrito */}
           <View style={s.greet}>
             <Text style={s.greetHello}>Olá, {name}</Text>
-            <RateStripe />
+            <View style={s.greetSubRow}>
+              <View style={s.greetDot} />
+              <Text style={s.greetSubLbl}>Acesso restrito</Text>
+              <Text style={s.greetSubSep}>·</Text>
+              <Text style={s.greetSubHi}>Benefícios reais</Text>
+            </View>
           </View>
 
           {/* ============================================================
-              TIER BANNER do membro — substitui o card PYX e o card
-              "MARKETPLACE DIAMANTE". Mostra a arte oficial do tier
-              (Diamante/Gold/Silver) com banner full-width clicável que
-              leva direto ao marketplace correspondente.
-              Acesso à carteira fica no botão "Carteira" do TOPO.
+              PAINEL FINANCEIRO (HERO) — Substitui o antigo tier banner.
+              Mostra Saldo PYX, equivalente USD e cotação do dia.
+              Imagem de fundo configurável pelo Admin Master via
+              /staff/banners (seção "Painel Financeiro"). Se não houver
+              imagem custom, usa um SVG default premium (verde+dourado).
               ============================================================ */}
-          {(() => {
-            // Define imagem + cor de destaque do plano do usuário
-            const tierKey = (member?.tier || "silver").toLowerCase();
-            // Banner único do Marketplace de Elite — versão LIMPA (sem "O MARKETPLACE DE ELITE" duplicado).
-            // Carregado como require() local — sempre fresh, sem precisar de cache-buster e sem depender de CDN externo.
-            const TIER_BANNER: Record<string, { image: any; title: string; sub: string; accent: string; route: string }> = {
-              diamond: {
-                image: MKT_BANNER_SRC,
-                title: "PLANO DIAMANTE",
-                sub: "Acesso total · Marketplace completo",
-                accent: "#EAF1F6",
-                route: "/catalog/diamond",
-              },
-              gold: {
-                image: MKT_BANNER_SRC,
-                title: "PLANO GOLD",
-                sub: "Acesso Premium · Ofertas exclusivas",
-                accent: "#F4D47A",
-                route: "/catalog/gold",
-              },
-              silver: {
-                image: MKT_BANNER_SRC,
-                title: "PLANO SILVER",
-                sub: "Acesso Inicial · Linha essencial",
-                accent: "#E8E8E8",
-                route: "/catalog/silver",
-              },
-            };
-            const banner = TIER_BANNER[tierKey] || TIER_BANNER.silver;
-            return (
-              <TouchableOpacity
-                style={s.tierBanner}
-                onPress={() => router.push({ pathname: "/catalog/niches", params: { tier: tierKey } } as any)}
-                activeOpacity={0.9}
-                testID="home-tier-banner"
-              >
-                <Image
-                  source={banner.image}
-                  style={[
-                    s.tierBannerImg,
-                    // objectPosition no web ajusta o crop para centralizar produtos
-                    Platform.OS === "web" ? ({ objectPosition: "center center" } as any) : {},
-                  ]}
-                  resizeMode="cover"
-                />
-                <LinearGradient
-                  colors={["transparent", "rgba(0,0,0,0.45)", "rgba(0,0,0,0.92)"] as const}
-                  start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
-                  style={s.tierBannerOverlay}
-                />
-                <View style={s.tierBannerFooter}>
-                  <View style={[s.tierBannerCta, { backgroundColor: banner.accent }]}>
-                    <Text style={s.tierBannerCtaTxt}>ENTRAR</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })()}
+          <FinanceHeroBanner
+            memberId={member?.member_id}
+            balanceCentavos={wallet?.balance_centavos ?? 0}
+            height={heroBannerH}
+          />
 
           {/* ============================================================
               REMOVIDOS A PEDIDO DO USUÁRIO:
@@ -543,6 +497,21 @@ const s = StyleSheet.create({
   tierBannerCtaTxt: { color: "#050505", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
   greetHello: { color: "#FFF", fontSize: 20, fontWeight: "900", letterSpacing: -0.3, lineHeight: 24 },
   greetSub: { color: "#8A8A8A", fontSize: 12, marginTop: 2, fontWeight: "500", letterSpacing: 0 },
+
+  // Subtítulo com bolinha verde do Greeting
+  greetSubRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    gap: 6,
+  },
+  greetDot: {
+    width: 7, height: 7, borderRadius: 4,
+    backgroundColor: "#4EE07F",
+  },
+  greetSubLbl: { color: "#EAF1F6", fontSize: 12.5, fontWeight: "700", letterSpacing: 0.2 },
+  greetSubSep: { color: "#5A5A5A", fontSize: 12.5, fontWeight: "800" },
+  greetSubHi: { color: "#4EE07F", fontSize: 12.5, fontWeight: "800", letterSpacing: 0.2 },
 
   // Cotação do dia (RateStripe)
   rateStripe: {

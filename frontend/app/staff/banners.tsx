@@ -23,6 +23,7 @@ import { Ionicons } from "../../src/icons";
 import { api, HomeBanner, HomeBannerInput } from "../../src/api";
 import { pickCompressedImage } from "../../src/imagepicker";
 import { notify, confirm } from "../../src/alerts";
+import { usePYXRate } from "../../src/pyx-rate";
 
 const CATEGORIES = [
   { id: "novidade", label: "NOVIDADE", color: "#4FD1C5" },
@@ -216,31 +217,39 @@ export default function AdminBannersScreen() {
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
             <ActivityIndicator color="#D4AF37" />
           </View>
-        ) : banners.length === 0 ? (
-          <View style={s.emptyBox}>
-            <Ionicons name="images-outline" size={40} color="#2E2E2E" />
-            <Text style={s.emptyTxt}>Nenhum banner cadastrado</Text>
-            <TouchableOpacity style={s.emptyCta} onPress={openCreate} testID="banners-empty-cta">
-              <Ionicons name="add" size={16} color="#0A0A0A" />
-              <Text style={s.emptyCtaTxt}>ADICIONAR PRIMEIRO BANNER</Text>
-            </TouchableOpacity>
-          </View>
         ) : (
           <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
-            {banners.map((b, idx) => (
-              <BannerListItem
-                key={b.banner_id}
-                banner={b}
-                canUp={idx > 0}
-                canDown={idx < banners.length - 1}
-                busy={busyId === b.banner_id}
-                onEdit={() => openEdit(b)}
-                onToggle={() => toggleActive(b)}
-                onDelete={() => remove(b)}
-                onMoveUp={() => move(b, -1)}
-                onMoveDown={() => move(b, 1)}
-              />
-            ))}
+            {/* Painel Financeiro (hero) — imagem de fundo do banner principal da Home */}
+            <FinanceHeroImageManager />
+
+            {/* Título da seção de banners promocionais */}
+            <Text style={s.sectionTitle}>BANNERS PROMOCIONAIS (CARROSSEL INFERIOR)</Text>
+
+            {banners.length === 0 ? (
+              <View style={s.emptyBox}>
+                <Ionicons name="images-outline" size={40} color="#2E2E2E" />
+                <Text style={s.emptyTxt}>Nenhum banner cadastrado</Text>
+                <TouchableOpacity style={s.emptyCta} onPress={openCreate} testID="banners-empty-cta">
+                  <Ionicons name="add" size={16} color="#0A0A0A" />
+                  <Text style={s.emptyCtaTxt}>ADICIONAR PRIMEIRO BANNER</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              banners.map((b, idx) => (
+                <BannerListItem
+                  key={b.banner_id}
+                  banner={b}
+                  canUp={idx > 0}
+                  canDown={idx < banners.length - 1}
+                  busy={busyId === b.banner_id}
+                  onEdit={() => openEdit(b)}
+                  onToggle={() => toggleActive(b)}
+                  onDelete={() => remove(b)}
+                  onMoveUp={() => move(b, -1)}
+                  onMoveDown={() => move(b, 1)}
+                />
+              ))
+            )}
           </ScrollView>
         )}
       </SafeAreaView>
@@ -253,6 +262,158 @@ export default function AdminBannersScreen() {
         onSave={save}
         onPickImage={pickImage}
       />
+    </View>
+  );
+}
+
+/**
+ * FinanceHeroImageManager — bloco do topo da tela admin para gerenciar
+ * a imagem de fundo do PAINEL FINANCEIRO (hero) da home. É separado da
+ * lista de banners promocionais porque só existe UMA imagem hero.
+ */
+function FinanceHeroImageManager() {
+  const { rate, refresh } = usePYXRate();
+  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState<null | "upload" | "url" | "reset">(null);
+  const [urlInput, setUrlInput] = useState("");
+
+  useEffect(() => {
+    if (rate?.finance_hero_image_url) setUrlInput(rate.finance_hero_image_url);
+  }, [rate?.finance_hero_image_url]);
+
+  const currentPreview =
+    (rate?.finance_hero_image_base64 && rate.finance_hero_image_base64) ||
+    (rate?.finance_hero_image_url && rate.finance_hero_image_url) ||
+    "";
+
+  const upload = async () => {
+    setBusy("upload");
+    try {
+      const b64 = await pickCompressedImage({ aspect: [16, 9], quality: 0.75 });
+      if (!b64) { setBusy(null); return; }
+      setSaving(true);
+      await api.pyxFinanceHeroSet({ image_base64: b64, image_url: "" });
+      await refresh();
+      notify("Imagem atualizada", "O painel financeiro foi atualizado com sucesso.");
+    } catch (e: any) {
+      notify("Falha", e?.message || "Não foi possível salvar a imagem");
+    } finally {
+      setBusy(null);
+      setSaving(false);
+    }
+  };
+
+  const saveUrl = async () => {
+    setBusy("url"); setSaving(true);
+    try {
+      await api.pyxFinanceHeroSet({ image_url: urlInput.trim(), image_base64: "" });
+      await refresh();
+      notify("URL salva", "Painel financeiro atualizado.");
+    } catch (e: any) {
+      notify("Falha", e?.message || "Tente novamente");
+    } finally {
+      setBusy(null); setSaving(false);
+    }
+  };
+
+  const reset = async () => {
+    const ok = await confirm("Voltar ao padrão?", "A imagem atual será removida e o SVG default premium voltará a ser exibido.");
+    if (!ok) return;
+    setBusy("reset"); setSaving(true);
+    try {
+      await api.pyxFinanceHeroSet({ image_base64: "", image_url: "" });
+      setUrlInput("");
+      await refresh();
+      notify("Imagem removida", "Voltamos ao SVG padrão.");
+    } catch (e: any) {
+      notify("Falha", e?.message || "Tente novamente");
+    } finally {
+      setBusy(null); setSaving(false);
+    }
+  };
+
+  return (
+    <View style={s.heroBox}>
+      <View style={s.heroHead}>
+        <View style={s.heroKickerRow}>
+          <Ionicons name="diamond" size={12} color="#D4AF37" />
+          <Text style={s.heroKicker}>PAINEL FINANCEIRO — HERO</Text>
+        </View>
+        <Text style={s.heroSub}>Imagem de fundo do banner principal da home</Text>
+      </View>
+
+      {/* Preview 16:9 */}
+      <View style={s.heroPreviewBox}>
+        {currentPreview ? (
+          <Image source={{ uri: currentPreview }} style={s.heroPreviewImg} resizeMode="cover" />
+        ) : (
+          <View style={s.heroPreviewEmpty}>
+            <Ionicons name="images-outline" size={30} color="#4A4A4A" />
+            <Text style={s.heroPreviewEmptyTxt}>Usando SVG default (verde + dourado)</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Actions */}
+      <View style={s.heroActions}>
+        <TouchableOpacity
+          style={[s.heroBtnPrimary, saving && { opacity: 0.6 }]}
+          onPress={upload}
+          disabled={saving}
+          testID="hero-upload"
+          activeOpacity={0.85}
+        >
+          {busy === "upload" ? (
+            <ActivityIndicator color="#0A0A0A" size="small" />
+          ) : (
+            <>
+              <Ionicons name="cloud-upload-outline" size={16} color="#0A0A0A" />
+              <Text style={s.heroBtnPrimaryTxt}>ENVIAR IMAGEM</Text>
+            </>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.heroBtnGhost, (saving || !currentPreview) && { opacity: 0.4 }]}
+          onPress={reset}
+          disabled={saving || !currentPreview}
+          testID="hero-reset"
+          activeOpacity={0.85}
+        >
+          {busy === "reset" ? (
+            <ActivityIndicator color="#F87171" size="small" />
+          ) : (
+            <>
+              <Ionicons name="refresh" size={16} color="#F87171" />
+              <Text style={s.heroBtnGhostTxt}>PADRÃO</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* URL alternativa */}
+      <Text style={s.heroLabel}>OU URL DA IMAGEM</Text>
+      <View style={s.heroUrlRow}>
+        <TextInput
+          style={s.heroUrlInput}
+          value={urlInput}
+          onChangeText={setUrlInput}
+          placeholder="https://exemplo.com/finance-hero.jpg"
+          placeholderTextColor="#5A5A5A"
+          autoCapitalize="none"
+          testID="hero-url-input"
+        />
+        <TouchableOpacity
+          style={[s.heroUrlBtn, (!urlInput.trim() || saving) && { opacity: 0.4 }]}
+          onPress={saveUrl}
+          disabled={!urlInput.trim() || saving}
+          testID="hero-url-save"
+        >
+          {busy === "url" ? <ActivityIndicator color="#0A0A0A" size="small" /> : (
+            <Ionicons name="checkmark" size={16} color="#0A0A0A" />
+          )}
+        </TouchableOpacity>
+      </View>
+      <Text style={s.heroHint}>Proporção recomendada: 16:9 · fundo escuro com detalhes dourados/verde</Text>
     </View>
   );
 }
@@ -556,7 +717,7 @@ const s = StyleSheet.create({
     backgroundColor: "#F5C150",
   },
 
-  emptyBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 24 },
+  emptyBox: { alignItems: "center", justifyContent: "center", gap: 12, padding: 24 },
   emptyTxt: { color: "#6B6B6B", fontSize: 13 },
   emptyCta: {
     flexDirection: "row", alignItems: "center", gap: 8,
@@ -564,6 +725,64 @@ const s = StyleSheet.create({
     backgroundColor: "#F5C150", borderRadius: 10,
   },
   emptyCtaTxt: { color: "#0A0A0A", fontSize: 11.5, fontWeight: "900", letterSpacing: 1.5 },
+
+  // Section title (BANNERS PROMOCIONAIS)
+  sectionTitle: {
+    color: "#8A8A8A", fontSize: 10, fontWeight: "900", letterSpacing: 2,
+    marginTop: 26, marginBottom: 10,
+  },
+
+  // FinanceHeroImageManager
+  heroBox: {
+    padding: 14, borderRadius: 12,
+    backgroundColor: "#0A0A0A",
+    borderWidth: 1, borderColor: "rgba(212,175,55,0.30)",
+    marginBottom: 6,
+  },
+  heroHead: { marginBottom: 12 },
+  heroKickerRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  heroKicker: { color: "#D4AF37", fontSize: 10.5, fontWeight: "900", letterSpacing: 1.6 },
+  heroSub: { color: "#7A7A7A", fontSize: 11.5, marginTop: 3 },
+  heroPreviewBox: {
+    width: "100%", aspectRatio: 16 / 9,
+    borderRadius: 10, overflow: "hidden",
+    borderWidth: 1, borderColor: "#1F1F1F",
+    backgroundColor: "#0E0E0E",
+  },
+  heroPreviewImg: { width: "100%", height: "100%" },
+  heroPreviewEmpty: {
+    flex: 1, alignItems: "center", justifyContent: "center", gap: 8, padding: 12,
+  },
+  heroPreviewEmptyTxt: { color: "#7A7A7A", fontSize: 11.5, textAlign: "center" },
+  heroActions: { flexDirection: "row", gap: 8, marginTop: 10 },
+  heroBtnPrimary: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 12, borderRadius: 10,
+    backgroundColor: "#F5C150",
+  },
+  heroBtnPrimaryTxt: { color: "#0A0A0A", fontSize: 11.5, fontWeight: "900", letterSpacing: 1.4 },
+  heroBtnGhost: {
+    paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 12, borderRadius: 10,
+    backgroundColor: "#0E0E0E", borderWidth: 1, borderColor: "#3A1414",
+  },
+  heroBtnGhostTxt: { color: "#F87171", fontSize: 11, fontWeight: "900", letterSpacing: 1.4 },
+  heroLabel: {
+    color: "#8A8A8A", fontSize: 10, fontWeight: "900", letterSpacing: 1.6,
+    marginTop: 14, marginBottom: 6,
+  },
+  heroUrlRow: { flexDirection: "row", gap: 8 },
+  heroUrlInput: {
+    flex: 1, color: "#FFF", fontSize: 13,
+    paddingVertical: 10, paddingHorizontal: 12,
+    backgroundColor: "#0E0E0E", borderRadius: 10,
+    borderWidth: 1, borderColor: "#1A1A1A",
+  },
+  heroUrlBtn: {
+    width: 46, alignItems: "center", justifyContent: "center",
+    borderRadius: 10, backgroundColor: "#F5C150",
+  },
+  heroHint: { color: "#5A5A5A", fontSize: 10.5, marginTop: 6, fontStyle: "italic" },
 
   item: {
     flexDirection: "row", gap: 12,

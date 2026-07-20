@@ -5467,18 +5467,60 @@ async def _get_pyx_rate_doc() -> Dict[str, Any]:
 
 @api_router.get("/pyx/rate")
 async def pyx_rate_get():
-    """Público: qualquer membro logado pode consultar a cotação vigente."""
+    """Público: qualquer membro logado pode consultar a cotação vigente + a imagem
+    do banner financeiro (hero) para renderizar na home. Retornamos ambos no
+    mesmo endpoint para que o PYXRateProvider revalide tudo em um único poll."""
     doc = await _get_pyx_rate_doc()
     rate_c = int(doc.get("pyx_per_usd_centavos") or DEFAULT_PYX_PER_USD_CENTAVOS)
-    # Formatações prontas para exibição no app
-    pyx_per_usd_display = f"{rate_c / 100:.2f}".replace(".", ",")  # "5,00"
+    pyx_per_usd_display = f"{rate_c / 100:.2f}".replace(".", ",")
     return {
         "pyx_per_usd_centavos": rate_c,
-        "pyx_per_usd": rate_c / 100,             # float 5.0
-        "pyx_per_usd_display": pyx_per_usd_display,  # "5,00"
+        "pyx_per_usd": rate_c / 100,
+        "pyx_per_usd_display": pyx_per_usd_display,
         "updated_at": doc.get("updated_at"),
         "updated_by_name": doc.get("updated_by_name"),
+        # Finance hero banner (imagem de fundo do painel financeiro na home)
+        "finance_hero_image_base64": doc.get("finance_hero_image_base64") or "",
+        "finance_hero_image_url": doc.get("finance_hero_image_url") or "",
     }
+
+
+class FinanceHeroUpdate(BaseModel):
+    image_base64: Optional[str] = None
+    image_url: Optional[str] = None
+
+
+@api_router.put("/admin/pyx/finance-hero")
+async def admin_finance_hero_set(data: FinanceHeroUpdate, user: dict = Depends(require_admin)):
+    """Admin only: atualiza a imagem de fundo do painel financeiro (hero) da home.
+    Aceita base64 (upload) OU url. Passe strings vazias para limpar (volta ao SVG padrão)."""
+    now = datetime.now(timezone.utc)
+    update: Dict[str, Any] = {"updated_at": now}
+    if data.image_base64 is not None:
+        # aceita com ou sem prefixo data:image/...
+        raw = data.image_base64.strip()
+        if raw:
+            if len(raw) > 2_500_000:  # ~1.8MB decoded
+                raise HTTPException(status_code=413, detail="Imagem muito grande. Máximo ~2MB.")
+            if not raw.startswith("data:") and not re.match(r"^[A-Za-z0-9+/=\n\r]+$", raw[:200] + "..."):
+                # sanity — vamos aceitar mesmo assim, apenas cheque grosseira
+                pass
+            if not raw.startswith("data:"):
+                raw = f"data:image/jpeg;base64,{raw}"
+        update["finance_hero_image_base64"] = raw
+    if data.image_url is not None:
+        update["finance_hero_image_url"] = data.image_url.strip()
+    await db.pyx_settings.update_one(
+        {"_id": "singleton"}, {"$set": update, "$setOnInsert": {"_id": "singleton"}}, upsert=True,
+    )
+    try:
+        await _audit_log(user, "finance_hero_update", details={
+            "has_base64": bool(update.get("finance_hero_image_base64")),
+            "has_url": bool(update.get("finance_hero_image_url")),
+        })
+    except Exception:
+        pass
+    return await pyx_rate_get()
 
 
 class PyxRateUpdate(BaseModel):

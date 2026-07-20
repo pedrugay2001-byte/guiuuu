@@ -1,12 +1,11 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { Ionicons } from "./icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useGate } from "./gate";
 import { useMessageInbox } from "./message-inbox";
 import { BrandLogo } from "./brand";
-import { BalanceWidget } from "./balance-widget";
-import { api, PyxWallet } from "./api";
+import { useBalanceVisibility } from "./use-balance-visibility";
 
 // Paleta por tier:
 // - diamond → azul-prateado (platinum) #C5D1DA / highlight #EAF1F6
@@ -36,27 +35,12 @@ export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
   const isDiamond = member?.tier === "diamond";
   const ACCENT = isDiamond ? ACCENT_PLATINUM : ACCENT_GOLD;
 
-  // Saldo PYX para o widget do canto superior esquerdo (só busca na home).
-  const [wallet, setWallet] = useState<PyxWallet | null>(null);
   const currentRouteName = state.routes[state.index]?.name;
-  const isOnHome = currentRouteName === "home";
 
-  const loadWallet = useCallback(async () => {
-    if (!member || !isOnHome) return;
-    try {
-      const w = await api.pyxWallet(member.member_id);
-      setWallet(w);
-    } catch { /* silencioso */ }
-  }, [member, isOnHome]);
+  // Toggle mostrar/ocultar dos valores do painel financeiro (compartilhado com Wallet)
+  const { hidden, toggle } = useBalanceVisibility(member?.member_id);
 
-  useEffect(() => {
-    if (isOnHome) loadWallet();
-  }, [isOnHome, loadWallet]);
-
-  // Detecta se estamos nas rotas de "member" ou "wallet" para destacar
-  // CABEÇALHO BLACKSCLUB + Perfil é exibido APENAS na Home a pedido do usuário.
-  // Demais abas (catalog/community/performance/wallet/member) renderizam null aqui
-  // — área útil maior e barra inferior continua sempre visível como menu principal.
+  // Cabeçalho aparece APENAS na Home
   if (currentRouteName !== "home") return null;
   const isOnMember = currentRouteName === "member";
 
@@ -79,12 +63,21 @@ export default function TopTabBar({ state, navigation }: BottomTabBarProps) {
 
   return (
     <View style={st.bar}>
-      {/* ESQUERDA — Saldo PYX + equivalente em USD + toggle de mostrar/ocultar */}
+      {/* ESQUERDA — Toggle Mostrar/Ocultar valores (aplica ao painel financeiro na home) */}
       <View style={[st.side, { alignItems: "flex-start" }]}>
-        <BalanceWidget
-          memberId={member?.member_id}
-          balanceCentavos={wallet?.balance_centavos ?? 0}
-        />
+        <TouchableOpacity
+          onPress={toggle}
+          style={st.eyeCircle}
+          activeOpacity={0.75}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          testID="home-balance-eye-toggle"
+        >
+          <Ionicons
+            name={hidden ? "eye-off" : "eye"}
+            size={20}
+            color={ACCENT}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* CENTRO — Logo BLACKSCLUB */}
@@ -145,6 +138,12 @@ const st = StyleSheet.create({
     flex: 1,
     alignItems: "flex-start",
     justifyContent: "center",
+  },
+  eyeCircle: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(212,175,55,0.10)",
+    borderWidth: 1, borderColor: "rgba(212,175,55,0.45)",
   },
   center: {
     flex: 1.2,

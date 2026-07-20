@@ -474,6 +474,8 @@ export const api = {
     request<PyxRate>("/pyx/rate", { method: "PUT", body: JSON.stringify(body) }),
   pyxRateHistory: (limit = 50) =>
     request<PyxRateHistory[]>(`/pyx/rate/history?limit=${limit}`),
+  pyxFinanceHeroSet: (body: { image_base64?: string; image_url?: string }) =>
+    request<PyxRate>("/admin/pyx/finance-hero", { method: "PUT", body: JSON.stringify(body) }),
 
   // ----- PYX Orders (escrow marketplace) -----
   pyxOrders: (member_id: string, role: "buyer" | "seller" | "all" = "all") =>
@@ -855,6 +857,9 @@ export type PyxRate = {
   pyx_per_usd_display: string;      // "5,00"
   updated_at?: string;
   updated_by_name?: string | null;
+  // Finance hero (banner financeiro na home) — configurável pelo admin
+  finance_hero_image_base64?: string;
+  finance_hero_image_url?: string;
 };
 export type PyxRateHistory = {
   history_id: string;
