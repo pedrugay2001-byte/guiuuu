@@ -305,9 +305,8 @@ const s = StyleSheet.create({
     color: "#EAF1F6",
     fontSize: 12,
     fontWeight: "900",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    opacity: 0.85,
+    letterSpacing: 1.2,
+    opacity: 0.75,
   },
   usdPill: {
     marginTop: 4,

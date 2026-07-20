@@ -1,0 +1,35 @@
+{
+  "summary": "Re-teste dos 2 fixes de iteration_12 aprovado 100% (frontend only). BUG CRÍTICO RESOLVIDO: useBalanceVisibility reescrito como shared store via useSyncExternalStore + listeners por memberId + AsyncStorage propaga corretamente entre TopTabBar, FinanceHeroBanner e Wallet. Validações executadas em Expo web 390x844 com master admin (guilherme925145000@gmail.com): (1) Login OK → /home carrega em ~4s. (2) Clique em [data-testid='home-balance-eye-toggle']: valores do FinanceHeroBanner (testID='home-finance-hero') masks IMEDIATAMENTE — '50.915' → '••••' e 'US$ 10.183,04' → 'US$ ••••' (screenshot /tmp/home_after_toggle.png). Segundo clique reverte: '50.915' e 'US$ 10.183,04' voltam. (3) Após novo toggle-para-hidden na home, navegação para /wallet mostra valores JÁ MASCARADOS ('•••••• PYX' e '$•••••'), confirmando shared store cross-screen. (4) localStorage['@bc:balance_hidden:mem_7a9d652945e7'] = '1' após toggle → persistência AsyncStorage OK. (5) Reload da página + retorno a /home → hero ainda mascarado (••••, US$ ••••) — persistência via reload OK. (6) Fix visual 'pyx' minúsculo: DOM inspection confirma text=='pyx' com computed textTransform='none' (era 'uppercase' antes). Screenshot mostra 'pyx' em lowercase ao lado de '••••'/'50.915'. Nenhuma regressão observada. Warnings herdados (textShadow*/shadow*/pointerEvents e layout children onboarding/notifications/wallet) permanecem — não introduzidos por este fix, já reportados em iter_12.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "styles-bundle-wide", "issue": "RN Web deprecation warnings herdados de iter_12 (não regressão): 'textShadow*' → use 'textShadow'; 'shadow*' → use 'boxShadow'; props.pointerEvents → style.pointerEvents. Bundle-wide."},
+      {"component": "app/_layout.tsx", "issue": "Layout children warnings herdados: rotas 'onboarding', 'notifications', 'wallet' referenciadas mas ausentes em nested children. Reference: /app/frontend/app/_layout.tsx."}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "OPCIONAL/limpeza: remover refs a 'onboarding'/'notifications'/'wallet' em /app/frontend/app/_layout.tsx para eliminar warnings herdados.",
+    "OPCIONAL: substituir textShadow*/shadow*/pointerEvents pelas APIs novas (textShadow/boxShadow/style.pointerEvents) para eliminar deprecation warnings do RN Web."
+  ],
+  "critical_code_review_comments": [
+    "/app/frontend/src/use-balance-visibility.ts:12-97 — Implementação correta do shared store: `state: Map<slot,{hidden,ready}>` + `listeners: Map<slot,Set<Listener>>` + `useSyncExternalStore` garante re-render de todos os assinantes ao emit(). Bootstrap idempotente via `bootstrapping: Map<slot,Promise>` evita corridas. Snapshot em string estável ('ready|hidden') satisfaz getSnapshot semânticos do React 18.",
+    "/app/frontend/src/finance-hero-banner.tsx:75 — sufixo 'pyx' está em minúsculas no source; s.pyxUnit (linhas 304-310) NÃO tem mais textTransform:'uppercase'. Confirmado via computed style em runtime (textTransform='none').",
+    "/app/frontend/src/top-tab-bar.tsx:41 — usa `useBalanceVisibility(member?.member_id)` — mesma chave usada pelo FinanceHeroBanner (via memberId prop na home) e pela wallet. Sincronia garantida pelo slotKey compartilhado.",
+    "/app/frontend/app/(tabs)/wallet.tsx:31 — também usa `useBalanceVisibility(member?.member_id)` — atado ao mesmo slot store, portanto o hideBalance é bidirecional home↔wallet."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_13.json (novo)"
+  ],
+  "success_rate": {
+    "backend": "N/A (frontend-only retest solicitado)",
+    "frontend": "100% (5/5) — toggle mask/unmask ✓, cross-screen sync home↔wallet ✓, persistência AsyncStorage ✓, persistência via reload ✓, 'pyx' lowercase ✓."
+  },
+  "seed_data_creation": "Nenhum. Cleanup final: toggle revertido para 'visible' na home (localStorage limpo do estado hidden).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Os 2 fixes de iteration_12 estão 100% validados: (a) useBalanceVisibility como shared store via useSyncExternalStore com listeners por memberId — toggle no TopTabBar propaga IMEDIATAMENTE para FinanceHeroBanner (home) e Wallet, além de persistir em AsyncStorage sobrevivendo reloads; (b) sufixo 'pyx' renderiza minúsculo (textTransform removido). Screenshots: /tmp/home_after_toggle.png (home masked), /tmp/wallet_after_home_toggle.png (wallet masked após toggle na home). Nenhum action item bloqueante; apenas warnings de deprecação herdados. Credenciais: guilherme925145000@gmail.com / Shakira12@."
+}
