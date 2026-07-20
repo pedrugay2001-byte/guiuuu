@@ -113,7 +113,9 @@ export default function ReceiptScreen() {
         `Valor: ${formatPYX(receipt.amount_centavos)} PYX`,
         `De: ${receipt.from_name || receipt.from_wallet || "—"} (${receipt.from_wallet || "—"})`,
         `Para: ${receipt.to_name || receipt.to_wallet || "—"} (${receipt.to_wallet || "—"})`,
-        `Data: ${new Date(receipt.created_at).toLocaleString("pt-BR")}`,
+        `Data/Hora${receipt.display_datetime_brt ? " (BRT)" : ""}: ${
+          receipt.display_datetime_brt || new Date(receipt.created_at).toLocaleString("pt-BR")
+        }`,
         `ID: ${receipt.tx_id}`,
       ].join("\n")
     : "";

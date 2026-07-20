@@ -129,15 +129,29 @@ export default function History() {
     });
   }, [txs, filter, search, member]);
 
-  // Agrupamento por dia (ordem já é decrescente vindo do backend)
+  // Agrupamento por dia (ordem já é decrescente vindo do backend).
+  // Se a tx traz `display_date_brt` (novas — BRT), usamos essa data como chave
+  // para garantir agrupamento consistente independente do fuso do dispositivo.
   const rows: RowItem[] = useMemo(() => {
     const acc: RowItem[] = [];
     let last = "";
     filtered.forEach((tx) => {
       const d = new Date(tx.created_at);
-      const key = dayKey(d);
+      let key: string;
+      let label: string;
+      if (tx.display_date_brt) {
+        // "dd/mm/yyyy" — chave estável no fuso BRT
+        key = `brt-${tx.display_date_brt}`;
+        // Convertemos para Date usando o campo ISO com offset (created_at_brt)
+        // para calcular HOJE/ONTEM corretamente em qualquer TZ.
+        const brtDate = tx.created_at_brt ? new Date(tx.created_at_brt) : d;
+        label = dayLabel(brtDate);
+      } else {
+        key = dayKey(d);
+        label = dayLabel(d);
+      }
       if (key !== last) {
-        acc.push({ kind: "header", label: dayLabel(d), id: `h-${key}` });
+        acc.push({ kind: "header", label, id: `h-${key}` });
         last = key;
       }
       acc.push({ kind: "tx", tx });
@@ -330,7 +344,10 @@ function TxRow({ tx, me, onPress }: { tx: PyxTx; me: string; onPress: () => void
   }
   const sign = isOut ? "−" : "+";
   const date = new Date(tx.created_at);
-  const timeStr = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  // BRT — se o backend enviou hora formatada em Brasília, priorizamos ela.
+  const timeStr = tx.display_time_brt
+    ? tx.display_time_brt.slice(0, 5)  // "HH:MM" (sem segundos, mais limpo na lista)
+    : date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   return (
     <TouchableOpacity
       style={styles.txRow}

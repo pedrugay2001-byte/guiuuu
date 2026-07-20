@@ -10,6 +10,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 import os
 import uuid
 import logging
@@ -108,6 +109,33 @@ async def readiness_check():
 def hash_password(password: str) -> str:
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+
+
+# --- Fuso horário oficial de Brasília ---
+# A partir de BRT_ENFORCEMENT_TS, todas as novas movimentações PYX terão o
+# comprovante emitido no fuso America/Sao_Paulo (BRT/BRST). Movimentações
+# anteriores permanecem com a exibição original (fuso do dispositivo).
+BRT_TZ = ZoneInfo("America/Sao_Paulo")
+BRT_ENFORCEMENT_TS = datetime(2026, 7, 20, 3, 0, 0, tzinfo=timezone.utc)
+
+
+def brt_display_fields(dt: Optional[datetime]) -> Dict[str, Any]:
+    """Se `dt` for posterior ao corte, retorna campos formatados em BRT.
+    Retorna {} para datas antigas (mantém compat com comprovantes existentes)."""
+    if not isinstance(dt, datetime):
+        return {}
+    dt_utc = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    if dt_utc < BRT_ENFORCEMENT_TS:
+        return {}
+    local = dt_utc.astimezone(BRT_TZ)
+    # pt-BR display strings; ISO com offset para clientes que quiserem parsear
+    return {
+        "created_at_brt": local.isoformat(),  # e.g. "2026-07-20T00:30:00-03:00"
+        "display_date_brt": local.strftime("%d/%m/%Y"),
+        "display_time_brt": local.strftime("%H:%M:%S"),
+        "display_datetime_brt": local.strftime("%d/%m/%Y %H:%M:%S"),
+        "display_tz_brt": "America/Sao_Paulo",
+    }
 
 
 def verify_password(plain: str, hashed: str) -> bool:
@@ -5354,6 +5382,8 @@ async def pyx_transactions(member_id: str, limit: int = 50, skip: int = 0):
             t["from_name"] = names_map[t["from_id"]]["name"]
         if t.get("to_id") in names_map and not t.get("to_name"):
             t["to_name"] = names_map[t["to_id"]]["name"]
+        # ETAPA BRT — anexa horário oficial de Brasília para tx novas
+        t.update(brt_display_fields(t.get("created_at")))
     return txs
 
 
@@ -5401,6 +5431,8 @@ async def pyx_receipt(tx_id: str, member_id: Optional[str] = None):
     tx["amount_centavos"] = int(tx.get("amount_centavos") or round(float(tx.get("amount", 0)) * 100))
     tx["from_info"] = from_info
     tx["to_info"] = to_info
+    # ETAPA BRT — anexa horário oficial de Brasília para tx novas
+    tx.update(brt_display_fields(tx.get("created_at")))
     return tx
 
 

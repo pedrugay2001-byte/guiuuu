@@ -1,0 +1,36 @@
+{
+  "summary": "ETAPA BRT — Fuso oficial de Brasília nos comprovantes PYX VALIDADA end-to-end (backend + frontend). Backend: criei /app/backend/tests/test_pyx_brt_display.py com 7 cenários cobrindo (a) aritmética BRT = UTC-3 via tx sintética 2026-07-20 06:00 UTC → 20/07/2026 03:00:00 -03:00 no receipt; (b) tx antiga (10/05/2026) NÃO contém nenhum dos 5 campos BRT; (c) extrato retorna os 5 campos BRT apenas nos itens >= corte (2026-07-20 03:00 UTC) e omite nos itens < corte, com verificação item-a-item de TODAS as 200 tx do admin; (d) POST /api/pyx/transfer real com Master Admin — a tx foi criada às 00:47 UTC, portanto < corte, e o teste verificou corretamente que os campos BRT NÃO aparecem (comportamento esperado pela política); (e) regressão de campos preexistentes (tx_id, from_id, to_id, amount_centavos, created_at, from_info, to_info) mantidos. Resultado: 7/7 PASSED em test_pyx_brt_display.py. Regressão adicional: test_pyx_receipt_etapa4.py 13/13 PASSED e test_pyx_transfer_member_password.py 6/6 PASSED (total 26/26 backend). Frontend: login como Master Admin em web preview (390x844) OK, inseri via Mongo uma tx sintética com created_at=2026-07-20T06:00Z (tx_brtuitest_0dbd52a8, note='TEST_brt_ui', -5 PYX) para o admin, abri /pyx/history e busquei 'brtuitest'. O row apareceu com hora '03:00' (BRT convertido de 06:00 UTC). Cliquei no row → /pyx/receipt/tx_brtuitest_0dbd52a8 renderizou com DATA=20/07/2026, HORA=03:00:00 e rodapé 'Horário oficial de Brasília (BRT)' visível abaixo do status. Depois abri uma tx antiga (tx_2f77934d758d, 17/07/2026 05:48 UTC) → comprovante mostra DATA=17/07/2026 HORA=05:48:57 (fuso do dispositivo) SEM o rodapé BRT — comportamento esperado. Aritmética confirmada em 3 pontos independentes: server helper (test), API JSON (curl), UI rendering (screenshot). Sincronia UTC-3 sem DST correta. Tx sintética removida após teste.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pyx_brt_display.py",
+    "/app/test_reports/pytest/pyx_brt_display.xml",
+    "/app/test_reports/pytest/pyx_brt_regression.xml"
+  ],
+  "action_items": [
+    "Nenhum item crítico. Observação cosmética: na tela /pyx/history o agrupamento por dia da tx nova apareceu como 'HOJE' em vez de '20 DE JULHO'. Isso é porque dayLabel() ainda usa new Date() do dispositivo (UTC no browser do preview) para calcular 'hoje/ontem'. Como a data BRT da tx (20/07/2026) coincide com a data UTC atual, o rótulo 'HOJE' é coerente. Não é bug, apenas fica registrado — se quiserem que o 'HOJE/ONTEM' considere fuso BRT das tx novas, avaliar em iteração futura."
+  ],
+  "critical_code_review_comments": [
+    "server.py:118-138 — brt_display_fields() está correto: usa ZoneInfo('America/Sao_Paulo'), força timezone UTC quando dt naive, retorna {} para dt < cutoff. Formatação com strftime('%d/%m/%Y') e '%H:%M:%S' garante zero-padding. isoformat() com offset -03:00 confirmado.",
+    "server.py:5386 e 5435 — t.update(brt_display_fields(...)) aplica campos por item (extrato) e no receipt individual. Se dict retornar {}, update() é no-op → tx antiga fica limpa. Correto.",
+    "src/receipt-card.tsx:41 — usesBRT = !!receipt.display_datetime_brt controla o rodapé de forma segura (ausência do campo em tx antigas = false, não renderiza).",
+    "app/pyx/history.tsx:142-144 — chave de agrupamento 'brt-' + display_date_brt para tx novas mantém consistência entre backend e frontend (mesma string dd/mm/yyyy).",
+    "app/pyx/history.tsx:348-349 — timeStr usa display_time_brt.slice(0,5) — mostra HH:MM sem segundos na lista, mantém compat com created.toLocaleTimeString() para tx antigas.",
+    "Cutoff exato 2026-07-20T03:00:00Z é um marco fixo — não usa 'now'. Comparação dt_utc < BRT_ENFORCEMENT_TS é estritamente < (>= tem BRT), consistente com o requisito 'a partir de agora'."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pyx_brt_display.py (novo)",
+    "/app/test_reports/iteration_9.json (novo)"
+  ],
+  "success_rate": {"backend": "100% (7/7 novos BRT + 13/13 receipt_etapa4 + 6/6 transfer_member_password = 26/26)", "frontend": "100% (login OK, history mostra hora BRT na nova tx, receipt novo mostra 20/07/2026 03:00:00 + rodapé BRT, receipt antigo mantém comportamento anterior sem rodapé BRT)"},
+  "seed_data_creation": "Inseri e removi 3 tx sintéticas via pymongo direto (2 dentro do módulo pytest com cleanup automático + 1 para inspeção visual no frontend, também removida ao final). Nenhum resíduo no DB.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "ETAPA BRT (fuso oficial de Brasília nos comprovantes PYX) 100% validada. Cutoff = 2026-07-20T03:00:00Z. Campos BRT retornados quando created_at >= cutoff: created_at_brt (ISO -03:00), display_date_brt (dd/mm/yyyy), display_time_brt (HH:MM:SS), display_datetime_brt, display_tz_brt='America/Sao_Paulo'. Frontend: receipt-card.tsx renderiza rodapé 'Horário oficial de Brasília (BRT)' apenas quando display_datetime_brt vem no payload. Para testes futuros com tx novas quando o relógio real ainda estiver antes do cutoff, insira via Mongo em db.wallet_txs com created_at datetime.tzinfo=UTC e >= 2026-07-20T03:00:00+00:00. Novo test file: /app/backend/tests/test_pyx_brt_display.py. Screenshots: /tmp/history_brt.png, /tmp/receipt_brt.png (nova, com rodapé BRT), /tmp/receipt_old.png (antiga, sem rodapé).",
+  "rca_of_issue": "N/A — não houve bug. Comportamento observado corresponde 1:1 à especificação."
+}

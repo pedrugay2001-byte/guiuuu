@@ -35,12 +35,16 @@ export function ReceiptCard({
   const direction = isOut ? "ENVIADO" : "RECEBIDO";
   const directionColor = isOut ? "#F87171" : "#4EE07F";
   const created = new Date(receipt.created_at);
-  const dateStr = created.toLocaleDateString("pt-BR", {
+  // BRT — se o comprovante for novo (>= 2026-07-20T03:00Z), o backend já enviou
+  // os campos formatados no fuso America/Sao_Paulo. Preferimos exibir esses
+  // valores para garantir consistência independentemente do fuso do dispositivo.
+  const usesBRT = !!receipt.display_datetime_brt;
+  const dateStr = receipt.display_date_brt || created.toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
-  const timeStr = created.toLocaleTimeString("pt-BR", {
+  const timeStr = receipt.display_time_brt || created.toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -158,6 +162,10 @@ export function ReceiptCard({
           <Text style={[styles.metaVal, { color: "#4EE07F" }]}>{statusLabel}</Text>
         </View>
       </View>
+
+      {usesBRT ? (
+        <Text style={styles.tzHint}>Horário oficial de Brasília (BRT)</Text>
+      ) : null}
 
       <View style={styles.txIdBox}>
         <Text style={styles.txIdLbl}>ID DA TRANSAÇÃO</Text>
@@ -338,6 +346,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     fontVariant: ["tabular-nums"],
+  },
+  tzHint: {
+    color: "#7FB68E",
+    fontSize: 9.5,
+    fontWeight: "800",
+    letterSpacing: 1,
+    marginTop: 8,
+    fontStyle: "italic",
   },
   txIdBox: {
     marginTop: 12,

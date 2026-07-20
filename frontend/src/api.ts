@@ -831,6 +831,14 @@ export type PyxTx = {
   settled_at?: string;
   shipped_at?: string;   // vendedor marcou como entregue (escrow intermediário)
   shipped_by?: string;
+
+  // BRT — presente em tx novas (>= 2026-07-20T03:00Z). Formatadas em America/Sao_Paulo.
+  // Ausência = tx antiga; frontend usa fuso do dispositivo como antes.
+  created_at_brt?: string;         // ISO com offset -03:00
+  display_date_brt?: string;       // "20/07/2026"
+  display_time_brt?: string;       // "00:30:00"
+  display_datetime_brt?: string;   // "20/07/2026 00:30:00"
+  display_tz_brt?: string;         // "America/Sao_Paulo"
 };
 export type PyxReceipt = PyxTx & {
   from_info?: {
