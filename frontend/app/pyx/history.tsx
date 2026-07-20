@@ -1,7 +1,19 @@
-import { useCallback, useEffect, useState } from "react";
+/**
+ * ETAPA 5 — Extrato PYX (com clique, agrupamento por dia, filtros e busca).
+ *
+ * O que muda vs. versão anterior:
+ *  - Cada transação vira um <TouchableOpacity> que navega para /pyx/receipt/[txId].
+ *  - Linhas agrupadas por dia com cabeçalhos "HOJE", "ONTEM", "15 de julho" etc.
+ *  - Filtros expandidos: TUDO / RECEBIDO / ENVIADO / COMPRAS / RECARGAS
+ *    (chips horizontais scrolláveis para caber em telas pequenas).
+ *  - Campo de busca (debounced) por nome da contraparte, note ou tx_id.
+ *  - Chevron > à direita de cada linha para reforçar affordance de clique.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
-  RefreshControl,
+  RefreshControl, ScrollView, TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -10,7 +22,38 @@ import { api, PyxTx } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { formatPYX } from "../../src/pyx";
 
-type Filter = "all" | "in" | "out";
+type Filter = "all" | "in" | "out" | "purchases" | "topups";
+type RowItem =
+  | { kind: "header"; label: string; id: string }
+  | { kind: "tx"; tx: PyxTx };
+
+/** Retorna label amigável para agrupamento por dia. */
+function dayLabel(d: Date): string {
+  const now = new Date();
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOf(now) - startOf(d)) / 86400000);
+  if (diffDays === 0) return "HOJE";
+  if (diffDays === 1) return "ONTEM";
+  if (d.getFullYear() === now.getFullYear()) {
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" }).toUpperCase();
+  }
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+/** Chave estável do dia (para gerar id do header). */
+function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+const FILTERS: { id: Filter; lbl: string; icon: any }[] = [
+  { id: "all", lbl: "TUDO", icon: "grid" },
+  { id: "in", lbl: "RECEBIDO", icon: "arrow-down-circle" },
+  { id: "out", lbl: "ENVIADO", icon: "arrow-up-circle" },
+  { id: "purchases", lbl: "COMPRAS", icon: "bag-handle" },
+  { id: "topups", lbl: "RECARGAS", icon: "add-circle" },
+];
+
+const PURCHASE_TYPES = new Set(["purchase", "escrow", "delivery_settle", "refund"]);
 
 export default function History() {
   const router = useRouter();
@@ -22,9 +65,13 @@ export default function History() {
   const [hasMore, setHasMore] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
 
+  const [rawSearch, setRawSearch] = useState("");
+  const [search, setSearch] = useState("");
+  const debRef = useRef<any>(null);
+
   const PAGE = 30;
 
-  const load = useCallback(async (reset = false) => {
+  const load = useCallback(async () => {
     if (!member) return;
     try {
       const data = await api.pyxTransactions(member.member_id, PAGE, 0);
@@ -36,7 +83,14 @@ export default function History() {
     }
   }, [member]);
 
-  useEffect(() => { load(true); }, [load]);
+  useEffect(() => { load(); }, [load]);
+
+  // Debounce da busca
+  useEffect(() => {
+    if (debRef.current) clearTimeout(debRef.current);
+    debRef.current = setTimeout(() => setSearch(rawSearch.trim().toLowerCase()), 220);
+    return () => { if (debRef.current) clearTimeout(debRef.current); };
+  }, [rawSearch]);
 
   const loadMore = async () => {
     if (!member || loadingMore || !hasMore) return;
@@ -50,12 +104,59 @@ export default function History() {
     }
   };
 
-  const filtered = txs.filter((t) => {
-    if (filter === "all") return true;
-    if (filter === "in") return t.to_id === member?.member_id;
-    if (filter === "out") return t.from_id === member?.member_id && t.type !== "topup";
-    return true;
-  });
+  const filtered = useMemo(() => {
+    const me = member?.member_id;
+    return txs.filter((t) => {
+      // filtro por tipo/direção
+      if (filter === "in" && t.to_id !== me) return false;
+      if (filter === "out" && !(t.from_id === me && t.type === "transfer")) return false;
+      if (filter === "purchases" && !PURCHASE_TYPES.has(t.type)) return false;
+      if (filter === "topups" && t.type !== "topup") return false;
+      // filtro por busca
+      if (search) {
+        const hay = [
+          t.tx_id,
+          t.note,
+          t.from_name,
+          t.to_name,
+          t.from_wallet,
+          t.to_wallet,
+          t.ad_title,
+        ].filter(Boolean).join(" ").toLowerCase();
+        if (!hay.includes(search)) return false;
+      }
+      return true;
+    });
+  }, [txs, filter, search, member]);
+
+  // Agrupamento por dia (ordem já é decrescente vindo do backend)
+  const rows: RowItem[] = useMemo(() => {
+    const acc: RowItem[] = [];
+    let last = "";
+    filtered.forEach((tx) => {
+      const d = new Date(tx.created_at);
+      const key = dayKey(d);
+      if (key !== last) {
+        acc.push({ kind: "header", label: dayLabel(d), id: `h-${key}` });
+        last = key;
+      }
+      acc.push({ kind: "tx", tx });
+    });
+    return acc;
+  }, [filtered]);
+
+  // Contadores para as chips (mostra "5" ao lado de FILTER se aplicável)
+  const counts = useMemo(() => {
+    const me = member?.member_id;
+    const c = { all: txs.length, in: 0, out: 0, purchases: 0, topups: 0 };
+    txs.forEach((t) => {
+      if (t.to_id === me) c.in++;
+      if (t.from_id === me && t.type === "transfer") c.out++;
+      if (PURCHASE_TYPES.has(t.type)) c.purchases++;
+      if (t.type === "topup") c.topups++;
+    });
+    return c;
+  }, [txs, member]);
 
   if (loading) {
     return (
@@ -74,55 +175,133 @@ export default function History() {
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: "center" }}>
             <Text style={styles.title}>EXTRATO PYX</Text>
-            <Text style={styles.sub}>{txs.length} {txs.length === 1 ? "movimentação" : "movimentações"}</Text>
+            <Text style={styles.sub}>
+              {filtered.length} de {txs.length} {txs.length === 1 ? "movimentação" : "movimentações"}
+            </Text>
           </View>
           <View style={{ width: 40 }} />
         </View>
 
-        {/* Filtros */}
-        <View style={styles.filterRow}>
-          {([{ id: "all", lbl: "TUDO" }, { id: "in", lbl: "RECEBIDO" }, { id: "out", lbl: "ENVIADO" }] as const).map((f) => (
-            <TouchableOpacity
-              key={f.id}
-              style={[styles.filterBtn, filter === f.id && styles.filterBtnActive]}
-              onPress={() => setFilter(f.id)}
-              testID={`pyx-filter-${f.id}`}
-            >
-              <Text style={[styles.filterText, filter === f.id && styles.filterTextActive]}>{f.lbl}</Text>
+        {/* Busca */}
+        <View style={styles.searchBox}>
+          <Ionicons name="search" size={14} color="#8A8A8A" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar por nome, nota ou ID"
+            placeholderTextColor="#5A5A5A"
+            value={rawSearch}
+            onChangeText={setRawSearch}
+            autoCapitalize="none"
+            testID="pyx-history-search"
+          />
+          {rawSearch ? (
+            <TouchableOpacity onPress={() => setRawSearch("")} testID="pyx-history-search-clear">
+              <Ionicons name="close-circle" size={16} color="#5A5A5A" />
             </TouchableOpacity>
-          ))}
+          ) : null}
         </View>
 
+        {/* Filtros (horizontal scroll) */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {FILTERS.map((f) => {
+            const active = filter === f.id;
+            const count = (counts as any)[f.id];
+            return (
+              <TouchableOpacity
+                key={f.id}
+                style={[styles.filterBtn, active && styles.filterBtnActive]}
+                onPress={() => setFilter(f.id)}
+                testID={`pyx-filter-${f.id}`}
+                activeOpacity={0.85}
+              >
+                <Ionicons name={f.icon} size={12} color={active ? "#0A0A0A" : "#AAA"} />
+                <Text style={[styles.filterText, active && styles.filterTextActive]}>
+                  {f.lbl}
+                </Text>
+                <View style={[styles.badge, active && styles.badgeActive]}>
+                  <Text style={[styles.badgeTxt, active && styles.badgeTxtActive]}>{count}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
         <FlatList
-          data={filtered}
-          keyExtractor={(i) => i.tx_id}
+          data={rows}
+          keyExtractor={(i) => (i.kind === "header" ? i.id : `tx-${i.tx.tx_id}`)}
           refreshControl={
-            <RefreshControl tintColor="#C5D1DA" refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(true); }} />
+            <RefreshControl
+              tintColor="#C5D1DA"
+              refreshing={refreshing}
+              onRefresh={() => { setRefreshing(true); load(); }}
+            />
           }
-          renderItem={({ item }) => <Row tx={item} me={member?.member_id || ""} />}
+          renderItem={({ item }) => {
+            if (item.kind === "header") {
+              return <SectionHeader label={item.label} />;
+            }
+            return (
+              <TxRow
+                tx={item.tx}
+                me={member?.member_id || ""}
+                onPress={() =>
+                  router.push({ pathname: "/pyx/receipt/[txId]", params: { txId: item.tx.tx_id } } as any)
+                }
+              />
+            );
+          }}
           onEndReached={loadMore}
           onEndReachedThreshold={0.3}
           ListEmptyComponent={() => (
             <View style={styles.emptyBox}>
               <Ionicons name="receipt-outline" size={40} color="#2E2E2E" />
-              <Text style={styles.emptyText}>Sem movimentações aqui</Text>
+              <Text style={styles.emptyText}>
+                {search
+                  ? "Nada encontrado para essa busca"
+                  : filter === "all"
+                    ? "Sem movimentações aqui"
+                    : "Nenhuma movimentação neste filtro"}
+              </Text>
+              {(search || filter !== "all") && (
+                <TouchableOpacity
+                  onPress={() => { setRawSearch(""); setFilter("all"); }}
+                  style={styles.clearBtn}
+                  testID="pyx-history-reset"
+                >
+                  <Text style={styles.clearBtnTxt}>LIMPAR FILTROS</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
           ListFooterComponent={() => (
             loadingMore ? <ActivityIndicator color="#C5D1DA" style={{ marginVertical: 16 }} /> : <View style={{ height: 30 }} />
           )}
-          contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
+          contentContainerStyle={{ padding: 16, paddingTop: 4, paddingBottom: 30 }}
+          stickyHeaderIndices={undefined /* deixamos rolar junto — visual mais limpo */}
         />
       </SafeAreaView>
     </View>
   );
 }
 
-function Row({ tx, me }: { tx: PyxTx; me: string }) {
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <View style={styles.headerRow}>
+      <View style={styles.headerLine} />
+      <Text style={styles.headerLbl}>{label}</Text>
+      <View style={styles.headerLine} />
+    </View>
+  );
+}
+
+function TxRow({ tx, me, onPress }: { tx: PyxTx; me: string; onPress: () => void }) {
   const isOut = tx.from_id === me;
   let icon: any = "swap-horizontal";
   let color = "#AAA";
-  // Tradução PT-BR dos tipos de transação (amigável p/ usuário final)
   const TYPE_LABEL: Record<string, string> = {
     purchase: "Compra",
     refund: "Reembolso",
@@ -151,25 +330,33 @@ function Row({ tx, me }: { tx: PyxTx; me: string }) {
   }
   const sign = isOut ? "−" : "+";
   const date = new Date(tx.created_at);
-  const dateStr = date.toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  const timeStr = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   return (
-    <View style={styles.txRow}>
+    <TouchableOpacity
+      style={styles.txRow}
+      onPress={onPress}
+      activeOpacity={0.75}
+      testID={`pyx-history-row-${tx.tx_id}`}
+    >
       <View style={[styles.txIcon, { backgroundColor: color + "22", borderColor: color + "55" }]}>
         <Ionicons name={icon} size={16} color={color} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.txTitle} numberOfLines={1}>{title}</Text>
         <Text style={styles.txSub} numberOfLines={1}>
-          {counterpart ? `${counterpart} · ${dateStr}` : dateStr}
+          {counterpart ? `${counterpart} · ${timeStr}` : timeStr}
         </Text>
         {tx.note && tx.type === "transfer" && (
           <Text style={styles.txNote} numberOfLines={2}>“{tx.note}”</Text>
         )}
       </View>
-      <Text style={[styles.txAmt, { color: isOut ? "#F87171" : "#4EE07F" }]}>
-        {sign}{formatPYX(tx.amount_centavos)} PYX
-      </Text>
-    </View>
+      <View style={styles.txRight}>
+        <Text style={[styles.txAmt, { color: isOut ? "#F87171" : "#4EE07F" }]}>
+          {sign}{formatPYX(tx.amount_centavos)} PYX
+        </Text>
+        <Ionicons name="chevron-forward" size={16} color="#3A3A3A" />
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -182,19 +369,57 @@ const styles = StyleSheet.create({
   title: { color: "#FFF", fontSize: 13, fontWeight: "900", letterSpacing: 2 },
   sub: { color: "#8A8A8A", fontSize: 10, fontWeight: "700", letterSpacing: 1.5, marginTop: 2 },
 
-  filterRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  // Search
+  searchBox: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    marginHorizontal: 16, marginTop: 12,
+    paddingHorizontal: 12, backgroundColor: "#0E0E0E",
+    borderRadius: 10, borderWidth: 1, borderColor: "#1A1A1A",
+  },
+  searchInput: { flex: 1, color: "#FFF", paddingVertical: 10, fontSize: 13 },
+
+  // Filter chips
+  filterRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   filterBtn: {
-    flex: 1, paddingVertical: 9, borderRadius: 10,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingVertical: 8, paddingHorizontal: 12,
+    borderRadius: 20,
     backgroundColor: "#0E0E0E", borderWidth: 1, borderColor: "#1A1A1A",
-    alignItems: "center",
   },
   filterBtnActive: { backgroundColor: "#C5D1DA", borderColor: "#C5D1DA" },
-  filterText: { color: "#AAA", fontSize: 10.5, fontWeight: "900", letterSpacing: 1.5 },
+  filterText: { color: "#AAA", fontSize: 10.5, fontWeight: "900", letterSpacing: 1.2 },
   filterTextActive: { color: "#0A0A0A" },
+  badge: {
+    minWidth: 20, height: 18, paddingHorizontal: 6,
+    borderRadius: 9,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#1A1A1A",
+  },
+  badgeActive: { backgroundColor: "#0A0A0A" },
+  badgeTxt: { color: "#EEE", fontSize: 9.5, fontWeight: "900" },
+  badgeTxtActive: { color: "#C5D1DA" },
 
+  // Section header
+  headerRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    marginTop: 14, marginBottom: 6,
+  },
+  headerLine: { flex: 1, height: 1, backgroundColor: "#151515" },
+  headerLbl: {
+    color: "#8A8A8A", fontSize: 10, fontWeight: "900", letterSpacing: 2,
+  },
+
+  // Empty
   emptyBox: { alignItems: "center", paddingVertical: 60, gap: 10 },
-  emptyText: { color: "#6B6B6B", fontSize: 12 },
+  emptyText: { color: "#6B6B6B", fontSize: 12, textAlign: "center" },
+  clearBtn: {
+    marginTop: 10, paddingHorizontal: 20, paddingVertical: 10,
+    backgroundColor: "#1A1A1A", borderRadius: 8,
+    borderWidth: 1, borderColor: "#2E2E2E",
+  },
+  clearBtnTxt: { color: "#EEE", fontSize: 10.5, fontWeight: "900", letterSpacing: 1.5 },
 
+  // Tx row
   txRow: {
     flexDirection: "row", alignItems: "center", gap: 12,
     paddingVertical: 12, paddingHorizontal: 12,
@@ -210,5 +435,6 @@ const styles = StyleSheet.create({
   txTitle: { color: "#EEE", fontSize: 13, fontWeight: "700" },
   txSub: { color: "#777", fontSize: 11, marginTop: 2 },
   txNote: { color: "#AAA", fontSize: 11, marginTop: 4, fontStyle: "italic" },
+  txRight: { alignItems: "flex-end", gap: 4 },
   txAmt: { fontSize: 13, fontWeight: "900" },
 });
