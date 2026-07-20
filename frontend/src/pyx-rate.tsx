@@ -1,29 +1,38 @@
 /**
- * PYX Rate Provider — cache global reativo da cotação PYX/USD.
+ * PYX Rate Provider — cache global reativo da cotação PYX/USD + imagem hero.
  *
- * Estratégia:
- *  - No mount inicial busca /api/pyx/rate.
- *  - Repete a cada REFRESH_MS (default 30s).
- *  - Também revalida quando a janela/app volta ao foco.
- *  - Expõe `refresh()` para atualização imediata após o admin salvar novo valor.
- *
- * Uso:
- *   <PYXRateProvider>...</PYXRateProvider>  (uma vez no _layout raiz)
- *   const { rateCentavos, rate, refresh } = usePYXRate();
+ * Estratégia v2 (com cache):
+ *  - Ao montar, HIDRATA do AsyncStorage instantaneamente (sem flicker de UI).
+ *  - Em seguida, revalida em background via /api/pyx/rate.
+ *  - Repete a cada REFRESH_MS (30s) + no foco.
+ *  - Ao gravar rate, persiste em AsyncStorage.
+ *  - Isso elimina o "banner antigo" que aparecia antes de a imagem custom carregar.
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppState, Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api, PyxRate } from "./api";
 
 type Ctx = {
   rate: PyxRate | null;
-  rateCentavos: number;   // conveniência p/ formatUSD
+  rateCentavos: number;
   loading: boolean;
   refresh: () => Promise<void>;
 };
 
-const REFRESH_MS = 30_000; // 30s (bem menor que qualquer sessão real de uso)
+const REFRESH_MS = 30_000;
+const CACHE_KEY = "@bc:pyx_rate";
+
+/** Leitura SÍNCRONA do cache no web (localStorage) — evita flicker do banner na abertura. */
+function getInitialRateSync(): PyxRate | null {
+  if (Platform.OS !== "web" || typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage?.getItem(CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as PyxRate;
+  } catch { return null; }
+}
 
 const PYXRateContext = createContext<Ctx>({
   rate: null,
@@ -33,30 +42,54 @@ const PYXRateContext = createContext<Ctx>({
 });
 
 export function PYXRateProvider({ children }: { children: React.ReactNode }) {
-  const [rate, setRate] = useState<PyxRate | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Inicializa com cache SÍNCRONO — primeiro render já tem os dados na web
+  const initial = getInitialRateSync();
+  const [rate, setRate] = useState<PyxRate | null>(initial);
+  const [loading, setLoading] = useState(!initial);
   const timerRef = useRef<any>(null);
+  const hydratedRef = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
       const r = await api.pyxRate();
       setRate(r);
+      // Persiste em AsyncStorage (async) E localStorage (sync) para instant boot no web
+      try { await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(r)); } catch { /* noop */ }
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        try { window.localStorage?.setItem(CACHE_KEY, JSON.stringify(r)); } catch { /* noop */ }
+      }
     } catch {
-      // silencioso — mantém valor anterior/último válido
+      // silencioso — mantém último valor
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // Hidratação assíncrona (nativo) + revalidação em background
   useEffect(() => {
-    refresh();
-    // polling
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    (async () => {
+      if (!initial && Platform.OS !== "web") {
+        try {
+          const raw = await AsyncStorage.getItem(CACHE_KEY);
+          if (raw) {
+            const cached = JSON.parse(raw) as PyxRate;
+            setRate(cached);
+            setLoading(false);
+          }
+        } catch { /* noop */ }
+      }
+      refresh();
+    })();
+  }, [refresh, initial]);
+
+  // Polling + focus
+  useEffect(() => {
     timerRef.current = setInterval(refresh, REFRESH_MS);
-    // foco (web + native)
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") refresh();
     });
-    // web: visibilitychange também
     let onVis: (() => void) | undefined;
     if (Platform.OS === "web" && typeof document !== "undefined") {
       onVis = () => { if (!document.hidden) refresh(); };

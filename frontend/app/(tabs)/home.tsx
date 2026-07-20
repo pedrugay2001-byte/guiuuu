@@ -7,11 +7,12 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle, Defs, Stop, RadialGradient, LinearGradient as SvgLinearGradient } from "react-native-svg";
-import { api, GoalDashboard, PyxWallet, Ad } from "../../src/api";
+import { api, GoalDashboard, Ad } from "../../src/api";
 import { useGate } from "../../src/gate";
 import { useTierAccent } from "../../src/use-tier-accent";
 import { formatPYX } from "../../src/pyx";
 import { usePYXRate } from "../../src/pyx-rate";
+import { useCachedWallet } from "../../src/wallet-cache";
 import { FinanceHeroBanner } from "../../src/finance-hero-banner";
 import HomeBannerCarousel from "../../src/home-banner-carousel";
 
@@ -155,14 +156,12 @@ export default function Home() {
 
   const load = useCallback(async () => {
     try {
-      const [dd, w, ads] = await Promise.all([
+      const [dd, ads] = await Promise.all([
         member ? api.goalsDashboard(member.member_id).catch(() => null) : Promise.resolve(null),
-        member ? api.pyxWallet(member.member_id).catch(() => null) : Promise.resolve(null),
         // Carrega anúncios Diamond apenas se o membro for diamond (otimização)
         isDiamond ? api.listAds({ tier: "diamond", limit: 6 }).catch(() => []) : Promise.resolve([]),
       ]);
       setDashboard(dd);
-      setWallet(w);
       setDiamondAds((ads as any[]) || []);
     } catch {}
   }, [member, isDiamond]);
@@ -171,7 +170,8 @@ export default function Home() {
 
   const name = (member?.nickname || member?.name || "você").split(" ")[0];
   const accent = useTierAccent();
-  const [wallet, setWallet] = useState<PyxWallet | null>(null);
+  // Saldo com cache instantâneo (memória + AsyncStorage) — sem 2s de espera
+  const { wallet } = useCachedWallet();
 
   const hasGoals = !!dashboard?.has_goals;
   const stats = {

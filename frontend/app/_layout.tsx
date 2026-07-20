@@ -9,6 +9,7 @@ import { GateProvider, useGate } from "../src/gate";
 import { ErrorBoundary } from "../src/error-boundary";
 import { MessageInboxProvider } from "../src/message-inbox";
 import { PYXRateProvider } from "../src/pyx-rate";
+import { WalletProvider } from "../src/wallet-cache";
 import ChatHeadsOverlay from "../src/chat-heads";
 import BottomBrandBar from "../src/bottom-brand-bar";
 
@@ -50,6 +51,7 @@ export default function RootLayout() {
               <CartProvider>
                 <MessageInboxProvider>
                 <PYXRateProvider>
+                <WalletProvider>
                 <StatusBar style="light" />
                 <View style={{ flex: 1 }}>
                   <View style={{ flex: 1 }}>
@@ -114,6 +116,7 @@ export default function RootLayout() {
                   <GlobalBottomBar />
                 </View>
                 <ChatHeadsOverlay />
+                </WalletProvider>
                 </PYXRateProvider>
                 </MessageInboxProvider>
               </CartProvider>

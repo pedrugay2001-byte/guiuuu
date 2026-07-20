@@ -1,0 +1,30 @@
+{
+  "summary": "Frontend-only regression validated for v5 fixes (colors + cache performance). ALL 8 review points PASS. (1) PYX '50.915' now renders with SILVER metallic gradient linear-gradient(#FAFCFD 0%, #C5D1DA 45%, #6B7A85 100%) — computed backgroundImage exact match. (2) USD 'US$ 9.983,37' renders with GREEN metallic gradient (#B8F3D0/#4EE07F/#1E7A3F) and pill border rgba(78,224,127,0.55) — exact match. (3) Rate pill '1 USD = 5,10 PYX' keeps GOLD metallic gradient (#FFE082/#F5C150/#B8860B) and gold border rgba(212,175,55,0.55). (4) localStorage populated after first load: '@bc:pyx_rate' contains finance_hero_image_base64 and '@bc:wallet:mem_7a9d652945e7' contains balance_centavos=5091521. (5) Performance: after reload, DOMContentLoaded=1202ms and '50.915' visible at 1435ms (only 233ms after DOM ready — well under 800ms target). (6) No flicker: custom hero image visible at 468ms post-reload, default SVG NEVER observed. (7) Eye toggle syncs PYX + USD simultaneously (both mask to '••••' together). (8) Backend regression not scoped (frontend-only per request).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "RN Web style deprecation warnings", "issue": "Console shows 'textShadow*/shadow*/pointerEvents' deprecated warnings from RN Web 0.19+. Not blocking. Reference: /app/frontend/src/finance-hero-banner.tsx (textShadowColor/Offset/Radius) and multiple places using shadow*/pointerEvents prop."},
+      {"component": "expo-router missing routes", "issue": "Console warnings: No route named 'onboarding', 'notifications', 'wallet' exists in nested children. Cosmetic — not blocking home tests. Reference: /app/frontend/app/_layout.tsx"}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional: migrate RN Web deprecated style props (textShadow*, shadow*, pointerEvents prop) to modern equivalents to silence console warnings.",
+    "Optional: reconcile _layout.tsx Stack.Screen declarations vs. actual routes ('onboarding', 'notifications', top-level 'wallet') to remove expo-router warnings."
+  ],
+  "critical_code_review_comments": [
+    "wallet-cache.tsx uses useSyncExternalStore correctly with a getServerSnapshot returning 'empty' — safe.",
+    "pyx-rate.tsx reads localStorage synchronously on web (getInitialRateSync) which is the correct pattern for zero-flicker bootstrap.",
+    "finance-hero-banner.tsx: MetallicText uses backgroundImage/backgroundClip properly for web; native fallback uses solid + textShadow (functional though triggers RN Web textShadow* deprecation)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend-only scope)", "frontend": "100% (8/8 assertions)"},
+  "seed_data_creation": "None — used existing admin master credentials from /app/memory/test_credentials.md.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Home color scheme + cache/perf validated for iteration 15. Silver=PYX saldo, Green=USD conversão, Gold=Cotação. localStorage keys used: '@bc:pyx_rate' and '@bc:wallet:{member_id}'. Eye toggle testID: 'home-balance-eye-toggle'. Custom hero image loads at <500ms post-reload with no default SVG flicker. Rate observed in preview is 5,10 PYX (not 5,00 as in prompt example) — this is normal admin config data and does not affect the visual scheme validation.",
+  "rca_of_issue": "N/A — no bugs found. All v5 fixes (silver PYX / green USD / gold rate + localStorage bootstrap + reload perf) are functioning as designed."
+}

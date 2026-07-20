@@ -34,14 +34,24 @@ const GOLD_DEEP = "#B8860B";
 const GREEN = "#4EE07F";
 const GREEN_DEEP = "#0F5A3A";
 
+// Paletas para o efeito metálico (top → mid → bottom)
+const METALLIC = {
+  silver: { top: "#FAFCFD", mid: "#C5D1DA", deep: "#6B7A85", glow: "rgba(200,215,225,0.35)", solid: "#E8EEF3" },
+  gold:   { top: GOLD_LIGHT, mid: GOLD, deep: GOLD_DEEP, glow: "rgba(212,175,55,0.35)", solid: GOLD_LIGHT },
+  green:  { top: "#B8F3D0", mid: GREEN, deep: "#1E7A3F", glow: "rgba(78,224,127,0.35)", solid: "#8BE8B0" },
+} as const;
+
+type MetalScheme = keyof typeof METALLIC;
+
 /**
- * <GoldenText/> — renderiza texto com efeito de degradê dourado metálico.
- * Web: CSS background-clip:text (gradiente vertical clara → dourado → escuro)
- * Native: fallback para cor dourada sólida + textShadow (glow + 3D).
+ * <MetallicText/> — renderiza texto com efeito de degradê metálico (prata/ouro/verde).
+ * Web: CSS `background-clip: text` com gradiente vertical + drop-shadow (3D + glow).
+ * Native: fallback para cor sólida clara + textShadow (glow + 3D).
  */
-function GoldenText({
-  children, style,
-}: { children: React.ReactNode; style?: any }) {
+function MetallicText({
+  children, style, scheme = "gold",
+}: { children: React.ReactNode; style?: any; scheme?: MetalScheme }) {
+  const p = METALLIC[scheme];
   if (Platform.OS === "web") {
     return (
       <Text
@@ -49,12 +59,12 @@ function GoldenText({
           style,
           {
             // @ts-ignore — RN Web aceita propriedades CSS raw
-            backgroundImage: `linear-gradient(180deg, ${GOLD_LIGHT} 0%, ${GOLD} 45%, ${GOLD_DEEP} 100%)`,
+            backgroundImage: `linear-gradient(180deg, ${p.top} 0%, ${p.mid} 45%, ${p.deep} 100%)`,
             WebkitBackgroundClip: "text",
             backgroundClip: "text",
             WebkitTextFillColor: "transparent",
             color: "transparent",
-            filter: `drop-shadow(0 1px 0 rgba(0,0,0,0.4)) drop-shadow(0 0 8px rgba(212,175,55,0.35))`,
+            filter: `drop-shadow(0 1px 0 rgba(0,0,0,0.4)) drop-shadow(0 0 8px ${p.glow})`,
           } as any,
         ]}
         allowFontScaling={false}
@@ -63,14 +73,14 @@ function GoldenText({
       </Text>
     );
   }
-  // Fallback nativo — cor dourada sólida + glow + sombra 3D
+  // Fallback nativo — cor sólida + glow via textShadow
   return (
     <Text
       style={[
         style,
         {
-          color: GOLD_LIGHT,
-          textShadowColor: "rgba(212,175,55,0.55)",
+          color: p.solid,
+          textShadowColor: p.glow,
           textShadowOffset: { width: 0, height: 1 },
           textShadowRadius: 6,
         },
@@ -121,12 +131,12 @@ export function FinanceHeroBanner({
         <View style={s.left}>
           <Text style={s.title}>SALDO PYX</Text>
           <View style={s.balanceRow}>
-            <GoldenText style={s.balanceValue}>{pyxStr}</GoldenText>
-            <GoldenText style={s.balanceUnit}> PYX</GoldenText>
+            <MetallicText scheme="silver" style={s.balanceValue}>{pyxStr}</MetallicText>
+            <MetallicText scheme="silver" style={s.balanceUnit}> PYX</MetallicText>
           </View>
           <View style={s.usdPill}>
             <Text style={s.usdLbl}>Valor convertido (US$)</Text>
-            <Text style={s.usdVal} numberOfLines={1}>{usdStr}</Text>
+            <MetallicText scheme="green" style={s.usdVal}>{usdStr}</MetallicText>
           </View>
         </View>
 
@@ -137,9 +147,9 @@ export function FinanceHeroBanner({
         <View style={s.right}>
           <Text style={s.title}>COTAÇÃO DO DIA</Text>
           <View style={s.ratePill}>
-            <Text style={s.rateTxt} numberOfLines={1}>
+            <MetallicText scheme="gold" style={s.rateTxt}>
               1 USD = {rateDisplay} PYX
-            </Text>
+            </MetallicText>
           </View>
         </View>
       </View>
@@ -345,7 +355,7 @@ const s = StyleSheet.create({
     lineHeight: 40,
   },
 
-  // Pill "Valor convertido (US$)" — preto fosco + borda dourada + shadow
+  // Pill "Valor convertido (US$)" — preto fosco + borda VERDE + shadow
   usdPill: {
     marginTop: 6,
     alignSelf: "flex-start",
@@ -354,11 +364,11 @@ const s = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: "rgba(0,0,0,0.55)",
     borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.50)",
+    borderColor: "rgba(78,224,127,0.55)",
     ...Platform.select({
       web: {
         // @ts-ignore
-        boxShadow: "0 2px 10px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.10) inset",
+        boxShadow: "0 2px 10px rgba(0,0,0,0.5), 0 0 0 1px rgba(78,224,127,0.10) inset",
         backdropFilter: "blur(6px)",
       } as any,
       default: {
@@ -377,14 +387,13 @@ const s = StyleSheet.create({
     marginBottom: 1,
   },
   usdVal: {
-    color: GOLD,
     fontSize: 15,
     fontWeight: "900",
     letterSpacing: 0.2,
     fontVariant: ["tabular-nums"] as any,
   },
 
-  // Pill "Cotação do dia" — mesmo padrão visual da USD pill (menor)
+  // Pill "Cotação do dia" — preto fosco + borda DOURADA (destaque atual)
   ratePill: {
     marginTop: 2,
     paddingHorizontal: 12,
@@ -392,7 +401,7 @@ const s = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: "rgba(0,0,0,0.55)",
     borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.50)",
+    borderColor: "rgba(212,175,55,0.55)",
     alignSelf: "flex-start",
     ...Platform.select({
       web: {
@@ -409,7 +418,6 @@ const s = StyleSheet.create({
     }),
   },
   rateTxt: {
-    color: GOLD,
     fontSize: 13,
     fontWeight: "900",
     letterSpacing: 0.4,
