@@ -64,7 +64,7 @@ export function BalanceWidget({
         onPress={toggle}
         style={st.eyeBtn}
         activeOpacity={0.7}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         testID="home-balance-eye-toggle"
       >
         <Ionicons
