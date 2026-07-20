@@ -70,22 +70,23 @@ export function pyxCentavosToUSD(
   return c / r;
 }
 
-/** Formata valor de USD como "$1,234.56" (padrão en-US). */
+/** Formata valor de USD como "US$ 1.234,56" (padrão brasileiro). */
 export function formatUSD(
   pyxCentavos: number | null | undefined,
   rateCentavos: number | null | undefined,
-  opts: { compact?: boolean; withSign?: boolean } = {},
+  opts: { compact?: boolean; withSign?: boolean; prefix?: string } = {},
 ): string {
   const usd = pyxCentavosToUSD(pyxCentavos, rateCentavos);
   const abs = Math.abs(usd);
   const sign = opts.withSign && usd < 0 ? "-" : "";
+  const prefix = opts.prefix ?? "US$ ";
   if (opts.compact && abs >= 1000) {
-    // "1.2K" / "1.5M"
+    // "1,2 mil" / "1,5 mi" — mantém padrão pt-BR
     const K = abs / 1000;
-    if (K >= 1000) return `${sign}$${(K / 1000).toFixed(1)}M`;
-    return `${sign}$${K.toFixed(1)}K`;
+    if (K >= 1000) return `${sign}${prefix}${(K / 1000).toFixed(1).replace(".", ",")} mi`;
+    return `${sign}${prefix}${K.toFixed(1).replace(".", ",")} mil`;
   }
-  return `${sign}$${abs.toLocaleString("en-US", {
+  return `${sign}${prefix}${abs.toLocaleString("pt-BR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;

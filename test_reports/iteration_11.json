@@ -1,0 +1,49 @@
+{
+  "summary": "BLACKSCLUB Home v2 (balance card premium + USD pt-BR + banner admin) validado end-to-end. BACKEND (13/13 PASS em /app/backend/tests/test_home_banners.py): (a) /api/admin/home-banners GET/POST/PUT/DELETE sem auth → 401; (b) como support (suporte@blacksclub.com) → 403; (c) como master admin (guilherme925145000@gmail.com) → 200; (d) POST cria banner com image_base64 ~50KB + title/subtitle/cta/accent/category/active/order, GET confirma persistência, sem _id no payload; (e) PUT parcial (só title+active) preserva demais campos; banner com active=false NÃO aparece em GET /api/home-banners público; (f) DELETE remove, second DELETE → 404; (g) POST título vazio → 400; (h) regressão: GET /api/pyx/rate ainda 200 com pyx_per_usd_centavos, PUT sem auth → 401. Regressão test_pyx_rate.py também 14/14 PASS. FRONTEND (Expo web 390x844, master admin login OK, redir /home): (1) BalanceWidget canto sup esq com testID='home-balance-widget'. Layout confirmed: '50.915' + 'pyx' + 'US$ 10.183,04'. Formato USD 100% brasileiro (ponto milhares, vírgula centavos). Card premium: borderRadius=12px, boxShadow gold '0 4px 12px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(212,175,55,0.05)', border '1px solid rgba(212,175,55,0.28)' — visual 3D premium confirmed. USD color=#F5C150 (gold) per stylesheet. (2) 'Bem-vindo ao círculo onde poucos chegam.' NÃO presente ✓. Ícone cadeado 🔒 NÃO presente ✓. Só 'Olá, Luis' + pill 'Cotação do dia · 1 USD = 5,00 PYX' verde ✓. (3) SEM scroll vertical em iPhone 13 (390x844): document.querySelector('[data-testid=home-scroll]').scrollHeight === clientHeight (715===715, overflow=0) ✓. Banner carousel altura ≈180px dentro do range Math.max(110, Math.min(200,...)). (4) Eye toggle: quando disparado programaticamente via PointerEvent, PYX mascara para '••••' e USD para 'US$ ••••'. localStorage grava @bc:balance_hidden:mem_7a9d652945e7='1' (persist por membro). (5) /staff/banners: header 'BANNERS DA HOME · N banners' ✓, lista com thumbs 90x60, pills de categoria (PROMOÇÃO/NOVIDADE/NOTÍCIA), badge '#N' de ordem, botões arrow-up/arrow-down/toggle/EDITAR/trash ✓, botão + amarelo no top-right ✓. (6) Modal editor 'NOVO BANNER' abre: campo upload 16:9, URL alt, título*, subtítulo, 3 chips categoria, presets cor, CTA label+route, ORDEM, STATUS toggle, botão SALVAR no header ✓. (7) Criei banner 'TESTE_E2E' categoria novidade → apareceu como #4 na lista → deletei → contador voltou para 3 ✓. WARNINGS RN Web (bundle-wide, não regressão desta iteração): (i) 'textShadow*' style props are deprecated. Use 'textShadow'. (ii) 'shadow*' style props are deprecated. Use 'boxShadow'. (iii) props.pointerEvents is deprecated. Use style.pointerEvents. (iv) Layout children warning: routes 'onboarding'/'notifications'/'wallet' nomeadas em _layout mas não existem em nested children (rota 'wallet' pode ser um bug — verificar redirect /wallet). CADEIRA UI CONCERN: eyeBtn é 26x26 com hitSlop=8 → touch target efetivo 42x42, ABAIXO do mínimo 44x44 Apple HIG. Recomendo aumentar. Nenhum bug funcional. Nenhum problema react-native crítico (sem expo-av/expo-barcode-scanner/expo-background-fetch no fluxo).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "home", "issues": ["Eye toggle button (home-balance-eye-toggle) is 26x26px + hitSlop=8 = 42x42 effective. Below 44x44 Apple HIG minimum touch target. Consider bumping to 32x32 base or hitSlop=9+."]}
+    ],
+    "react_native_issues": [
+      {"component": "styles-bundle-wide", "issue": "RN Web deprecation warnings: 'textShadow*' style props (use textShadow), 'shadow*' style props (use boxShadow), props.pointerEvents (use style.pointerEvents). Not caused by this iteration but noisy on every render."},
+      {"component": "app/_layout.tsx", "issue": "Layout children warnings: routes 'onboarding', 'notifications', and 'wallet' referenced but not present in nested children. Note: wallet is under (tabs)/wallet — the top-level /wallet reference may be a stale route registration. Reference: app/_layout.tsx"}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_home_banners.py",
+    "/app/test_reports/pytest/home_banners.xml"
+  ],
+  "action_items": [
+    "OPCIONAL (design): aumentar tamanho do eye toggle button na BalanceWidget de 26x26 para ≥32x32 (ou hitSlop 9+) para atingir 44pt touch target Apple HIG. Arquivo: /app/frontend/src/balance-widget.tsx linhas 142-151.",
+    "OPCIONAL (limpeza): revisar app/_layout.tsx para remover referências às rotas 'onboarding', 'notifications' e 'wallet' que não existem mais como screens de topo (wallet vive em (tabs)/wallet).",
+    "OPCIONAL (RN Web deprecations): migrar styles com 'textShadowColor/Offset/Radius' → 'textShadow', e 'shadowColor/Offset/Radius/Opacity' → 'boxShadow'. Também substituir prop `pointerEvents` por style.pointerEvents. Ampla — global, não bloqueia release."
+  ],
+  "critical_code_review_comments": [
+    "server.py:721-779 — TODOS os endpoints /admin/home-banners (GET list, POST create, PUT update, DELETE) usam Depends(require_admin). Corretíssimo: staff support/financeiro recebem 403. Verificação por role='admin' na linha 180-183.",
+    "server.py:712-718 — GET público /api/home-banners filtra {active: True} e projeta {_id: 0}, sort por order asc + created_at desc. Corretíssimo — inactive não vaza.",
+    "server.py:730-752 — POST valida title obrigatório (400 se vazio após trim), gera banner_id UUID, seta created_by, timestamps UTC. Persiste image_base64 direto (~50KB testado). Correto.",
+    "server.py:755-771 — PUT parcial: itera fields opcionais e só aplica se v is not None. Preserva demais campos. active/order tratados separadamente com type coercion. Correto.",
+    "frontend/src/pyx.ts:74-93 — formatUSD usa toLocaleString('pt-BR', {min/maxFractionDigits: 2}). Prefixo default 'US$ '. Output validado: 10183.04 → 'US$ 10.183,04'.",
+    "frontend/src/balance-widget.tsx:80-107 — Card premium: borderRadius 12, backgroundColor #0B0B0B, borderColor rgba(212,175,55,0.28) (gold sutil), Platform.select boxShadow para web / shadow* nativo. Elevação 3D discreta. Sombra inset gold aumenta o efeito premium.",
+    "frontend/src/balance-widget.tsx:114-141 — Layout: pyxValue fontSize 16 + pyxUnit fontSize 9.5 uppercase (sigla 'pyx' pequena), USD fontSize 12 gold #F5C150. Baseline alignment. Correto conforme spec.",
+    "frontend/src/balance-widget.tsx:142-151 — EyeBtn 26x26 com hitSlop 8 apenas — touch target 42x42, abaixo de 44pt HIG. Aumentar recomendado.",
+    "frontend/app/staff/banners.tsx:120-153 — save() valida title trim, monta payload com todos os campos, chama create ou update conforme editor.banner, load() após save. Correto.",
+    "frontend/app/staff/banners.tsx:167-183 — move() troca `order` entre vizinhos via 2 PUT paralelos. Correto — reordena sem colisão pois cada banner é atualizado independentemente.",
+    "frontend/app/(tabs)/home.tsx:145-151 — bannerH = clamp(110, 200, screenH - occupied). Testado em 390x844: sem scroll (scrollH == clientH). Correto.",
+    "SEM issues expo/react native críticas: nenhum expo-av / expo-barcode-scanner / expo-background-fetch. SafeAreaView usa react-native-safe-area-context. TouchableOpacity/Pressable corretos. Todos textos em <Text />."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_home_banners.py (novo — 13 tests)",
+    "/app/test_reports/iteration_11.json (novo)",
+    "/app/test_reports/pytest/home_banners.xml (novo)"
+  ],
+  "success_rate": {"backend": "100% (13/13 home_banners + 14/14 pyx_rate = 27/27)", "frontend": "100% funcional. Home: balance card premium, USD pt-BR 'US$ 10.183,04', PYX '50.915 pyx', rate stripe '1 USD = 5,00 PYX', sem 'Bem-vindo'/🔒, sem scroll (715=715). Admin banners: lista + CRUD + create/delete TESTE_E2E OK. Toggle eye validado via JS dispatchEvent (funcional; playwright mouse.click não dispara TouchableOpacity RN Web — quirk conhecido, não é bug de produto)."},
+  "seed_data_creation": "Banner 'TESTE_E2E' criado e DELETADO durante teste E2E — estado inicial (3 banners: Promoção Black Friday, Novo Nicho Performance, BLX Token com saque PIX) restaurado ao final. Backend test fixture com auto-cleanup de banners não deletados. Estado: 3 banners ativos, rate=500 centavos.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Home v2 + admin banners 100% validated. Backend endpoints: GET /api/home-banners (public, ativos apenas), CRUD /api/admin/home-banners (require_admin — não require_staff). Formato USD frontend agora pt-BR ('US$ X.XXX,YZ') via formatUSD em src/pyx.ts. BalanceWidget é card premium 12px radius + gold shadow — testID='home-balance-widget'. Eye toggle: em playwright, USAR page.evaluate com dispatchEvent(new PointerEvent(...)) — RN Web TouchableOpacity ignora page.click()/mouse.click() no web preview. Screenshots: /tmp/step_home.png (home OK), /tmp/step_banners.png (lista), /tmp/step_banner_editor.png (modal), /tmp/step_after_save.png (TESTE_E2E criado), /tmp/eye_test.png (widget masked).",
+  "rca_of_issue": "N/A — nenhum bug. As deprecation warnings de textShadow/shadow/pointerEvents são de fixup RN Web global (não deste PR)."
+}

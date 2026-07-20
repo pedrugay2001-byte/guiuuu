@@ -214,6 +214,14 @@ export default function StaffDashboard() {
                 <Text style={[styles.actionText, { color: "#000" }]}>COTAÇÃO PYX / USD</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#5BA8F0", borderColor: "#5BA8F0" }]}
+                onPress={() => router.push("/staff/banners" as any)}
+                testID="staff-action-banners"
+              >
+                <Ionicons name="images" size={18} color="#000" />
+                <Text style={[styles.actionText, { color: "#000" }]}>BANNERS DA HOME</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: "#7FD7E5", borderColor: "#7FD7E5" }]}
                 onPress={() => router.push("/staff/publishers" as any)}
                 testID="staff-action-publishers"

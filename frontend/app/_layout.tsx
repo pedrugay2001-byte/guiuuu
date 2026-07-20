@@ -99,6 +99,7 @@ export default function RootLayout() {
             <Stack.Screen name="staff/inbox" options={{ title: "Caixa de Mensagens" }} />
             <Stack.Screen name="staff/pix-orders" options={{ title: "Pedidos PIX → PYX", headerShown: false }} />
             <Stack.Screen name="staff/pyx-rate" options={{ headerShown: false }} />
+            <Stack.Screen name="staff/banners" options={{ headerShown: false }} />
             <Stack.Screen name="staff/team" options={{ title: "Gestão de Equipe", headerShown: false }} />
             <Stack.Screen name="staff/publishers" options={{ title: "Publicadores", headerShown: false }} />
             <Stack.Screen name="staff/metrics" options={{ title: "Métricas PYX", headerShown: false }} />

@@ -1,0 +1,671 @@
+/**
+ * Painel do Admin Master — gerenciamento dos banners da Home.
+ *
+ * Recursos:
+ *  - Lista todos os banners (ativos + inativos), ordenados por `order`.
+ *  - Adicionar novo banner: upload de imagem, título, subtítulo, CTA, categoria.
+ *  - Editar: título/subtítulo/CTA/imagem/ordem/status ativo.
+ *  - Ativar/desativar via switch inline.
+ *  - Ordenar via botões ↑ ↓.
+ *  - Deletar com confirmação.
+ *
+ * Não altera nada no aplicativo — só usa endpoints existentes `/api/admin/home-banners`.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  ActivityIndicator, Modal, Image, KeyboardAvoidingView, Platform,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "../../src/icons";
+import { api, HomeBanner, HomeBannerInput } from "../../src/api";
+import { pickCompressedImage } from "../../src/imagepicker";
+import { notify, confirm } from "../../src/alerts";
+
+const CATEGORIES = [
+  { id: "novidade", label: "NOVIDADE", color: "#4FD1C5" },
+  { id: "noticia", label: "NOTÍCIA", color: "#5BA8F0" },
+  { id: "promocao", label: "PROMOÇÃO", color: "#E67A35" },
+];
+
+const ACCENT_PRESETS = ["#C89A3A", "#D4AF37", "#F5C150", "#4EE07F", "#F87171", "#7FD7E5"];
+
+type EditorState = {
+  open: boolean;
+  banner: HomeBanner | null;   // null = criando
+  title: string;
+  subtitle: string;
+  imageBase64: string;         // sem prefixo data:...
+  imageUrl: string;
+  ctaLabel: string;
+  ctaRoute: string;
+  category: string;
+  accent: string;
+  active: boolean;
+  order: number;
+  saving: boolean;
+};
+
+const emptyEditor = (): EditorState => ({
+  open: false,
+  banner: null,
+  title: "",
+  subtitle: "",
+  imageBase64: "",
+  imageUrl: "",
+  ctaLabel: "",
+  ctaRoute: "",
+  category: "novidade",
+  accent: "#C89A3A",
+  active: true,
+  order: 0,
+  saving: false,
+});
+
+export default function AdminBannersScreen() {
+  const router = useRouter();
+  const [banners, setBanners] = useState<HomeBanner[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editor, setEditor] = useState<EditorState>(emptyEditor());
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const list = await api.adminListHomeBanners();
+      setBanners(list);
+    } catch (e: any) {
+      notify("Erro ao carregar banners", e?.message || "Tente novamente");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const openCreate = () => {
+    const maxOrder = banners.reduce((m, b) => Math.max(m, b.order), 0);
+    setEditor({ ...emptyEditor(), open: true, order: maxOrder + 1 });
+  };
+
+  const openEdit = (b: HomeBanner) => {
+    setEditor({
+      open: true, banner: b,
+      title: b.title, subtitle: b.subtitle || "",
+      imageBase64: (b.image_base64 || "").replace(/^data:image\/[a-z]+;base64,/, ""),
+      imageUrl: b.image_url || "",
+      ctaLabel: b.cta_label || "",
+      ctaRoute: b.cta_route || "",
+      category: b.category || "novidade",
+      accent: b.accent_color || "#C89A3A",
+      active: b.active !== false,
+      order: b.order || 0,
+      saving: false,
+    });
+  };
+
+  const closeEditor = () => setEditor(emptyEditor());
+
+  const pickImage = async () => {
+    const b64 = await pickCompressedImage({ aspect: [16, 9], quality: 0.7 });
+    if (b64) {
+      // pickCompressedImage retorna com prefixo — vamos remover para armazenar apenas o base64 puro
+      const raw = b64.replace(/^data:image\/[a-z]+;base64,/, "");
+      setEditor((e) => ({ ...e, imageBase64: raw, imageUrl: "" }));
+    }
+  };
+
+  const save = async () => {
+    if (!editor.title.trim()) {
+      notify("Título obrigatório", "Informe o título do banner");
+      return;
+    }
+    setEditor((e) => ({ ...e, saving: true }));
+    try {
+      const payload: HomeBannerInput = {
+        title: editor.title.trim(),
+        subtitle: editor.subtitle.trim(),
+        image_base64: editor.imageBase64,
+        image_url: editor.imageUrl.trim(),
+        cta_label: editor.ctaLabel.trim(),
+        cta_route: editor.ctaRoute.trim(),
+        category: editor.category,
+        accent_color: editor.accent,
+        active: editor.active,
+        order: editor.order,
+      };
+      if (editor.banner) {
+        await api.adminUpdateHomeBanner(editor.banner.banner_id, payload);
+        notify("Banner atualizado");
+      } else {
+        await api.adminCreateHomeBanner(payload);
+        notify("Banner criado");
+      }
+      closeEditor();
+      await load();
+    } catch (e: any) {
+      notify("Falha ao salvar", e?.message || "Tente novamente");
+    } finally {
+      setEditor((e) => ({ ...e, saving: false }));
+    }
+  };
+
+  const toggleActive = async (b: HomeBanner) => {
+    setBusyId(b.banner_id);
+    try {
+      await api.adminUpdateHomeBanner(b.banner_id, { active: !b.active });
+      await load();
+    } catch (e: any) {
+      notify("Falha", e?.message || "Tente novamente");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const move = async (b: HomeBanner, dir: -1 | 1) => {
+    const idx = banners.findIndex((x) => x.banner_id === b.banner_id);
+    const neighbor = banners[idx + dir];
+    if (!neighbor) return;
+    setBusyId(b.banner_id);
+    try {
+      await Promise.all([
+        api.adminUpdateHomeBanner(b.banner_id, { order: neighbor.order }),
+        api.adminUpdateHomeBanner(neighbor.banner_id, { order: b.order }),
+      ]);
+      await load();
+    } catch (e: any) {
+      notify("Falha ao reordenar", e?.message || "Tente novamente");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (b: HomeBanner) => {
+    const ok = await confirm(`Excluir "${b.title}"?`, "Esta ação não pode ser desfeita.");
+    if (!ok) return;
+    setBusyId(b.banner_id);
+    try {
+      await api.adminDeleteHomeBanner(b.banner_id);
+      await load();
+    } catch (e: any) {
+      notify("Falha", e?.message || "Tente novamente");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: "#050505" }}>
+      <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom", "left", "right"]}>
+        <View style={s.topBar}>
+          <TouchableOpacity style={s.backBtn} onPress={() => router.back()} testID="banners-back">
+            <Ionicons name="chevron-back" size={22} color="#FFF" />
+          </TouchableOpacity>
+          <View style={{ flex: 1, alignItems: "center" }}>
+            <Text style={s.title}>BANNERS DA HOME</Text>
+            <Text style={s.sub}>{banners.length} banner{banners.length === 1 ? "" : "s"}</Text>
+          </View>
+          <TouchableOpacity style={s.newBtn} onPress={openCreate} testID="banners-new">
+            <Ionicons name="add" size={22} color="#0A0A0A" />
+          </TouchableOpacity>
+        </View>
+
+        {loading ? (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <ActivityIndicator color="#D4AF37" />
+          </View>
+        ) : banners.length === 0 ? (
+          <View style={s.emptyBox}>
+            <Ionicons name="images-outline" size={40} color="#2E2E2E" />
+            <Text style={s.emptyTxt}>Nenhum banner cadastrado</Text>
+            <TouchableOpacity style={s.emptyCta} onPress={openCreate} testID="banners-empty-cta">
+              <Ionicons name="add" size={16} color="#0A0A0A" />
+              <Text style={s.emptyCtaTxt}>ADICIONAR PRIMEIRO BANNER</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
+            {banners.map((b, idx) => (
+              <BannerListItem
+                key={b.banner_id}
+                banner={b}
+                canUp={idx > 0}
+                canDown={idx < banners.length - 1}
+                busy={busyId === b.banner_id}
+                onEdit={() => openEdit(b)}
+                onToggle={() => toggleActive(b)}
+                onDelete={() => remove(b)}
+                onMoveUp={() => move(b, -1)}
+                onMoveDown={() => move(b, 1)}
+              />
+            ))}
+          </ScrollView>
+        )}
+      </SafeAreaView>
+
+      {/* Editor Modal */}
+      <BannerEditorModal
+        state={editor}
+        setState={setEditor}
+        onClose={closeEditor}
+        onSave={save}
+        onPickImage={pickImage}
+      />
+    </View>
+  );
+}
+
+function BannerListItem({
+  banner: b, canUp, canDown, busy, onEdit, onToggle, onDelete, onMoveUp, onMoveDown,
+}: {
+  banner: HomeBanner;
+  canUp: boolean; canDown: boolean; busy: boolean;
+  onEdit: () => void; onToggle: () => void; onDelete: () => void;
+  onMoveUp: () => void; onMoveDown: () => void;
+}) {
+  const cat = CATEGORIES.find((c) => c.id === (b.category || "novidade")) || CATEGORIES[0];
+  const preview = b.image_base64
+    ? `data:image/jpeg;base64,${b.image_base64.replace(/^data:image\/[a-z]+;base64,/, "")}`
+    : (b.image_url || "");
+  return (
+    <View style={s.item} testID={`banner-item-${b.banner_id}`}>
+      <View style={s.itemThumb}>
+        {preview ? (
+          <Image source={{ uri: preview }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+        ) : (
+          <Ionicons name="image-outline" size={26} color="#3A3A3A" />
+        )}
+        {!b.active && (
+          <View style={s.thumbDim}>
+            <Text style={s.thumbDimTxt}>INATIVO</Text>
+          </View>
+        )}
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={s.itemHead}>
+          <View style={[s.catPill, { borderColor: cat.color + "80" }]}>
+            <Text style={[s.catPillTxt, { color: cat.color }]}>{cat.label}</Text>
+          </View>
+          <Text style={s.itemOrder}>#{b.order}</Text>
+        </View>
+        <Text style={s.itemTitle} numberOfLines={1}>{b.title}</Text>
+        {b.subtitle ? <Text style={s.itemSub} numberOfLines={2}>{b.subtitle}</Text> : null}
+        <View style={s.itemActions}>
+          <TouchableOpacity
+            style={[s.itemBtn, !canUp && s.itemBtnDisabled]} onPress={onMoveUp} disabled={!canUp || busy}
+            testID={`banner-up-${b.banner_id}`}
+          >
+            <Ionicons name="arrow-up" size={14} color={canUp ? "#EEE" : "#444"} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.itemBtn, !canDown && s.itemBtnDisabled]} onPress={onMoveDown} disabled={!canDown || busy}
+            testID={`banner-down-${b.banner_id}`}
+          >
+            <Ionicons name="arrow-down" size={14} color={canDown ? "#EEE" : "#444"} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.itemBtn, { borderColor: b.active ? "#4EE07F55" : "#3A3A3A" }]}
+            onPress={onToggle} disabled={busy}
+            testID={`banner-toggle-${b.banner_id}`}
+          >
+            <Ionicons name={b.active ? "eye" : "eye-off"} size={14} color={b.active ? "#4EE07F" : "#8A8A8A"} />
+            <Text style={[s.itemBtnTxt, { color: b.active ? "#4EE07F" : "#8A8A8A" }]}>
+              {b.active ? "ATIVO" : "OFF"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.itemBtn} onPress={onEdit} disabled={busy} testID={`banner-edit-${b.banner_id}`}>
+            <Ionicons name="pencil" size={13} color="#D4AF37" />
+            <Text style={[s.itemBtnTxt, { color: "#D4AF37" }]}>EDITAR</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.itemBtn, { borderColor: "#F8717155" }]}
+            onPress={onDelete} disabled={busy}
+            testID={`banner-delete-${b.banner_id}`}
+          >
+            <Ionicons name="trash" size={13} color="#F87171" />
+          </TouchableOpacity>
+        </View>
+      </View>
+      {busy ? (
+        <View style={s.busyOverlay}>
+          <ActivityIndicator color="#D4AF37" />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function BannerEditorModal({
+  state, setState, onClose, onSave, onPickImage,
+}: {
+  state: EditorState;
+  setState: React.Dispatch<React.SetStateAction<EditorState>>;
+  onClose: () => void;
+  onSave: () => void;
+  onPickImage: () => void;
+}) {
+  const preview = useMemo(() => {
+    if (state.imageBase64) return `data:image/jpeg;base64,${state.imageBase64}`;
+    if (state.imageUrl) return state.imageUrl;
+    return null;
+  }, [state.imageBase64, state.imageUrl]);
+
+  return (
+    <Modal visible={state.open} animationType="slide" transparent onRequestClose={onClose}>
+      <SafeAreaView style={s.modalBackdrop} edges={["bottom"]}>
+        <View style={s.modalSheet}>
+          <View style={s.modalHead}>
+            <TouchableOpacity onPress={onClose} testID="banner-editor-close">
+              <Ionicons name="close" size={22} color="#EEE" />
+            </TouchableOpacity>
+            <Text style={s.modalTitle}>
+              {state.banner ? "EDITAR BANNER" : "NOVO BANNER"}
+            </Text>
+            <TouchableOpacity
+              style={[s.modalSave, (state.saving || !state.title.trim()) && { opacity: 0.5 }]}
+              onPress={onSave}
+              disabled={state.saving || !state.title.trim()}
+              testID="banner-editor-save"
+            >
+              {state.saving ? <ActivityIndicator color="#0A0A0A" size="small" /> : (
+                <>
+                  <Ionicons name="checkmark" size={16} color="#0A0A0A" />
+                  <Text style={s.modalSaveTxt}>SALVAR</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+          >
+            <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
+              {/* Imagem */}
+              <Text style={s.label}>IMAGEM</Text>
+              <TouchableOpacity
+                style={s.imageBox}
+                onPress={onPickImage}
+                testID="banner-editor-pick-image"
+                activeOpacity={0.85}
+              >
+                {preview ? (
+                  <Image source={{ uri: preview }} style={s.imagePreview} resizeMode="cover" />
+                ) : (
+                  <View style={s.imageEmpty}>
+                    <Ionicons name="cloud-upload-outline" size={40} color="#4A4A4A" />
+                    <Text style={s.imageEmptyTxt}>Toque para enviar imagem (16:9)</Text>
+                  </View>
+                )}
+                <View style={s.imageOverlay}>
+                  <Ionicons name="camera" size={14} color="#FFF" />
+                  <Text style={s.imageOverlayTxt}>Alterar imagem</Text>
+                </View>
+              </TouchableOpacity>
+              <Text style={s.hint}>Recomendado: proporção 16:9, min 800×450px.</Text>
+
+              {/* URL alternativa */}
+              <Text style={s.label}>OU URL DA IMAGEM (opcional)</Text>
+              <TextInput
+                style={s.input}
+                value={state.imageUrl}
+                onChangeText={(t) => setState((e) => ({ ...e, imageUrl: t, imageBase64: t ? "" : e.imageBase64 }))}
+                placeholder="https://exemplo.com/imagem.jpg"
+                placeholderTextColor="#5A5A5A"
+                autoCapitalize="none"
+                testID="banner-editor-image-url"
+              />
+
+              {/* Título */}
+              <Text style={s.label}>TÍTULO *</Text>
+              <TextInput
+                style={s.input}
+                value={state.title}
+                onChangeText={(t) => setState((e) => ({ ...e, title: t }))}
+                placeholder="Ex.: Novidade — Chegou o PYX!"
+                placeholderTextColor="#5A5A5A"
+                maxLength={60}
+                testID="banner-editor-title"
+              />
+
+              {/* Subtítulo */}
+              <Text style={s.label}>SUBTÍTULO</Text>
+              <TextInput
+                style={[s.input, { minHeight: 60, textAlignVertical: "top" }]}
+                value={state.subtitle}
+                onChangeText={(t) => setState((e) => ({ ...e, subtitle: t }))}
+                placeholder="Descrição curta (2 linhas)"
+                placeholderTextColor="#5A5A5A"
+                multiline
+                maxLength={140}
+                testID="banner-editor-subtitle"
+              />
+
+              {/* Categoria */}
+              <Text style={s.label}>CATEGORIA</Text>
+              <View style={s.row}>
+                {CATEGORIES.map((c) => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[
+                      s.catBtn,
+                      state.category === c.id && { borderColor: c.color, backgroundColor: c.color + "18" },
+                    ]}
+                    onPress={() => setState((e) => ({ ...e, category: c.id }))}
+                    testID={`banner-editor-cat-${c.id}`}
+                  >
+                    <Text style={[s.catBtnTxt, state.category === c.id && { color: c.color }]}>{c.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* CTA */}
+              <Text style={s.label}>BOTÃO DE AÇÃO (opcional)</Text>
+              <TextInput
+                style={s.input}
+                value={state.ctaLabel}
+                onChangeText={(t) => setState((e) => ({ ...e, ctaLabel: t }))}
+                placeholder="Texto do botão (ex.: Ver mais)"
+                placeholderTextColor="#5A5A5A"
+                maxLength={20}
+                testID="banner-editor-cta-label"
+              />
+              <TextInput
+                style={[s.input, { marginTop: 8 }]}
+                value={state.ctaRoute}
+                onChangeText={(t) => setState((e) => ({ ...e, ctaRoute: t }))}
+                placeholder="Rota interna (ex.: /pyx/history)"
+                placeholderTextColor="#5A5A5A"
+                autoCapitalize="none"
+                testID="banner-editor-cta-route"
+              />
+
+              {/* Accent color */}
+              <Text style={s.label}>COR DE DESTAQUE</Text>
+              <View style={s.row}>
+                {ACCENT_PRESETS.map((c) => (
+                  <TouchableOpacity
+                    key={c}
+                    style={[
+                      s.color, { backgroundColor: c },
+                      state.accent === c && { borderColor: "#FFF", borderWidth: 2 },
+                    ]}
+                    onPress={() => setState((e) => ({ ...e, accent: c }))}
+                    testID={`banner-editor-color-${c.replace("#", "")}`}
+                  />
+                ))}
+              </View>
+
+              {/* Ordem + Ativo */}
+              <View style={s.rowGap}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.label}>ORDEM</Text>
+                  <TextInput
+                    style={s.input}
+                    value={String(state.order)}
+                    onChangeText={(t) => setState((e) => ({ ...e, order: parseInt(t || "0", 10) || 0 }))}
+                    keyboardType="number-pad"
+                    testID="banner-editor-order"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.label}>STATUS</Text>
+                  <TouchableOpacity
+                    style={[
+                      s.input,
+                      {
+                        flexDirection: "row", alignItems: "center", gap: 8,
+                        borderColor: state.active ? "#4EE07F55" : "#3A3A3A",
+                      },
+                    ]}
+                    onPress={() => setState((e) => ({ ...e, active: !e.active }))}
+                    testID="banner-editor-active"
+                  >
+                    <Ionicons
+                      name={state.active ? "eye" : "eye-off"}
+                      size={16}
+                      color={state.active ? "#4EE07F" : "#8A8A8A"}
+                    />
+                    <Text style={{ color: state.active ? "#4EE07F" : "#8A8A8A", fontSize: 13, fontWeight: "800" }}>
+                      {state.active ? "ATIVO" : "INATIVO"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+const s = StyleSheet.create({
+  topBar: {
+    flexDirection: "row", alignItems: "center", paddingHorizontal: 12,
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#141414",
+  },
+  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  title: { color: "#FFF", fontSize: 13, fontWeight: "900", letterSpacing: 2 },
+  sub: { color: "#8A8A8A", fontSize: 10.5, fontWeight: "700", letterSpacing: 1, marginTop: 2 },
+  newBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#F5C150",
+  },
+
+  emptyBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 24 },
+  emptyTxt: { color: "#6B6B6B", fontSize: 13 },
+  emptyCta: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 18, paddingVertical: 12,
+    backgroundColor: "#F5C150", borderRadius: 10,
+  },
+  emptyCtaTxt: { color: "#0A0A0A", fontSize: 11.5, fontWeight: "900", letterSpacing: 1.5 },
+
+  item: {
+    flexDirection: "row", gap: 12,
+    padding: 12, backgroundColor: "#0A0A0A",
+    borderRadius: 12, borderWidth: 1, borderColor: "#171717",
+    marginBottom: 10,
+    position: "relative",
+  },
+  itemThumb: {
+    width: 90, height: 60, borderRadius: 8, overflow: "hidden",
+    backgroundColor: "#141414",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "#1F1F1F",
+    position: "relative",
+  },
+  thumbDim: {
+    ...StyleSheet.absoluteFillObject as any,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    alignItems: "center", justifyContent: "center",
+  },
+  thumbDimTxt: { color: "#EEE", fontSize: 9, fontWeight: "900", letterSpacing: 1.5 },
+  itemHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  catPill: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4,
+    borderWidth: 1, backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  catPillTxt: { fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
+  itemOrder: { color: "#7A7A7A", fontSize: 10.5, fontWeight: "800", letterSpacing: 0.5 },
+  itemTitle: { color: "#FFF", fontSize: 13.5, fontWeight: "800", marginTop: 4 },
+  itemSub: { color: "#8A8A8A", fontSize: 11, marginTop: 2, lineHeight: 14 },
+  itemActions: { flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" },
+  itemBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 5,
+    backgroundColor: "#101010",
+    borderRadius: 6, borderWidth: 1, borderColor: "#212121",
+  },
+  itemBtnDisabled: { opacity: 0.4 },
+  itemBtnTxt: { fontSize: 9.5, fontWeight: "900", letterSpacing: 1 },
+  busyOverlay: {
+    ...StyleSheet.absoluteFillObject as any,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center", justifyContent: "center",
+    borderRadius: 12,
+  },
+
+  // Modal
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" },
+  modalSheet: {
+    backgroundColor: "#0A0A0A", borderTopLeftRadius: 18, borderTopRightRadius: 18,
+    borderTopWidth: 1, borderColor: "#1F1F1F",
+    maxHeight: "94%", flex: 1,
+  },
+  modalHead: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    padding: 14, borderBottomWidth: 1, borderColor: "#1A1A1A",
+  },
+  modalTitle: { color: "#FFF", fontSize: 12.5, fontWeight: "900", letterSpacing: 2 },
+  modalSave: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: "#F5C150", paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 8,
+  },
+  modalSaveTxt: { color: "#0A0A0A", fontSize: 11, fontWeight: "900", letterSpacing: 1.4 },
+
+  label: {
+    color: "#8A8A8A", fontSize: 10, fontWeight: "900", letterSpacing: 1.6,
+    marginTop: 16, marginBottom: 8,
+  },
+  hint: { color: "#5A5A5A", fontSize: 10.5, marginTop: 4, fontStyle: "italic" },
+  input: {
+    color: "#FFF", fontSize: 14,
+    padding: 12, backgroundColor: "#0E0E0E",
+    borderRadius: 10, borderWidth: 1, borderColor: "#1A1A1A",
+  },
+  imageBox: {
+    width: "100%", aspectRatio: 16 / 9,
+    borderRadius: 12, overflow: "hidden",
+    borderWidth: 1, borderColor: "#1F1F1F",
+    backgroundColor: "#0E0E0E",
+    position: "relative",
+  },
+  imagePreview: { width: "100%", height: "100%" },
+  imageEmpty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
+  imageEmptyTxt: { color: "#7A7A7A", fontSize: 11.5, fontWeight: "700" },
+  imageOverlay: {
+    position: "absolute", right: 8, bottom: 8,
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 6, backgroundColor: "rgba(0,0,0,0.7)",
+  },
+  imageOverlayTxt: { color: "#FFF", fontSize: 10.5, fontWeight: "800", letterSpacing: 0.6 },
+  row: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  rowGap: { flexDirection: "row", gap: 12 },
+  catBtn: {
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 8, borderWidth: 1, borderColor: "#2A2A2A",
+    backgroundColor: "#0E0E0E",
+  },
+  catBtnTxt: { color: "#8A8A8A", fontSize: 10.5, fontWeight: "900", letterSpacing: 1.2 },
+  color: {
+    width: 30, height: 30, borderRadius: 15,
+    borderWidth: 1, borderColor: "#1A1A1A",
+  },
+});

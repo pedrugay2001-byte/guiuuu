@@ -719,7 +719,7 @@ async def list_active_home_banners(request: Request):
 
 
 @api_router.get("/admin/home-banners")
-async def admin_list_home_banners(request: Request, staff: dict = Depends(require_staff)):
+async def admin_list_home_banners(request: Request, staff: dict = Depends(require_admin)):
     """Lista todos os banners (incluindo inativos) — uso na tela de gerenciamento."""
     cursor = db.home_banners.find({}, {"_id": 0}).sort([("order", 1), ("created_at", -1)])
     items = await cursor.to_list(length=200)
@@ -728,7 +728,7 @@ async def admin_list_home_banners(request: Request, staff: dict = Depends(requir
 
 
 @api_router.post("/admin/home-banners")
-async def admin_create_home_banner(data: HomeBannerCreate, request: Request, staff: dict = Depends(require_staff)):
+async def admin_create_home_banner(data: HomeBannerCreate, request: Request, staff: dict = Depends(require_admin)):
     title = (data.title or "").strip()
     if not title:
         raise HTTPException(status_code=400, detail="Título é obrigatório")
@@ -753,7 +753,7 @@ async def admin_create_home_banner(data: HomeBannerCreate, request: Request, sta
 
 
 @api_router.put("/admin/home-banners/{banner_id}")
-async def admin_update_home_banner(banner_id: str, data: HomeBannerUpdate, request: Request, staff: dict = Depends(require_staff)):
+async def admin_update_home_banner(banner_id: str, data: HomeBannerUpdate, request: Request, staff: dict = Depends(require_admin)):
     existing = await db.home_banners.find_one({"banner_id": banner_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Banner não encontrado")
@@ -772,7 +772,7 @@ async def admin_update_home_banner(banner_id: str, data: HomeBannerUpdate, reque
 
 
 @api_router.delete("/admin/home-banners/{banner_id}")
-async def admin_delete_home_banner(banner_id: str, staff: dict = Depends(require_staff)):
+async def admin_delete_home_banner(banner_id: str, staff: dict = Depends(require_admin)):
     r = await db.home_banners.delete_one({"banner_id": banner_id})
     if r.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Banner não encontrado")

@@ -142,13 +142,13 @@ export default function Home() {
   const screenW = width;
   const tierBannerH = (screenW * 9) / 16 + 10;
   const tileH = ((screenW - 12 * 2 - 8 * 2) / 3) / 1.45 + 4;
-  const HEADER_TOP = 70;
-  const GREET_H = 58;
+  const HEADER_TOP = 62;
+  const GREET_H = 44;       // subtítulo removido — bloco mais compacto
   const BOTTOM_BAR = 80;
-  const SCROLL_PADS = 22;
+  const SCROLL_PADS = 18;
   const occupied = HEADER_TOP + GREET_H + tierBannerH + tileH + BOTTOM_BAR + SCROLL_PADS;
-  // Carrossel preenche o restante (mínimo 130, máximo 260 para não ficar absurdo em tablets/desktop)
-  const bannerH = Math.max(130, Math.min(260, Math.floor(screenH - occupied)));
+  // Carrossel preenche o restante (min 110 pra caber em iPhone SE, max 200 pra não inflar em desktop)
+  const bannerH = Math.max(110, Math.min(200, Math.floor(screenH - occupied)));
 
   const load = useCallback(async () => {
     try {
@@ -314,7 +314,6 @@ export default function Home() {
           {/* GREETING compacto + nome do membro + cotação do dia */}
           <View style={s.greet}>
             <Text style={s.greetHello}>Olá, {name}</Text>
-            <Text style={s.greetSub}>🔒 Bem-vindo ao círculo onde poucos chegam.</Text>
             <RateStripe />
           </View>
 
