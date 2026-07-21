@@ -127,7 +127,7 @@ export function FinanceHeroBanner({
 
       {/* CONTEÚDO */}
       <View style={s.content}>
-        {/* Coluna esquerda — SALDO */}
+        {/* Coluna esquerda — SALDO (sem sigla "PYX") */}
         <View style={s.left}>
           <Text style={s.title}>SALDO</Text>
           <View style={s.balanceRow}>
@@ -139,14 +139,17 @@ export function FinanceHeroBanner({
                 <MetallicText scheme="silver" style={s.balanceCents}>,{pyxP.dec}</MetallicText>
               </>
             )}
-            <MetallicText scheme="silver" style={s.balanceUnit}> PYX</MetallicText>
           </View>
           <View style={s.usdPill}>
             {hidden ? (
-              <MetallicText scheme="green" style={s.usdVal}>USx •••••</MetallicText>
+              <View style={s.usdInline}>
+                <Text style={s.usxLabel}>USx </Text>
+                <MetallicText scheme="green" style={s.usdVal}>•••••</MetallicText>
+              </View>
             ) : (
               <View style={s.usdInline}>
-                <MetallicText scheme="green" style={s.usdVal}>{usxP.prefix}{usxP.int}</MetallicText>
+                <Text style={s.usxLabel}>USx </Text>
+                <MetallicText scheme="green" style={s.usdVal}>{usxP.int}</MetallicText>
                 <MetallicText scheme="green" style={s.usdCents}>,{usxP.dec}</MetallicText>
               </View>
             )}
@@ -156,13 +159,15 @@ export function FinanceHeroBanner({
         {/* Divisor sutil */}
         <View style={s.divider} pointerEvents="none" />
 
-        {/* Coluna direita — COTAÇÃO */}
+        {/* Coluna direita — COTAÇÃO (USx em cinza, resto em dourado) */}
         <View style={s.right}>
           <Text style={s.title}>COTAÇÃO DO DIA</Text>
           <View style={s.ratePill}>
-            <MetallicText scheme="gold" style={s.rateTxt}>
-              1 USx = {rateDisplay} PYX
-            </MetallicText>
+            <View style={s.rateInline}>
+              <MetallicText scheme="gold" style={s.rateTxt}>1 </MetallicText>
+              <Text style={s.rateUsxLabel}>USx</Text>
+              <MetallicText scheme="gold" style={s.rateTxt}> = {rateDisplay} PYX</MetallicText>
+            </View>
           </View>
         </View>
       </View>
@@ -411,6 +416,14 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "baseline",
   },
+  // Rótulo "USx" — cinza escuro (destaque menor)
+  usxLabel: {
+    color: "#5A5F66",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    fontVariant: ["tabular-nums"] as any,
+  },
   usdVal: {
     fontSize: 15,
     fontWeight: "900",
@@ -452,6 +465,17 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontWeight: "900",
     letterSpacing: 0.4,
+    fontVariant: ["tabular-nums"] as any,  },
+  rateInline: {
+    flexDirection: "row",
+    alignItems: "baseline",
+  },
+  // "USx" dentro da cotação — cinza escuro
+  rateUsxLabel: {
+    color: "#5A5F66",
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.6,
     fontVariant: ["tabular-nums"] as any,
   },
 });
