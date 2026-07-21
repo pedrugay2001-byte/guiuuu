@@ -9,10 +9,11 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "../../src/icons";
 import { api, PyxWallet, PyxTx } from "../../src/api";
 import { useGate } from "../../src/gate";
-import { formatPYX, formatPYXShort, formatUSD } from "../../src/pyx";
+import { formatPYXParts, formatUSxParts } from "../../src/pyx";
 import { TIERS } from "../../src/theme";
 import { usePYXRate } from "../../src/pyx-rate";
 import { useBalanceVisibility } from "../../src/use-balance-visibility";
+import { AmountText } from "../../src/amount-text";
 
 // Paleta platinum/prata metálica — efeito azul-prateado premium (Diamond)
 const GOLD_LIGHT = "#EAF1F6";   // reflexo prata
@@ -76,7 +77,6 @@ export default function WalletScreen() {
     );
   }
 
-  const balance = formatPYX(w.balance_centavos);
   const tier = TIERS[member.tier] || TIERS.black;
 
   return (
@@ -156,16 +156,21 @@ export default function WalletScreen() {
               </View>
 
               <Text style={styles.cardLbl}>SALDO DISPONÍVEL</Text>
-              <View style={styles.balanceRow}>
-                <Text style={styles.balanceValue}>
-                  {hideBalance ? "••••••" : balance}
-                </Text>
-                <Text style={styles.balanceUnit}>PYX</Text>
-              </View>
+              <AmountText
+                parts={formatPYXParts(w.balance_centavos)}
+                unit="PYX"
+                hidden={hideBalance}
+                style={styles.balanceValue}
+                unitStyle={styles.balanceUnit}
+                containerStyle={styles.balanceRow}
+              />
               <View style={styles.usdRow}>
-                <Text style={styles.usdValue}>
-                  {hideBalance ? "USx •••••" : formatUSD(w.balance_centavos, rateCentavos)}
-                </Text>
+                <AmountText
+                  parts={formatUSxParts(w.balance_centavos, rateCentavos)}
+                  hidden={hideBalance}
+                  style={styles.usdValue}
+                  prefixStyle={styles.usdValue}
+                />
                 {rate ? (
                   <Text style={styles.usdRate}>
                     · 1 USx = {rate.pyx_per_usd_display} PYX
@@ -274,16 +279,22 @@ export default function WalletScreen() {
             <View style={styles.escrowRow}>
               <View style={styles.escrowItem}>
                 <Text style={styles.escrowLbl}>A RECEBER</Text>
-                <Text style={[styles.escrowVal, { color: "#4EE07F" }]}>
-                  +{formatPYXShort(w.escrow_in_centavos)} PYX
-                </Text>
+                <AmountText
+                  parts={{ ...formatPYXParts(w.escrow_in_centavos), sign: "+" }}
+                  unit="PYX"
+                  style={[styles.escrowVal, { color: "#4EE07F" }]}
+                  unitStyle={[styles.escrowVal, { color: "#4EE07F" }]}
+                />
               </View>
               <View style={styles.escrowSep} />
               <View style={styles.escrowItem}>
                 <Text style={styles.escrowLbl}>EM GARANTIA</Text>
-                <Text style={[styles.escrowVal, { color: "#F5C150" }]}>
-                  {formatPYXShort(w.escrow_out_centavos)} PYX
-                </Text>
+                <AmountText
+                  parts={formatPYXParts(w.escrow_out_centavos)}
+                  unit="PYX"
+                  style={[styles.escrowVal, { color: "#F5C150" }]}
+                  unitStyle={[styles.escrowVal, { color: "#F5C150" }]}
+                />
               </View>
             </View>
           </View>
@@ -393,9 +404,12 @@ function TxRow({ tx, me }: { tx: PyxTx; me: string }) {
           {counterpart ? `${counterpart} · ${dateStr}` : dateStr}
         </Text>
       </View>
-      <Text style={[styles.txAmt, { color: isOut ? "#F87171" : "#4EE07F" }]}>
-        {sign}{formatPYX(tx.amount_centavos)} PYX
-      </Text>
+      <AmountText
+        parts={{ ...formatPYXParts(tx.amount_centavos), sign }}
+        unit="PYX"
+        style={[styles.txAmt, { color: isOut ? "#F87171" : "#4EE07F" }]}
+        unitStyle={[styles.txAmt, { color: isOut ? "#F87171" : "#4EE07F" }]}
+      />
     </View>
   );
 }

@@ -14,6 +14,45 @@ export function formatPYX(cents: number | null | undefined): string {
   return `${sign}${whole.toLocaleString("pt-BR")}`;
 }
 
+/** Formata centavos -> "1.234,56" (com decimais). Usado onde queremos mostrar centavos. */
+export function formatPYXWithCents(cents: number | null | undefined): string {
+  const c = Math.round(Number(cents || 0));
+  const abs = Math.abs(c);
+  const whole = Math.floor(abs / 100);
+  const dec = String(abs % 100).padStart(2, "0");
+  const sign = c < 0 ? "-" : "";
+  return `${sign}${whole.toLocaleString("pt-BR")},${dec}`;
+}
+
+/** Retorna partes do valor PYX separadas: `{ int: "1.234", dec: "56", sign: "-" | "" }`. */
+export function formatPYXParts(cents: number | null | undefined): { int: string; dec: string; sign: string } {
+  const c = Math.round(Number(cents || 0));
+  const abs = Math.abs(c);
+  const whole = Math.floor(abs / 100);
+  const dec = String(abs % 100).padStart(2, "0");
+  return {
+    int: whole.toLocaleString("pt-BR"),
+    dec,
+    sign: c < 0 ? "-" : "",
+  };
+}
+
+/** Retorna partes do valor USx: `{ prefix: "USx ", int: "9.983", dec: "37", sign }`. */
+export function formatUSxParts(
+  pyxCentavos: number | null | undefined,
+  rateCentavos: number | null | undefined,
+  opts: { prefix?: string } = {},
+): { prefix: string; int: string; dec: string; sign: string } {
+  const usd = pyxCentavosToUSD(pyxCentavos, rateCentavos);
+  const abs = Math.abs(usd);
+  const sign = usd < 0 ? "-" : "";
+  const prefix = opts.prefix ?? "USx ";
+  const [intPart, decPart] = abs
+    .toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    .split(",");
+  return { prefix, int: intPart, dec: decPart || "00", sign };
+}
+
 /** Formato compacto — agora idêntico ao formatPYX (sem decimais). */
 export function formatPYXShort(cents: number | null | undefined): string {
   return formatPYX(cents);

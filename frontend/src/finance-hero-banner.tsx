@@ -24,9 +24,9 @@ import Svg, {
   Defs, LinearGradient as SvgGradient, Stop, Rect, Path,
   Circle, G, Ellipse,
 } from "react-native-svg";
-import { formatPYX, formatUSD } from "./pyx";
+import { formatPYXParts, formatUSxParts } from "./pyx";
 import { usePYXRate } from "./pyx-rate";
-import { useBalanceVisibility, maskAmount } from "./use-balance-visibility";
+import { useBalanceVisibility } from "./use-balance-visibility";
 
 const GOLD = "#F5C150";
 const GOLD_LIGHT = "#FFE082";
@@ -104,8 +104,8 @@ export function FinanceHeroBanner({
   const { rate, rateCentavos } = usePYXRate();
   const { hidden } = useBalanceVisibility(memberId);
 
-  const pyxStr = maskAmount(formatPYX(balanceCentavos || 0), hidden);
-  const usdStr = maskAmount(formatUSD(balanceCentavos || 0, rateCentavos), hidden);
+  const pyxP = formatPYXParts(balanceCentavos || 0);
+  const usxP = formatUSxParts(balanceCentavos || 0, rateCentavos);
   const rateDisplay = rate?.pyx_per_usd_display || "5,00";
 
   const customBg =
@@ -131,11 +131,25 @@ export function FinanceHeroBanner({
         <View style={s.left}>
           <Text style={s.title}>SALDO</Text>
           <View style={s.balanceRow}>
-            <MetallicText scheme="silver" style={s.balanceValue}>{pyxStr}</MetallicText>
+            {hidden ? (
+              <MetallicText scheme="silver" style={s.balanceValue}>••••••</MetallicText>
+            ) : (
+              <>
+                <MetallicText scheme="silver" style={s.balanceValue}>{pyxP.int}</MetallicText>
+                <MetallicText scheme="silver" style={s.balanceCents}>,{pyxP.dec}</MetallicText>
+              </>
+            )}
             <MetallicText scheme="silver" style={s.balanceUnit}> PYX</MetallicText>
           </View>
           <View style={s.usdPill}>
-            <MetallicText scheme="green" style={s.usdVal}>{usdStr}</MetallicText>
+            {hidden ? (
+              <MetallicText scheme="green" style={s.usdVal}>USx •••••</MetallicText>
+            ) : (
+              <View style={s.usdInline}>
+                <MetallicText scheme="green" style={s.usdVal}>{usxP.prefix}{usxP.int}</MetallicText>
+                <MetallicText scheme="green" style={s.usdCents}>,{usxP.dec}</MetallicText>
+              </View>
+            )}
           </View>
         </View>
 
@@ -347,6 +361,14 @@ const s = StyleSheet.create({
     fontVariant: ["tabular-nums"] as any,
     lineHeight: 40,
   },
+  balanceCents: {
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: -0.4,
+    fontVariant: ["tabular-nums"] as any,
+    lineHeight: 40,
+    marginLeft: 1,
+  },
   balanceUnit: {
     fontSize: 14,
     fontWeight: "900",
@@ -385,8 +407,18 @@ const s = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 1,
   },
+  usdInline: {
+    flexDirection: "row",
+    alignItems: "baseline",
+  },
   usdVal: {
     fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: 0.2,
+    fontVariant: ["tabular-nums"] as any,
+  },
+  usdCents: {
+    fontSize: 10,
     fontWeight: "900",
     letterSpacing: 0.2,
     fontVariant: ["tabular-nums"] as any,

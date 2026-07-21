@@ -20,7 +20,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "../../src/icons";
 import { api, PyxTx } from "../../src/api";
 import { useGate } from "../../src/gate";
-import { formatPYX } from "../../src/pyx";
+import { formatPYXParts } from "../../src/pyx";
+import { AmountText } from "../../src/amount-text";
 
 type Filter = "all" | "in" | "out" | "purchases" | "topups";
 type RowItem =
@@ -368,9 +369,12 @@ function TxRow({ tx, me, onPress }: { tx: PyxTx; me: string; onPress: () => void
         )}
       </View>
       <View style={styles.txRight}>
-        <Text style={[styles.txAmt, { color: isOut ? "#F87171" : "#4EE07F" }]}>
-          {sign}{formatPYX(tx.amount_centavos)} PYX
-        </Text>
+        <AmountText
+          parts={{ ...formatPYXParts(tx.amount_centavos), sign }}
+          unit="PYX"
+          style={[styles.txAmt, { color: isOut ? "#F87171" : "#4EE07F" }]}
+          unitStyle={[styles.txAmt, { color: isOut ? "#F87171" : "#4EE07F" }]}
+        />
         <Ionicons name="chevron-forward" size={16} color="#3A3A3A" />
       </View>
     </TouchableOpacity>
