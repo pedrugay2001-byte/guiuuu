@@ -320,12 +320,12 @@ export default function Send() {
               />
               <Text style={styles.amountUnit}>{inputMode === "pyx" ? "PYX" : "USx"}</Text>
             </View>
-            {/* Conversão em tempo real */}
+            {/* Conversão em tempo real (sem cotação) */}
             {amountCents > 0 && rate && (
               <Text style={styles.conversionHint} testID="pyx-conversion-hint">
                 {inputMode === "pyx"
-                  ? `≈ ${formatUSx(amountCents, rateCentavos)} · Cotação 1 USx = ${rate.pyx_per_usd_display} PYX`
-                  : `= ${formatPYX(amountCents)} PYX · Cotação 1 USx = ${rate.pyx_per_usd_display} PYX`}
+                  ? `≈ ${formatUSx(amountCents, rateCentavos)}`
+                  : `= ${formatPYX(amountCents)} PYX`}
               </Text>
             )}
             <Text style={[styles.balanceHint, !enough && amountCents > 0 && { color: "#F87171" }]}>
@@ -385,15 +385,6 @@ export default function Send() {
 
               <View style={styles.reviewLine} />
 
-              {/* Cotação utilizada */}
-              {rate && (
-                <View style={styles.reviewRow}>
-                  <Text style={styles.reviewLbl}>COTAÇÃO</Text>
-                  <Text style={[styles.reviewVal, { color: "#F5C150" }]}>
-                    1 USx = {rate.pyx_per_usd_display} PYX
-                  </Text>
-                </View>
-              )}
               <View style={styles.reviewRow}>
                 <Text style={styles.reviewLbl}>PARA</Text>
                 <View style={{ alignItems: "flex-end", flex: 1, marginLeft: 16 }}>
@@ -683,19 +674,21 @@ const styles = StyleSheet.create({
   conversionHint: {
     textAlign: "center",
     color: "#4EE07F",
-    fontSize: 12,
-    marginTop: 6,
-    fontWeight: "700",
+    fontSize: 18,
+    marginTop: 8,
+    fontWeight: "900",
+    letterSpacing: 0.2,
     fontVariant: ["tabular-nums"] as any,
   },
 
   // Equivalente USx no review
   reviewUSx: {
     color: "#4EE07F",
-    fontSize: 14,
+    fontSize: 20,
     fontWeight: "900",
     textAlign: "center",
-    marginTop: 6,
+    marginTop: 8,
+    letterSpacing: 0.2,
     fontVariant: ["tabular-nums"] as any,
   },
   quickRow: { flexDirection: "row", gap: 8, marginTop: 14 },
