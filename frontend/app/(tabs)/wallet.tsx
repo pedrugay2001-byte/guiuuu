@@ -169,11 +169,13 @@ export default function WalletScreen() {
                   parts={formatUSxParts(w.balance_centavos, rateCentavos)}
                   hidden={hideBalance}
                   style={styles.usdValue}
-                  prefixStyle={styles.usdValue}
+                  prefixStyle={styles.usdPrefix}
                 />
                 {rate ? (
                   <Text style={styles.usdRate}>
-                    · 1 USx = {rate.pyx_per_usd_display} PYX
+                    · 1 <Text style={styles.usdRateUsx}>USx</Text> ={" "}
+                    <Text style={styles.usdRateNumber}>{rate.pyx_per_usd_display}</Text>{" "}
+                    PYX
                   </Text>
                 ) : null}
               </View>
@@ -481,12 +483,33 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     fontVariant: ["tabular-nums"] as any,
   },
+  // Prefixo "USx " do saldo em USx — cinza escuro (destaque menor)
+  usdPrefix: {
+    color: "#5A5F66",
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    fontVariant: ["tabular-nums"] as any,
+  },
   usdRate: {
     color: "#7A7A7A",
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.3,
     marginLeft: 6,
+  },
+  // "USx" dentro do texto de cotação — cinza escuro
+  usdRateUsx: {
+    color: "#5A5F66",
+    fontWeight: "800",
+  },
+  // Número da cotação (5,10) — dourado destacado
+  usdRateNumber: {
+    color: GOLD_LIGHT,
+    fontWeight: "900",
+    fontSize: 12,
+    letterSpacing: 0.2,
+    fontVariant: ["tabular-nums"] as any,
   },
 
   goldDivider: {
