@@ -424,7 +424,7 @@ function RingProgress({ size, stroke, progress, label }: { size: number; stroke:
 }
 
 
-/** Faixa fina "1 USD = X,XX PYX" na home. Auto-atualiza via PYXRateProvider. */
+/** Faixa fina "1 USx = X,XX PYX" na home. Auto-atualiza via PYXRateProvider. */
 function RateStripe() {
   const { rate } = usePYXRate();
   if (!rate) return null;
@@ -432,7 +432,7 @@ function RateStripe() {
     <View style={s.rateStripe} testID="home-rate-stripe">
       <View style={s.rateDot} />
       <Text style={s.rateTxt}>Cotação do dia · </Text>
-      <Text style={s.rateVal}>1 USD = {rate.pyx_per_usd_display} PYX</Text>
+      <Text style={s.rateVal}>1 USx = {rate.pyx_per_usd_display} PYX</Text>
     </View>
   );
 }

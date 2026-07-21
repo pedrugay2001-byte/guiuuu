@@ -9,13 +9,15 @@ import { Ionicons } from "../../../src/icons";
 import { api, PyxReceipt, PyxContact, DMThread } from "../../../src/api";
 import { useGate } from "../../../src/gate";
 import { ReceiptCard } from "../../../src/receipt-card";
-import { formatPYX } from "../../../src/pyx";
+import { formatPYX, formatUSx } from "../../../src/pyx";
+import { usePYXRate } from "../../../src/pyx-rate";
 import { shareReceiptImage, saveReceiptImage, shareToWhatsApp } from "../../../src/receipt-share";
 
 export default function ReceiptScreen() {
   const router = useRouter();
   const { txId } = useLocalSearchParams<{ txId: string }>();
   const { member } = useGate();
+  const { rateCentavos } = usePYXRate();
 
   const [receipt, setReceipt] = useState<PyxReceipt | null>(null);
   const [loading, setLoading] = useState(true);
@@ -111,6 +113,7 @@ export default function ReceiptScreen() {
         `${receipt.status === "settled" ? "Liquidado" : receipt.status}`,
         ``,
         `Valor: ${formatPYX(receipt.amount_centavos)} PYX`,
+        `Equivalente: ${formatUSx(receipt.amount_centavos, rateCentavos)}`,
         `De: ${receipt.from_name || receipt.from_wallet || "—"} (${receipt.from_wallet || "—"})`,
         `Para: ${receipt.to_name || receipt.to_wallet || "—"} (${receipt.to_wallet || "—"})`,
         `Data/Hora${receipt.display_datetime_brt ? " (BRT)" : ""}: ${

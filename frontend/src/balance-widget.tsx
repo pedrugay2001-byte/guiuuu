@@ -6,7 +6,7 @@
  *
  *   ┌─────────────────────────────┐
  *   │  60.917 pyx        👁      │  ← número grande, sigla pequena
- *   │  US$ 12.183,44             │  ← USD em dourado, fonte um pouco menor
+ *   │  USx 12.183,44             │  ← USD em dourado, fonte um pouco menor
  *   └─────────────────────────────┘
  *
  * Toque no card leva para /wallet. Botão do olho mostra/oculta ambos.

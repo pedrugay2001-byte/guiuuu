@@ -8,9 +8,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "../../src/icons";
 import { api, PyxContact, PyxWallet, PyxReceipt } from "../../src/api";
 import { useGate } from "../../src/gate";
-import { formatPYX, maskPYXInput, maskedToCents } from "../../src/pyx";
+import { formatPYX, formatUSx, maskPYXInput, maskedToCents, usxMaskedToPyxCentavos } from "../../src/pyx";
 import { TIERS } from "../../src/theme";
 import { ReceiptCard } from "../../src/receipt-card";
+import { usePYXRate } from "../../src/pyx-rate";
 
 type Step = "search" | "amount" | "review" | "success";
 
@@ -26,11 +27,13 @@ export default function Send() {
   const [selected, setSelected] = useState<PyxContact | null>(null);
   const [w, setW] = useState<PyxWallet | null>(null);
   const [masked, setMasked] = useState("0,00");
+  const [inputMode, setInputMode] = useState<"pyx" | "usx">("pyx"); // moeda em que o usuário está digitando
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [txSuccess, setTxSuccess] = useState<any>(null);
   const [receipt, setReceipt] = useState<PyxReceipt | null>(null);  // ETAPA 4
   const [pwdOpen, setPwdOpen] = useState(false);       // ETAPA 3: modal de senha
+  const { rate, rateCentavos } = usePYXRate();
   const [pwd, setPwd] = useState("");
   const [pwdError, setPwdError] = useState<string | null>(null);
   const [limits, setLimits] = useState<{
@@ -65,7 +68,12 @@ export default function Send() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query, step, member]);
 
-  const amountCents = useMemo(() => maskedToCents(masked), [masked]);
+  // amountCents SEMPRE em PYX (centavos). Conversão em tempo real se o usuário
+  // estiver digitando em USx.
+  const amountCents = useMemo(() => {
+    if (inputMode === "usx") return usxMaskedToPyxCentavos(masked, rateCentavos);
+    return maskedToCents(masked);
+  }, [masked, inputMode, rateCentavos]);
   const balance = w?.balance_centavos || 0;
   const enough = amountCents > 0 && amountCents <= balance;
 
@@ -275,8 +283,28 @@ export default function Send() {
           <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
             <ContactCard c={selected} />
 
-            <Text style={[styles.label, { marginTop: 24, textAlign: "center" }]}>
-              VALOR A ENVIAR (PYX)
+            {/* Toggle de moeda: PYX ↔ USx */}
+            <View style={styles.currencyToggle}>
+              <TouchableOpacity
+                style={[styles.currencyBtn, inputMode === "pyx" && styles.currencyBtnActivePYX]}
+                onPress={() => { setInputMode("pyx"); setMasked("0,00"); }}
+                testID="pyx-currency-pyx"
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.currencyTxt, inputMode === "pyx" && { color: "#0A0A0A" }]}>PYX</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.currencyBtn, inputMode === "usx" && styles.currencyBtnActiveUSX]}
+                onPress={() => { setInputMode("usx"); setMasked("0,00"); }}
+                testID="pyx-currency-usx"
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.currencyTxt, inputMode === "usx" && { color: "#0A0A0A" }]}>USx</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.label, { marginTop: 12, textAlign: "center" }]}>
+              VALOR A ENVIAR ({inputMode === "pyx" ? "PYX" : "USx"})
             </Text>
             <View style={styles.amountBox}>
               <TextInput
@@ -290,8 +318,16 @@ export default function Send() {
                 autoFocus
                 selectTextOnFocus
               />
-              <Text style={styles.amountUnit}>PYX</Text>
+              <Text style={styles.amountUnit}>{inputMode === "pyx" ? "PYX" : "USx"}</Text>
             </View>
+            {/* Conversão em tempo real */}
+            {amountCents > 0 && rate && (
+              <Text style={styles.conversionHint} testID="pyx-conversion-hint">
+                {inputMode === "pyx"
+                  ? `≈ ${formatUSx(amountCents, rateCentavos)} · Cotação 1 USx = ${rate.pyx_per_usd_display} PYX`
+                  : `= ${formatPYX(amountCents)} PYX · Cotação 1 USx = ${rate.pyx_per_usd_display} PYX`}
+              </Text>
+            )}
             <Text style={[styles.balanceHint, !enough && amountCents > 0 && { color: "#F87171" }]}>
               {amountCents > 0 && amountCents > balance
                 ? `Saldo insuficiente (${formatPYX(balance)} PYX)`
@@ -342,9 +378,22 @@ export default function Send() {
                 <Text style={styles.reviewAmount}>{formatPYX(amountCents)}</Text>
                 <Text style={styles.reviewUnit}>PYX</Text>
               </View>
+              {/* Equivalente em USx sempre exibido */}
+              <Text style={styles.reviewUSx} testID="pyx-review-usx">
+                ≈ {formatUSx(amountCents, rateCentavos)}
+              </Text>
 
               <View style={styles.reviewLine} />
 
+              {/* Cotação utilizada */}
+              {rate && (
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLbl}>COTAÇÃO</Text>
+                  <Text style={[styles.reviewVal, { color: "#F5C150" }]}>
+                    1 USx = {rate.pyx_per_usd_display} PYX
+                  </Text>
+                </View>
+              )}
               <View style={styles.reviewRow}>
                 <Text style={styles.reviewLbl}>PARA</Text>
                 <View style={{ alignItems: "flex-end", flex: 1, marginLeft: 16 }}>
@@ -358,6 +407,10 @@ export default function Send() {
                   <Text style={styles.reviewVal} numberOfLines={1}>{member.nickname || member.name}</Text>
                   <Text style={styles.reviewValSmall}>{w?.wallet_number}</Text>
                 </View>
+              </View>
+              <View style={styles.reviewRow}>
+                <Text style={styles.reviewLbl}>TAXA</Text>
+                <Text style={[styles.reviewVal, { color: "#4EE07F" }]}>Grátis</Text>
               </View>
               {note.trim() ? (
                 <View style={styles.reviewRow}>
@@ -604,6 +657,47 @@ const styles = StyleSheet.create({
   },
   amountUnit: { color: "#C5D1DA", fontSize: 13, fontWeight: "900", letterSpacing: 1.5 },
   balanceHint: { textAlign: "center", color: "#8A8A8A", fontSize: 11, marginTop: 4, fontWeight: "700" },
+
+  // Toggle PYX / USx
+  currencyToggle: {
+    flexDirection: "row",
+    alignSelf: "center",
+    marginTop: 20,
+    padding: 4,
+    borderRadius: 24,
+    backgroundColor: "#0A0A0A",
+    borderWidth: 1,
+    borderColor: "#1F1F1F",
+    gap: 4,
+  },
+  currencyBtn: {
+    paddingHorizontal: 22,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  currencyBtnActivePYX: { backgroundColor: "#C5D1DA" },
+  currencyBtnActiveUSX: { backgroundColor: "#4EE07F" },
+  currencyTxt: { color: "#AAA", fontSize: 12, fontWeight: "900", letterSpacing: 1.4 },
+
+  // Real-time conversion hint (below input)
+  conversionHint: {
+    textAlign: "center",
+    color: "#4EE07F",
+    fontSize: 12,
+    marginTop: 6,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"] as any,
+  },
+
+  // Equivalente USx no review
+  reviewUSx: {
+    color: "#4EE07F",
+    fontSize: 14,
+    fontWeight: "900",
+    textAlign: "center",
+    marginTop: 6,
+    fontVariant: ["tabular-nums"] as any,
+  },
   quickRow: { flexDirection: "row", gap: 8, marginTop: 14 },
   quickBtn: {
     flex: 1, paddingVertical: 10,

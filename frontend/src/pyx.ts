@@ -54,12 +54,14 @@ export function maskedToCents(masked: string): number {
 }
 
 // ============================================================================
-// PYX ↔ USD — cotação configurada pelo Master Admin
+// PYX ↔ USx — cotação configurada pelo Master Admin
 // ============================================================================
-// `rateCentavos` = quantos centavos de PYX equivalem a 1 USD.
-// Ex: 500 → 5,00 PYX = 1 USD.
+// USx é o nome oficial da moeda de referência baseada em dólar dentro do
+// ecossistema BLACKSCLUB (não é um token separado — apenas nome/UX).
+// `rateCentavos` = quantos centavos de PYX equivalem a 1 USx.
+// Ex: 500 → 5,00 PYX = 1 USx.
 
-/** Converte um valor de PYX (em centavos) para USD (float). */
+/** Converte um valor de PYX (em centavos) para USx (float). */
 export function pyxCentavosToUSD(
   pyxCentavos: number | null | undefined,
   rateCentavos: number | null | undefined,
@@ -70,8 +72,17 @@ export function pyxCentavosToUSD(
   return c / r;
 }
 
-/** Formata valor de USD como "US$ 1.234,56" (padrão brasileiro). */
+/** Alias legado — usa `formatUSx` internamente. Mantido para não quebrar callers. */
 export function formatUSD(
+  pyxCentavos: number | null | undefined,
+  rateCentavos: number | null | undefined,
+  opts: { compact?: boolean; withSign?: boolean; prefix?: string } = {},
+): string {
+  return formatUSx(pyxCentavos, rateCentavos, opts);
+}
+
+/** Formata valor em USx: "USx 1.234,56" (padrão brasileiro de casas). */
+export function formatUSx(
   pyxCentavos: number | null | undefined,
   rateCentavos: number | null | undefined,
   opts: { compact?: boolean; withSign?: boolean; prefix?: string } = {},
@@ -79,9 +90,8 @@ export function formatUSD(
   const usd = pyxCentavosToUSD(pyxCentavos, rateCentavos);
   const abs = Math.abs(usd);
   const sign = opts.withSign && usd < 0 ? "-" : "";
-  const prefix = opts.prefix ?? "US$ ";
+  const prefix = opts.prefix ?? "USx ";
   if (opts.compact && abs >= 1000) {
-    // "1,2 mil" / "1,5 mi" — mantém padrão pt-BR
     const K = abs / 1000;
     if (K >= 1000) return `${sign}${prefix}${(K / 1000).toFixed(1).replace(".", ",")} mi`;
     return `${sign}${prefix}${K.toFixed(1).replace(".", ",")} mil`;
@@ -92,13 +102,27 @@ export function formatUSD(
   })}`;
 }
 
-/** Formata a cotação para exibição: "1 USD = 5,00 PYX". */
+/** Converte digitação USx (masked "1.234,56") → centavos de PYX. */
+export function usxMaskedToPyxCentavos(
+  masked: string,
+  rateCentavos: number | null | undefined,
+): number {
+  const digits = String(masked).replace(/\D/g, "");
+  if (!digits) return 0;
+  const usdCentavos = parseInt(digits, 10); // centavos de USx (2 decimais)
+  const r = Number(rateCentavos || 0);
+  if (!r) return 0;
+  // pyx_centavos = usx_units * rate_centavos = (usdCentavos/100) * rateCentavos
+  return Math.round((usdCentavos * r) / 100);
+}
+
+/** Formata a cotação: "1 USx = 5,00 PYX". */
 export function formatRate(rateCentavos: number | null | undefined): string {
   const c = Number(rateCentavos || 0);
-  if (!c) return "1 USD = —";
+  if (!c) return "1 USx = —";
   const val = (c / 100).toLocaleString("pt-BR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  return `1 USD = ${val} PYX`;
+  return `1 USx = ${val} PYX`;
 }

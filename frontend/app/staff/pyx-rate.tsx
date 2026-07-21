@@ -1,5 +1,5 @@
 /**
- * Tela de configuração da cotação PYX/USD — acesso exclusivo do Master Admin.
+ * Tela de configuração da cotação PYX/USx — acesso exclusivo do Master Admin.
  *
  * Fluxo:
  *  1. Mostra a cotação vigente (com quem alterou por último e quando).
@@ -66,7 +66,7 @@ export default function PyxRateScreen() {
       await api.pyxRateSet({ pyx_per_usd_centavos: newCentavos });
       await refresh();
       await loadHistory();
-      notify("Cotação PYX/USD atualizada", `Nova cotação: 1 USD = ${(newCentavos / 100).toFixed(2).replace(".", ",")} PYX`);
+      notify("Cotação PYX/USx atualizada", `Nova cotação: 1 USx = ${(newCentavos / 100).toFixed(2).replace(".", ",")} PYX`);
     } catch (e: any) {
       notify("Falha ao atualizar cotação", e?.message || "Tente novamente");
     } finally {
@@ -82,7 +82,7 @@ export default function PyxRateScreen() {
             <Ionicons name="chevron-back" size={22} color="#FFF" />
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: "center" }}>
-            <Text style={s.title}>COTAÇÃO PYX / USD</Text>
+            <Text style={s.title}>COTAÇÃO PYX / USx</Text>
             <Text style={s.sub}>Master Admin</Text>
           </View>
           <View style={{ width: 40 }} />
@@ -100,7 +100,7 @@ export default function PyxRateScreen() {
                 <Text style={s.currentKicker}>COTAÇÃO VIGENTE</Text>
               </View>
               <View style={s.currentAmountRow}>
-                <Text style={s.usdMark}>1 USD =</Text>
+                <Text style={s.usdMark}>1 USx =</Text>
                 <Text style={s.currentAmount}>
                   {rate?.pyx_per_usd_display || "5,00"}
                 </Text>
@@ -120,7 +120,7 @@ export default function PyxRateScreen() {
             {/* Editor */}
             <Text style={s.section}>NOVA COTAÇÃO</Text>
             <View style={s.editor}>
-              <Text style={s.editorPrefix} numberOfLines={1}>1 USD =</Text>
+              <Text style={s.editorPrefix} numberOfLines={1}>1 USx =</Text>
               <TextInput
                 style={s.editorInput}
                 value={input}
@@ -134,7 +134,7 @@ export default function PyxRateScreen() {
               <Text style={s.editorSuffix} numberOfLines={1}>PYX</Text>
             </View>
             <Text style={s.editorHint}>
-              Digite quantos PYX equivalem a 1 USD. Ao salvar, todos os saldos em USD do
+              Digite quantos PYX equivalem a 1 USx. Ao salvar, todos os saldos em USx do
               app serão recalculados automaticamente.
             </Text>
 
@@ -188,7 +188,7 @@ export default function PyxRateScreen() {
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={s.histAmount} numberOfLines={1}>
-                        {prevStr} → <Text style={{ color: up ? "#4EE07F" : "#F87171" }}>{newStr}</Text> PYX/USD
+                        {prevStr} → <Text style={{ color: up ? "#4EE07F" : "#F87171" }}>{newStr}</Text> PYX/USx
                       </Text>
                       <Text style={s.histMeta} numberOfLines={1}>
                         {new Date(h.changed_at).toLocaleString("pt-BR", {

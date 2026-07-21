@@ -1,21 +1,21 @@
 /**
  * FinanceHeroBanner — Painel financeiro premium da home.
  *
- * Layout revisado (v3 — nova hierarquia visual):
+ * Layout revisado (v4 — minimalismo maior):
  *
  *   ┌────────────────────────────────────────────────────────────┐
- *   │  SALDO PYX                       COTAÇÃO DO DIA            │
- *   │  50.915 PYX (gradient metálico) ┃  ┌ 1 USD = 5,00 PYX ┐   │
- *   │  ┌ Valor convertido (US$) ┐    ┃  └───────────────────┘   │
- *   │  │ US$ 10.183,04          │    ┃                          │
- *   │  └────────────────────────┘    ┃    (gráfico + moedas)    │
+ *   │  SALDO                              COTAÇÃO DO DIA         │
+ *   │  50.915 PYX (gradient metálico)  ┃  ┌ 1 USx = 5,00 PYX ┐   │
+ *   │  ┌ USx 10.183,04 ┐                ┃  └─────────────────┘   │
+ *   │  └───────────────┘                ┃                        │
  *   └────────────────────────────────────────────────────────────┘
  *
  * Tipografia:
- *  - Valor principal (50.915): degradê dourado metálico + 3D + glow discreto
- *  - "PYX" em maiúsculas menor, mesma família dourada
- *  - Títulos em cinza claro / branco discreto para hierarquia
- *  - Aba USD e Cotação: preto fosco + borda dourada fina + sombra suave
+ *  - Valor principal (50.915): degradê metálico prata + 3D + glow discreto
+ *  - "PYX" em maiúsculas menor, mesma família metálica
+ *  - Título "SALDO" em cinza claro discreto para hierarquia
+ *  - Pill USx: preto fosco + borda verde fina + shadow suave
+ *  - Pill Cotação: preto fosco + borda dourada fina + shadow suave
  */
 
 import React from "react";
@@ -129,13 +129,12 @@ export function FinanceHeroBanner({
       <View style={s.content}>
         {/* Coluna esquerda — SALDO */}
         <View style={s.left}>
-          <Text style={s.title}>SALDO PYX</Text>
+          <Text style={s.title}>SALDO</Text>
           <View style={s.balanceRow}>
             <MetallicText scheme="silver" style={s.balanceValue}>{pyxStr}</MetallicText>
             <MetallicText scheme="silver" style={s.balanceUnit}> PYX</MetallicText>
           </View>
           <View style={s.usdPill}>
-            <Text style={s.usdLbl}>Valor convertido (US$)</Text>
             <MetallicText scheme="green" style={s.usdVal}>{usdStr}</MetallicText>
           </View>
         </View>
@@ -148,7 +147,7 @@ export function FinanceHeroBanner({
           <Text style={s.title}>COTAÇÃO DO DIA</Text>
           <View style={s.ratePill}>
             <MetallicText scheme="gold" style={s.rateTxt}>
-              1 USD = {rateDisplay} PYX
+              1 USx = {rateDisplay} PYX
             </MetallicText>
           </View>
         </View>
@@ -355,12 +354,12 @@ const s = StyleSheet.create({
     lineHeight: 40,
   },
 
-  // Pill "Valor convertido (US$)" — preto fosco + borda VERDE + shadow
+  // Pill do valor em USx (verde) — preto fosco + borda VERDE + shadow
   usdPill: {
     marginTop: 6,
     alignSelf: "flex-start",
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 5,
     borderRadius: 22,
     backgroundColor: "rgba(0,0,0,0.55)",
     borderWidth: 1,

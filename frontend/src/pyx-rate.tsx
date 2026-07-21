@@ -1,5 +1,5 @@
 /**
- * PYX Rate Provider — cache global reativo da cotação PYX/USD + imagem hero.
+ * PYX Rate Provider — cache global reativo da cotação PYX/USx + imagem hero.
  *
  * Estratégia v2 (com cache):
  *  - Ao montar, HIDRATA do AsyncStorage instantaneamente (sem flicker de UI).

@@ -14,7 +14,8 @@
 import { View, Text, StyleSheet, Image } from "react-native";
 import { Ionicons } from "./icons";
 import { PyxReceipt } from "./api";
-import { formatPYX } from "./pyx";
+import { formatPYX, formatUSx } from "./pyx";
+import { usePYXRate } from "./pyx-rate";
 import { TIERS } from "./theme";
 
 type Variant = "full" | "compact";
@@ -28,6 +29,7 @@ export function ReceiptCard({
   variant?: Variant;
   perspective?: string; // member_id que está visualizando (destaca "Enviado" ou "Recebido")
 }) {
+  const { rateCentavos } = usePYXRate();
   const isCompact = variant === "compact";
   const fromInfo = receipt.from_info || {};
   const toInfo = receipt.to_info || {};
@@ -82,6 +84,10 @@ export function ReceiptCard({
         <Text style={styles.amount}>{formatPYX(receipt.amount_centavos)}</Text>
         <Text style={styles.amountUnit}>PYX</Text>
       </View>
+      {/* Equivalente em USx (novo — cotação atual) */}
+      <Text style={styles.amountUSx}>
+        ≈ {formatUSx(receipt.amount_centavos, rateCentavos)}
+      </Text>
 
       <View style={styles.line} />
 
@@ -252,6 +258,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
     letterSpacing: 1.5,
+  },
+  amountUSx: {
+    color: "#4EE07F",
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 0.3,
+    textAlign: "center",
+    marginTop: 4,
+    fontVariant: ["tabular-nums"] as any,
   },
   line: {
     height: 1,

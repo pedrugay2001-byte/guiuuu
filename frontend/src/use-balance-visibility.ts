@@ -100,5 +100,6 @@ export function useBalanceVisibility(memberId?: string) {
 export function maskAmount(str: string, hidden: boolean, dots = 4): string {
   if (!hidden) return str;
   const marker = "•".repeat(dots);
-  return str.replace(/(US\$\s*)?[\d.,]+/, (_m, sign) => `${sign || ""}${marker}`);
+  // Preserva prefixos "US$ ", "USx ", "$" antes do bloco de dígitos.
+  return str.replace(/((?:US\$|USx|\$)\s*)?[\d.,]+/, (_m, sign) => `${sign || ""}${marker}`);
 }

@@ -468,7 +468,7 @@ export const api = {
       `/pyx/receipt/${tx_id}${member_id ? `?member_id=${encodeURIComponent(member_id)}` : ""}`
     ),
 
-  // ----- PYX/USD Rate (cotação configurável pelo master admin) -----
+  // ----- PYX/USx Rate (cotação configurável pelo master admin) -----
   pyxRate: () => request<PyxRate>("/pyx/rate"),
   pyxRateSet: (body: { pyx_per_usd_centavos?: number; pyx_per_usd?: number }) =>
     request<PyxRate>("/pyx/rate", { method: "PUT", body: JSON.stringify(body) }),
@@ -850,9 +850,9 @@ export type PyxTx = {
   display_tz_brt?: string;         // "America/Sao_Paulo"
 };
 
-// ---- PYX/USD Rate ----
+// ---- PYX/USx Rate ----
 export type PyxRate = {
-  pyx_per_usd_centavos: number;     // ex: 500 (5,00 PYX/USD)
+  pyx_per_usd_centavos: number;     // ex: 500 (5,00 PYX/USx)
   pyx_per_usd: number;              // 5.0
   pyx_per_usd_display: string;      // "5,00"
   updated_at?: string;

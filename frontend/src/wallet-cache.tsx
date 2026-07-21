@@ -1,5 +1,5 @@
 /**
- * Cache instantâneo para saldo do membro e cotação PYX/USD.
+ * Cache instantâneo para saldo do membro e cotação PYX/USx.
  *
  * Estratégia:
  *  - Cache em memória (Map) — leitura síncrona instantânea.

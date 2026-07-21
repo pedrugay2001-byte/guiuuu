@@ -164,11 +164,11 @@ export default function WalletScreen() {
               </View>
               <View style={styles.usdRow}>
                 <Text style={styles.usdValue}>
-                  {hideBalance ? "$•••••" : formatUSD(w.balance_centavos, rateCentavos)}
+                  {hideBalance ? "USx •••••" : formatUSD(w.balance_centavos, rateCentavos)}
                 </Text>
                 {rate ? (
                   <Text style={styles.usdRate}>
-                    · 1 USD = {rate.pyx_per_usd_display} PYX
+                    · 1 USx = {rate.pyx_per_usd_display} PYX
                   </Text>
                 ) : null}
               </View>

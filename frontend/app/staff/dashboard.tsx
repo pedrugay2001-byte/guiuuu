@@ -211,7 +211,7 @@ export default function StaffDashboard() {
                 testID="staff-action-pyx-rate"
               >
                 <Ionicons name="cash" size={18} color="#000" />
-                <Text style={[styles.actionText, { color: "#000" }]}>COTAÇÃO PYX / USD</Text>
+                <Text style={[styles.actionText, { color: "#000" }]}>COTAÇÃO PYX / USx</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: "#5BA8F0", borderColor: "#5BA8F0" }]}
