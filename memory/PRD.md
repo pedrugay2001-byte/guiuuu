@@ -45,3 +45,11 @@ Exclusive members-only mobile club for buying weight-loss products, peptides, La
 
 ## Smart enhancement
 **Dashboard de rede**: visualizar a árvore genealógica de indicações (quem trouxe quem, quantos membros em cada galho). Permite ver rapidamente quais padrinhos estão trazendo mais membros — ótimo pra recompensar com descontos progressivos no futuro.
+
+## Sincronização Emergent ↔ GitHub ↔ Domínio (corrigido em 21/07)
+**Causa raiz da divergência de senha Master:** em 07/06 o `.gitignore` passou a bloquear os `.env` (removidos do Git em 31/05). O deploy externo ficou sem `ADMIN_EMAIL`/`ADMIN_PASSWORD`, o `seed_admin()` falhava silenciosamente (KeyError) e o banco de produção mantinha a senha antiga. Além disso, o build web (`backend/static_frontend/`) estava congelado em 07/06 — sem USx, AmountText, cores novas.
+**Correções aplicadas:**
+1. `.gitignore` corrigido — `.env` voltam a ser versionados (NUNCA re-adicionar regras `*.env`).
+2. `seed_admin()` blindado com fallbacks (`guilherme925145000@gmail.com` / `Shakira12@`) — qualquer ambiente converge para a mesma senha a cada startup, mesmo sem `.env`.
+3. `static_frontend` re-compilado com todas as mudanças recentes (USx, centavos menores, cores).
+**Fluxo de publicação:** após qualquer mudança de frontend, rodar `bash /app/scripts/build-and-deploy-frontend.sh` e depois "Save to GitHub" — o Netlify republica automaticamente.

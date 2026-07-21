@@ -89,10 +89,9 @@ memory/test_credentials.md
 # Mobile development
 android-sdk/
 # NOTE: .env files MUST be committed for Emergent K8s deployment (auto-updated with prod values).
+# NEVER add .env / *.env rules here — bloquear .env quebra a senha do Master
+# na versão publicada (GitHub/Netlify) pois o seed_admin depende do ADMIN_EMAIL/ADMIN_PASSWORD.
 # Only secrets/credentials files are blocked below.
 credentials.json
 *.key
 .credentials
-.env
-.env.*
-*.env

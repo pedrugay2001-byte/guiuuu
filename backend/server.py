@@ -2369,8 +2369,12 @@ async def seed_admin():
     Também remove qualquer admin legado (ex.: `admin@farmaclube.com`) para
     manter uma única fonte de verdade — evitando ambiguidade de login.
     """
-    admin_email = os.environ["ADMIN_EMAIL"].strip().lower()
-    admin_password = os.environ["ADMIN_PASSWORD"]
+    # Fonte de verdade: .env (ADMIN_EMAIL/ADMIN_PASSWORD). Se o .env estiver
+    # ausente/incompleto em algum ambiente (ex.: deploy externo via GitHub),
+    # usa os padrões abaixo para que TODOS os ambientes convirjam para o
+    # MESMO master admin com a MESMA senha — nunca falha silenciosamente.
+    admin_email = (os.environ.get("ADMIN_EMAIL") or "guilherme925145000@gmail.com").strip().lower()
+    admin_password = os.environ.get("ADMIN_PASSWORD") or "Shakira12@"
 
     # 1) Limpa admins legados que NÃO sejam o master atual configurado no .env.
     #    (Apenas role=admin; suporte/financeiro/etc. permanecem intactos.)
@@ -2399,10 +2403,12 @@ async def seed_admin():
         logger.info("[seed_admin] Admin master criado: %s", admin_email)
     else:
         updates: dict = {"role": "admin", "active": True}
-        # Se a senha configurada no .env não bate com o hash salvo, força
-        # a atualização — assim o .env é a fonte de verdade da senha master.
-        if not verify_password(admin_password, existing["password_hash"]):
+        # Se a senha configurada não bate com o hash salvo, força a
+        # atualização — sincroniza a senha master a CADA startup (idempotente).
+        current_hash = existing.get("password_hash") or ""
+        if not current_hash or not verify_password(admin_password, current_hash):
             updates["password_hash"] = hash_password(admin_password)
+            logger.info("[seed_admin] Senha do admin master re-sincronizada: %s", admin_email)
         await db.users.update_one({"email": admin_email}, {"$set": updates})
 
     # 3) Se o admin master também for MEMBRO (mesmo email em db.members),
