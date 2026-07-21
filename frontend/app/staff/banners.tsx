@@ -26,12 +26,62 @@ import { notify, confirm } from "../../src/alerts";
 import { usePYXRate } from "../../src/pyx-rate";
 
 const CATEGORIES = [
-  { id: "novidade", label: "NOVIDADE", color: "#4FD1C5" },
-  { id: "noticia", label: "NOTÍCIA", color: "#5BA8F0" },
-  { id: "promocao", label: "PROMOÇÃO", color: "#E67A35" },
+  { id: "novidade",  label: "NOVIDADE",  color: "#4FD1C5" },
+  { id: "noticia",   label: "NOTÍCIA",   color: "#5BA8F0" },
+  { id: "promocao",  label: "PROMOÇÃO",  color: "#E67A35" },
+  { id: "evento",    label: "EVENTO",    color: "#A78BFA" },
+  { id: "aviso",     label: "AVISO",     color: "#F5C150" },
+  { id: "comunidade",label: "COMUNIDADE",color: "#4EE07F" },
+  { id: "neutro",    label: "NEUTRO CLARO", color: "#C5C5C5" },
+  { id: "escuro",    label: "NEUTRO ESCURO", color: "#5A5F66" },
 ];
 
-const ACCENT_PRESETS = ["#C89A3A", "#D4AF37", "#F5C150", "#4EE07F", "#F87171", "#7FD7E5"];
+/**
+ * Paleta rica para "COR DE DESTAQUE" — organizada por família de cores.
+ * Cada item tem `hex` (usado no accent_color) e `name` (tooltip visual).
+ */
+const ACCENT_PRESETS: { hex: string; name: string }[] = [
+  // Dourados / prata (linha padrão BLACKSCLUB)
+  { hex: "#F4D47A", name: "Dourado Claro" },
+  { hex: "#D4AF37", name: "Dourado" },
+  { hex: "#C89A3A", name: "Dourado Escuro" },
+  { hex: "#F5C150", name: "Âmbar" },
+  { hex: "#E5E7EB", name: "Prata" },
+
+  // Cinzas (do mais claro ao mais escuro)
+  { hex: "#F9FAFB", name: "Cinza Claríssimo" },
+  { hex: "#B0B7BE", name: "Cinza Claro" },
+  { hex: "#6B7280", name: "Cinza Médio" },
+  { hex: "#4B5563", name: "Cinza Escuro" },
+  { hex: "#1F2937", name: "Grafite" },
+
+  // Verdes
+  { hex: "#4EE07F", name: "Verde Neon" },
+  { hex: "#10B981", name: "Verde Esmeralda" },
+
+  // Vermelhos / Rosas
+  { hex: "#F87171", name: "Vermelho Suave" },
+  { hex: "#EF4444", name: "Vermelho" },
+  { hex: "#EC4899", name: "Rosa" },
+
+  // Azuis / Turquesa
+  { hex: "#5BA8F0", name: "Azul Claro" },
+  { hex: "#3B82F6", name: "Azul Real" },
+  { hex: "#4FD1C5", name: "Turquesa" },
+  { hex: "#06B6D4", name: "Ciano" },
+
+  // Roxos
+  { hex: "#A78BFA", name: "Lavanda" },
+  { hex: "#8B5CF6", name: "Roxo" },
+
+  // Laranjas
+  { hex: "#F97316", name: "Laranja Vibrante" },
+  { hex: "#E67A35", name: "Laranja Queimado" },
+
+  // Neutros extremos
+  { hex: "#0A0A0A", name: "Preto" },
+  { hex: "#FFFFFF", name: "Branco" },
+];
 
 type EditorState = {
   open: boolean;
@@ -648,16 +698,29 @@ function BannerEditorModal({
               <View style={s.row}>
                 {ACCENT_PRESETS.map((c) => (
                   <TouchableOpacity
-                    key={c}
+                    key={c.hex}
                     style={[
-                      s.color, { backgroundColor: c },
-                      state.accent === c && { borderColor: "#FFF", borderWidth: 2 },
+                      s.color, { backgroundColor: c.hex },
+                      state.accent === c.hex && s.colorSelected,
                     ]}
-                    onPress={() => setState((e) => ({ ...e, accent: c }))}
-                    testID={`banner-editor-color-${c.replace("#", "")}`}
-                  />
+                    onPress={() => setState((e) => ({ ...e, accent: c.hex }))}
+                    testID={`banner-editor-color-${c.hex.replace("#", "")}`}
+                    accessibilityLabel={c.name}
+                  >
+                    {state.accent === c.hex && (
+                      <Ionicons
+                        name="checkmark"
+                        size={16}
+                        color={isDarkHex(c.hex) ? "#FFF" : "#0A0A0A"}
+                      />
+                    )}
+                  </TouchableOpacity>
                 ))}
               </View>
+              {/* Nome da cor selecionada (feedback visual) */}
+              <Text style={s.colorSelectedName}>
+                {ACCENT_PRESETS.find((c) => c.hex === state.accent)?.name || state.accent}
+              </Text>
 
               {/* Ordem + Ativo */}
               <View style={s.rowGap}>
@@ -886,5 +949,44 @@ const s = StyleSheet.create({
   color: {
     width: 30, height: 30, borderRadius: 15,
     borderWidth: 1, borderColor: "#1A1A1A",
+    alignItems: "center", justifyContent: "center",
+  },
+  colorSelected: {
+    borderColor: "#FFF",
+    borderWidth: 2,
+    // pequeno realce quando selecionado
+    ...Platform.select({
+      web: { boxShadow: "0 0 0 2px rgba(255,255,255,0.15)" } as any,
+      default: {
+        shadowColor: "#FFF",
+        shadowOpacity: 0.35,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 0 },
+      },
+    }),
+  },
+  colorSelectedName: {
+    color: "#B0B7BE",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    marginTop: 8,
+    marginBottom: 4,
   },
 });
+
+/**
+ * Retorna true se o hex representa uma cor "escura" (luminância baixa).
+ * Usado para escolher a cor do ícone de check (branco em fundo escuro,
+ * preto em fundo claro) — garante contraste legível.
+ */
+function isDarkHex(hex: string): boolean {
+  const h = hex.replace("#", "");
+  if (h.length !== 6) return false;
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  // Fórmula de luminância percebida (Rec. 601)
+  const y = 0.299 * r + 0.587 * g + 0.114 * b;
+  return y < 140;
+}
