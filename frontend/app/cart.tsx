@@ -11,6 +11,7 @@ import { api, CartResponse, PyxWallet, ApiError } from "../src/api";
 import { useGate } from "../src/gate";
 import { formatPYX } from "../src/pyx";
 import { TIERS } from "../src/theme";
+import { useCachedWallet } from "../src/wallet-cache";
 import InsufficientBalanceModal from "../src/components/InsufficientBalanceModal";
 
 const GOLD_LIGHT = "#F4D47A";
@@ -31,6 +32,7 @@ const PAY_META: Record<PayOption, { label: string; entry_pct: number; disc_pct: 
 export default function Cart() {
   const router = useRouter();
   const { member, refreshMember } = useGate();
+  const { refresh: refreshWalletCache } = useCachedWallet();
   const [cart, setCart] = useState<CartResponse | null>(null);
   const [wallet, setWallet] = useState<PyxWallet | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,6 +90,7 @@ export default function Cart() {
         [{ text: "Ver meus pedidos", onPress: () => router.push("/pyx/orders" as any) }, { text: "OK" }],
       );
       await refreshMember();
+      await refreshWalletCache();
       await load();
     } catch (e: any) {
       setShowConfirm(false);

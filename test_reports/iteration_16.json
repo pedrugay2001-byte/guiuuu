@@ -1,0 +1,28 @@
+{
+  "summary": "Backend auth-cleanup migration validated + full PYX transfer round-trip. 12/12 pytest assertions PASS. (1) POST /api/auth/login with guilherme925145000@gmail.com / Shakira12@ returns 200 with JWT token and user.role='admin'. (2) Legacy admin admin@farmaclube.com login returns 401 (any password) — confirmed removed by seed_admin (log line 'Removendo admin legado: admin@farmaclube.com' present in backend.err.log). (3) POST /api/members/login with the same master credentials returns 200 with member_id=mem_7a9d652945e7 AND staff_token + staff_user.role='admin' (unified login working). (4) POST /api/auth/login suporte@blacksclub.com/suporte123 → 200 role=support. (5) POST /api/auth/login financeiro@blacksclub.com/financeiro123 → 200 role=financeiro. (6) DB state verified via direct motor query: db.users has exactly ONE role=admin doc (email=guilherme925145000@gmail.com); legacy admin absent. (7) PYX smoke — GET /api/pyx/rate returns pyx_per_usd_centavos=510; GET /api/pyx/wallet/mem_7a9d652945e7 returns valid wallet with balance_centavos + wallet_number; GET /api/pyx/transfer/limits/mem_7a9d652945e7 returns 200. (8) Full transfer round-trip: 100 centavos (1 PYX) from Luis (mem_7a9d652945e7) → Piu Luis (mem_0bfdc078112d) with password Shakira12@ returned 200 + tx_id + status='settled'; tx persisted in db.wallet_txs; db.wallets balances decremented/incremented by exactly 100 centavos on each side; wrong-password variant returns 401 as expected. No regressions detected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_auth_cleanup_and_pyx.py",
+    "/app/test_reports/pytest/iter16_auth_cleanup.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "seed_admin (server.py:2366-2418) correctly (a) deletes legacy admins whose email != ADMIN_EMAIL, (b) upserts master admin, (c) forces password hash update when .env password differs from stored hash, (d) syncs same hash to db.members if that email is also a member. Idempotent and safe on repeated startups.",
+    "/api/auth/login (server.py:227) properly rejects deactivated accounts (active=False → 403) and unknown/wrong password with generic 401. Good.",
+    "/api/members/login (server.py:480) returns staff_token when email also exists in db.users — enables unified single-password login for admin who is also a member.",
+    "/api/pyx/transfer (server.py:5179) validates password against BOTH members.password_hash AND users.password_hash (candidate_hashes list). Correct pattern for the unified login model. Staff (admin/support/financeiro) bypass the monthly tier limit which allows the round-trip test to succeed for Luis (admin)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "not tested (scope excluded)"},
+  "seed_data_creation": "Test only created one real transaction: tx of 100 centavos (1 PYX) from mem_7a9d652945e7 to mem_0bfdc078112d, note='TEST_iteration16_auth_cleanup'. Not rolled back — kept for audit trail (both wallets self-consistent).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Auth model post-cleanup: single admin in db.users = guilherme925145000@gmail.com / Shakira12@. Legacy admin@farmaclube.com is removed automatically at every backend startup by seed_admin(). Master admin is ALSO a member (mem_7a9d652945e7 = 'Luis Guilherme') with same password synced to db.members. For PYX transfer round-trips use LUIS_MEMBER_ID=mem_7a9d652945e7 and PIU_MEMBER_ID=mem_0bfdc078112d (Piu Luis, gold tier). Staff users bypass monthly tier limits. Test file: /app/backend/tests/test_auth_cleanup_and_pyx.py (12 tests, ~3.5s runtime).",
+  "rca_of_issue": "N/A — no bugs found. All auth-cleanup migration goals validated end-to-end."
+}

@@ -2364,24 +2364,60 @@ SEED_PRODUCTS = [
 
 
 async def seed_admin():
-    admin_email = os.environ["ADMIN_EMAIL"].lower()
+    """
+    Garante uma ÚNICA credencial de Administrador Master (definida via .env).
+    Também remove qualquer admin legado (ex.: `admin@farmaclube.com`) para
+    manter uma única fonte de verdade — evitando ambiguidade de login.
+    """
+    admin_email = os.environ["ADMIN_EMAIL"].strip().lower()
     admin_password = os.environ["ADMIN_PASSWORD"]
+
+    # 1) Limpa admins legados que NÃO sejam o master atual configurado no .env.
+    #    (Apenas role=admin; suporte/financeiro/etc. permanecem intactos.)
+    legacy_cursor = db.users.find(
+        {"role": "admin", "email": {"$ne": admin_email}},
+        {"email": 1},
+    )
+    async for legacy in legacy_cursor:
+        legacy_email = legacy.get("email")
+        if legacy_email:
+            logger.info("[seed_admin] Removendo admin legado: %s", legacy_email)
+            await db.users.delete_one({"email": legacy_email, "role": "admin"})
+
+    # 2) Garante o admin master (upsert idempotente com senha do .env).
     existing = await db.users.find_one({"email": admin_email})
     if not existing:
         await db.users.insert_one({
             "user_id": f"user_{uuid.uuid4().hex[:12]}",
             "email": admin_email,
-            "name": "Administrador",
+            "name": "Administrador Master",
             "password_hash": hash_password(admin_password),
             "role": "admin",
+            "active": True,
             "created_at": datetime.now(timezone.utc),
         })
-    elif not verify_password(admin_password, existing["password_hash"]):
-        await db.users.update_one(
-            {"email": admin_email},
-            {"$set": {"password_hash": hash_password(admin_password), "role": "admin"}},
-        )
+        logger.info("[seed_admin] Admin master criado: %s", admin_email)
+    else:
+        updates: dict = {"role": "admin", "active": True}
+        # Se a senha configurada no .env não bate com o hash salvo, força
+        # a atualização — assim o .env é a fonte de verdade da senha master.
+        if not verify_password(admin_password, existing["password_hash"]):
+            updates["password_hash"] = hash_password(admin_password)
+        await db.users.update_one({"email": admin_email}, {"$set": updates})
 
+    # 3) Se o admin master também for MEMBRO (mesmo email em db.members),
+    #    sincroniza a senha para permitir login unificado com Shakira12@.
+    member_doc = await db.members.find_one({"email": admin_email})
+    if member_doc:
+        current_hash = member_doc.get("password_hash") or ""
+        if not current_hash or not verify_password(admin_password, current_hash):
+            await db.members.update_one(
+                {"email": admin_email},
+                {"$set": {"password_hash": hash_password(admin_password)}},
+            )
+            logger.info("[seed_admin] Senha do member master sincronizada: %s", admin_email)
+
+    # 4) Contas de equipe (não-admin) — mantidas como antes.
     support_email = "suporte@blacksclub.com"
     support_password = "suporte123"
     support_existing = await db.users.find_one({"email": support_email})

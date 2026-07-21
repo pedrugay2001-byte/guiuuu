@@ -12,6 +12,7 @@ import { formatPYX, formatUSx, maskPYXInput, maskedToCents, usxMaskedToPyxCentav
 import { TIERS } from "../../src/theme";
 import { ReceiptCard } from "../../src/receipt-card";
 import { usePYXRate } from "../../src/pyx-rate";
+import { useCachedWallet } from "../../src/wallet-cache";
 
 type Step = "search" | "amount" | "review" | "success";
 
@@ -19,6 +20,7 @@ export default function Send() {
   const router = useRouter();
   const params = useLocalSearchParams<{ wallet?: string }>();
   const { member } = useGate();
+  const { refresh: refreshWalletCache } = useCachedWallet();
 
   const [step, setStep] = useState<Step>("search");
   const [query, setQuery] = useState(params?.wallet || "");
@@ -113,6 +115,9 @@ export default function Send() {
       setPwdOpen(false);
       setPwd("");
       setStep("success");
+      // Invalida o cache de saldo IMEDIATAMENTE para refletir a nova posição
+      // sem esperar o próximo poll (30s). Fonte de verdade continua o backend.
+      refreshWalletCache().catch(() => {});
       // ETAPA 4 — carrega comprovante enriquecido
       try {
         const rc = await api.pyxReceipt(tx.tx_id, member.member_id);
