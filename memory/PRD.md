@@ -60,3 +60,14 @@ Exclusive members-only mobile club for buying weight-loss products, peptides, La
 3. **MEDIUM** `/api/pyx/pix-orders/{id}/approve`: pedido é reivindicado atomicamente (pending→approved) ANTES do crédito — sem crédito duplicado.
 4. Senha do MASTER não pode mais ser trocada via `/api/staff/team/{id}/password` (retorna 400 explicando que vem do .env) — elimina conflito com o seed_admin que re-sincroniza a senha a cada startup.
 Backlog do review (baixa prioridade): rate limiting nos logins (P1 já planejado), padronizar/remover campo legado `balance` float.
+
+## Auditoria de Segurança (22/07)
+CORRIGIDO (não afeta login/deploy):
+- GET /api/members/{id} não retorna mais password_hash/reset_token/PII.
+- POST/DELETE /api/admin/seed-marketplace agora exigem require_admin.
+- Busca de produtos/anúncios: re.escape no $regex (anti-ReDoS).
+
+BACKLOG P0 (NÃO implementar sem aval — risco de regressão, usuário pediu estabilidade):
+- SEC-001: membros não têm sessão/JWT; endpoints confiam no member_id enviado pelo cliente → BOLA/IDOR em massa (DMs, wallet, perfil, pix-orders, refund/confirm/mark-shipped). Correção = emitir JWT de membro no login e derivar identidade do token em ~119 rotas + api.ts. Toca no fluxo inteiro do membro; exige teste completo antes de publicar.
+- SEC-003 (parcial): /wallet/refund, /wallet/confirm, /pyx/orders/{tx}/mark-shipped confiam em IDs do body (parte do root cause do SEC-001).
+- Rotacionar OPENAI_API_KEY commitada no .env (repo privado → risco baixo).
