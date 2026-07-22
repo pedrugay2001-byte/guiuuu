@@ -53,3 +53,10 @@ Exclusive members-only mobile club for buying weight-loss products, peptides, La
 2. `seed_admin()` blindado com fallbacks (`guilherme925145000@gmail.com` / `Shakira12@`) — qualquer ambiente converge para a mesma senha a cada startup, mesmo sem `.env`.
 3. `static_frontend` re-compilado com todas as mudanças recentes (USx, centavos menores, cores).
 **Fluxo de publicação:** após qualquer mudança de frontend, rodar `bash /app/scripts/build-and-deploy-frontend.sh` e depois "Save to GitHub" — o Netlify republica automaticamente.
+
+## Code Review pós-deploy (22/07) — defeitos corrigidos e testados (11/11 PASS, iteration_17)
+1. **HIGH** `/api/wallet/withdraw`: debitava só o campo legado `balance` (float) — agora debita `balance_centavos` (fonte de verdade) com `find_one_and_update` condicional atômico.
+2. **MEDIUM** Duplo gasto em concorrência: `/api/pyx/transfer`, compra catálogo e buy-pyx de anúncio agora usam débito condicional `{balance_centavos: {$gte: amt}}` — saldo nunca fica negativo.
+3. **MEDIUM** `/api/pyx/pix-orders/{id}/approve`: pedido é reivindicado atomicamente (pending→approved) ANTES do crédito — sem crédito duplicado.
+4. Senha do MASTER não pode mais ser trocada via `/api/staff/team/{id}/password` (retorna 400 explicando que vem do .env) — elimina conflito com o seed_admin que re-sincroniza a senha a cada startup.
+Backlog do review (baixa prioridade): rate limiting nos logins (P1 já planejado), padronizar/remover campo legado `balance` float.
