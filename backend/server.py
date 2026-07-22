@@ -7192,10 +7192,14 @@ async def add_goal_entry(goal_id: str, body: GoalEntryCreate):
         done = await db.goal_entries.count_documents({"goal_id": goal_id, "value": {"$gte": 1}})
         await db.goals.update_one({"goal_id": goal_id}, {"$set": {"current_value": float(done)}})
     elif gtype == "behavior":
-        # média de scores
-        all_entries = await db.goal_entries.find({"goal_id": goal_id}).to_list(length=10000)
-        avg = sum(float(e.get("value", 0)) for e in all_entries) / max(1, len(all_entries))
-        await db.goals.update_one({"goal_id": goal_id}, {"$set": {"current_value": round(float(avg), 2)}})
+        # média de scores — agregação no Mongo (evita carregar entries na memória)
+        avg = 0.0
+        async for row in db.goal_entries.aggregate([
+            {"$match": {"goal_id": goal_id}},
+            {"$group": {"_id": None, "avg": {"$avg": "$value"}}},
+        ]):
+            avg = float(row.get("avg") or 0.0)
+        await db.goals.update_one({"goal_id": goal_id}, {"$set": {"current_value": round(avg, 2)}})
     else:
         await db.goals.update_one({"goal_id": goal_id}, {"$set": {"current_value": float(body.value)}})
 
