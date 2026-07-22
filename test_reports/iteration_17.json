@@ -1,0 +1,36 @@
+{
+  "summary": "Backend-only regression + PYX ledger fixes suite. 11/11 pytest cases PASSED. Validated FIX 1 (wallet/withdraw atomic conditional debit), FIX 2 (pyx/transfer atomic debit + concurrency: 2 simultaneous full-balance transfers → exactly 1 success, 1 400 insufficient, final balance = 0, never negative), FIX 3 (pix-orders approve idempotent claim: double-approve returns already=approved with NO duplicate credit and exactly 1 wallet_tx), FIX 4 (staff/team password change: master admin blocked with .env explanation, support account password change succeeds and new pw works on /api/auth/login). Regressions OK: /api/auth/login master, /api/members/login master, /api/ads returns ads with seller_nickname + seller_tier enriched.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pyx_ledger_fixes.py",
+    "/app/test_reports/pytest/pyx_ledger_fixes.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 7619 lines — consider splitting into modules (wallet, pyx, staff, members, ads) per <700 lines guideline.",
+    "wallet/withdraw and pyx/transfer correctly use find_one_and_update with $gte condition — atomicity verified under concurrency (asyncio.gather).",
+    "pix-orders approve correctly claims order before credit; second attempt returns {ok:true, already:'approved'} without side effects — verified via wallet_tx count and balance delta.",
+    "staff/team/{user_id}/password correctly compares email case-insensitively to os.environ.get('ADMIN_EMAIL') to block master edits."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pyx_ledger_fixes.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11)",
+    "frontend": "not tested (backend-only per request)"
+  },
+  "seed_data_creation": "Test creates ephemeral TEST members/wallets/users/pix_orders directly in Mongo (prefix mbr_test_, user_, ord_TEST_) and cleans them up on fixture teardown. No real production data touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "PYX ledger integrity is now atomic. If regressions to catalog purchase (/api/pyx/buy ~2105) or ad buy-pyx (~3226) are needed, follow same pattern: seed a TEST member+wallet with known balance_centavos in Mongo, hit endpoint, assert 400 vs 200 + balance delta. Not covered in this iteration per request note (payload complexity — flagged as skipped).",
+  "rca_of_issue": "N/A — all fixes verified working. FIX 2 concurrency test explicitly reproduced the double-spend race: sender starts with 100000 centavos, two parallel requests each debit 100000; the $gte-guarded find_one_and_update lets only one match while the other returns None → HTTP 400 'Saldo insuficiente'. Final balance = 0, no negative saldo possible."
+}

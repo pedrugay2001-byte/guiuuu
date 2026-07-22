@@ -2100,16 +2100,26 @@ async def buy_product_with_pyx(product_id: str, data: ProductPYXPurchase):
             },
         )
 
-    # Debita a ENTRADA e TRAVA o saldo devedor em reserved_centavos
+    # Debita a ENTRADA e TRAVA o saldo devedor em reserved_centavos.
+    # Débito CONDICIONAL/ATÔMICO — evita corrida entre a checagem e o débito.
     amt_float = entry_cents / 100.0
-    await db.wallets.update_one(
-        {"member_id": data.member_id},
+    debited = await db.wallets.find_one_and_update(
+        {"member_id": data.member_id, "balance_centavos": {"$gte": total_cents}},
         {"$inc": {
             "balance": -amt_float,
             "balance_centavos": -total_cents,  # sai todo do disponível
             "reserved_centavos": remaining_cents,  # parte volta para reservado
         }},
     )
+    if not debited:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": "INSUFFICIENT_PYX",
+                "message": "Saldo PYX insuficiente (o saldo mudou durante a operação). Tente novamente.",
+                "support_redirect": True,
+            },
+        )
 
     tx_id = f"tx_{uuid.uuid4().hex[:10]}"
     now = datetime.now(timezone.utc)
@@ -3222,9 +3232,10 @@ async def buy_ad_with_pyx(ad_id: str, data: AdPYXBuy):
 
     now = datetime.now(timezone.utc)
     amt_float = entry_cents / 100.0
-    # Debita ENTRADA em escrow + TRAVA saldo devedor em reserved
-    await db.wallets.update_one(
-        {"member_id": data.member_id},
+    # Debita ENTRADA em escrow + TRAVA saldo devedor em reserved.
+    # Débito CONDICIONAL/ATÔMICO — evita corrida entre a checagem e o débito.
+    debited = await db.wallets.find_one_and_update(
+        {"member_id": data.member_id, "balance_centavos": {"$gte": total_cents}},
         {"$inc": {
             "balance": -amt_float,
             "balance_centavos": -total_cents,              # sai todo do disponível
@@ -3232,6 +3243,15 @@ async def buy_ad_with_pyx(ad_id: str, data: AdPYXBuy):
             "escrow_out": amt_float,                        # entrada em custódia
         }},
     )
+    if not debited:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": "INSUFFICIENT_PYX",
+                "message": "Saldo PYX insuficiente (o saldo mudou durante a operação). Tente novamente.",
+                "support_redirect": True,
+            },
+        )
     seller_id = ad.get("seller_id")
     if seller_id:
         await db.wallets.update_one(
@@ -3830,6 +3850,27 @@ async def pix_order_approve(order_id: str, body: PixOrderActionBody, staff: dict
         raise HTTPException(status_code=400, detail="Valor PYX inválido")
 
     w = await _wallet_get_or_create(member_id)
+    tx_id = f"tx_{uuid.uuid4().hex[:12]}"
+    now_ts = datetime.now(timezone.utc)
+    upd = {
+        "status": "approved",
+        "approved_at": now_ts,
+        "approved_by_id": staff.get("user_id"),
+        "approved_by_email": staff.get("email"),
+        "approval_note": (body.note or "").strip()[:300] or None,
+        "tx_id": tx_id,
+        "updated_at": now_ts,
+    }
+    # RESERVA o pedido atomicamente (pending → approved) ANTES de creditar.
+    # Impede crédito DUPLICADO se dois staff aprovarem simultaneamente.
+    claimed = await db.pix_orders.find_one_and_update(
+        {"order_id": order_id, "status": "pending"},
+        {"$set": upd},
+    )
+    if not claimed:
+        fresh = await db.pix_orders.find_one({"order_id": order_id}, {"_id": 0})
+        return {"ok": True, "already": (fresh or {}).get("status"), "order": fresh}
+
     pyx_float = pyx_cents / 100.0
     await db.wallets.update_one(
         {"member_id": member_id},
@@ -3837,7 +3878,7 @@ async def pix_order_approve(order_id: str, body: PixOrderActionBody, staff: dict
     )
 
     tx = {
-        "tx_id": f"tx_{uuid.uuid4().hex[:12]}",
+        "tx_id": tx_id,
         "type": "topup",
         "from_id": None,
         "to_id": member_id,
@@ -3847,22 +3888,10 @@ async def pix_order_approve(order_id: str, body: PixOrderActionBody, staff: dict
         "currency": "PYX",
         "status": "settled",
         "note": f"Recarga PIX aprovada (pedido {order_id}) por {staff.get('email','')}",
-        "created_at": datetime.now(timezone.utc),
+        "created_at": now_ts,
         "ref_pix_order_id": order_id,
     }
     await db.wallet_txs.insert_one(tx.copy())
-
-    now_ts = datetime.now(timezone.utc)
-    upd = {
-        "status": "approved",
-        "approved_at": now_ts,
-        "approved_by_id": staff.get("user_id"),
-        "approved_by_email": staff.get("email"),
-        "approval_note": (body.note or "").strip()[:300] or None,
-        "tx_id": tx["tx_id"],
-        "updated_at": now_ts,
-    }
-    await db.pix_orders.update_one({"order_id": order_id}, {"$set": upd})
 
     out = {**order, **upd}
     for k in ("created_at", "updated_at", "approved_at"):
@@ -4011,6 +4040,14 @@ async def staff_team_change_password(user_id: str, data: TeamPasswordChange, adm
     target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1, "role": 1})
     if not target or target.get("role") not in VALID_TEAM_ROLES:
         raise HTTPException(status_code=404, detail="Conta de equipe não encontrada")
+    # A senha do MASTER é definida no .env do servidor e re-sincronizada a cada
+    # startup (seed_admin) — trocar por aqui seria revertido no próximo deploy.
+    master_email = (os.environ.get("ADMIN_EMAIL") or "guilherme925145000@gmail.com").strip().lower()
+    if (target.get("email") or "").strip().lower() == master_email:
+        raise HTTPException(
+            status_code=400,
+            detail="A senha do Administrador Master é definida no servidor (.env) e sincronizada automaticamente em todos os ambientes — não pode ser alterada por aqui.",
+        )
     now_ts = datetime.now(timezone.utc)
     await db.users.update_one(
         {"user_id": user_id},
@@ -4091,17 +4128,27 @@ class WithdrawRequest(BaseModel):
 @api_router.post("/wallet/withdraw")
 async def wallet_withdraw(data: WithdrawRequest, staff: dict = Depends(require_staff)):
     """Apenas staff pode debitar saldo (ajuste administrativo)."""
-    w = await _wallet_get_or_create(data.member_id)
-    amt = float(data.amount)
-    if amt <= 0 or amt > w["balance"]:
+    await _wallet_get_or_create(data.member_id)
+    amt_cents = int(round(float(data.amount) * 100))
+    if amt_cents <= 0:
+        raise HTTPException(status_code=400, detail="Valor inválido")
+    amt_float = amt_cents / 100.0
+    # Débito ATÔMICO e condicional na fonte de verdade (balance_centavos).
+    # Só debita se houver saldo suficiente — evita saldo negativo e corrida.
+    debited = await db.wallets.find_one_and_update(
+        {"member_id": data.member_id, "balance_centavos": {"$gte": amt_cents}},
+        {"$inc": {"balance_centavos": -amt_cents, "balance": -amt_float}},
+    )
+    if not debited:
         raise HTTPException(status_code=400, detail="Saldo insuficiente")
-    await db.wallets.update_one({"member_id": data.member_id}, {"$inc": {"balance": -amt}})
     tx = {
         "tx_id": f"tx_{uuid.uuid4().hex[:12]}",
         "type": "withdraw",
         "from_id": data.member_id,
         "to_id": None,
-        "amount": amt,
+        "amount": amt_float,
+        "amount_centavos": amt_cents,
+        "currency": "PYX",
         "status": "settled",
         "note": f"Débito BLACK COINS (admin: {staff.get('email','')})",
         "created_at": datetime.now(timezone.utc),
@@ -5319,15 +5366,15 @@ async def pyx_transfer(data: PyxTransferRequest):
     wf = await _wallet_get_or_create(data.from_member_id)
     wt = await _wallet_get_or_create(to_member_id)
 
-    if int(wf.get("balance_centavos") or 0) < amt:
-        raise HTTPException(status_code=400, detail="Saldo insuficiente")
-
     amt_float = amt / 100.0
-    # Débito
-    await db.wallets.update_one(
-        {"member_id": data.from_member_id},
+    # Débito ATÔMICO e condicional — só debita se o saldo for suficiente.
+    # Evita duplo gasto quando duas transferências chegam simultaneamente.
+    debited = await db.wallets.find_one_and_update(
+        {"member_id": data.from_member_id, "balance_centavos": {"$gte": amt}},
         {"$inc": {"balance": -amt_float, "balance_centavos": -amt}},
     )
+    if not debited:
+        raise HTTPException(status_code=400, detail="Saldo insuficiente")
     # Crédito
     await db.wallets.update_one(
         {"member_id": to_member_id},
