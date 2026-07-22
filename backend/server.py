@@ -581,9 +581,12 @@ async def members_stats():
 
 @api_router.get("/members/{member_id}")
 async def member_detail(member_id: str):
-    m = await db.members.find_one({"member_id": member_id}, {"_id": 0, "name_norm": 0, "phone_norm": 0})
+    m = await db.members.find_one({"member_id": member_id}, {"_id": 0})
     if not m:
         raise HTTPException(status_code=404, detail="Membro não encontrado")
+    # Nunca expõe credenciais/PII sensível (hash de senha, tokens de reset, etc.)
+    for secret in ("password_hash", "reset_token", "reset_expires", "name_norm", "phone_norm"):
+        m.pop(secret, None)
     return m
 
 
@@ -1932,9 +1935,10 @@ async def list_products(
         query["subcategory"] = subcategory
     if q:
         # se já existe $or (tier), combina em $and
+        q_safe = re.escape(q.strip())[:80]  # evita ReDoS / injeção de regex
         or_q = [
-            {"name": {"$regex": q, "$options": "i"}},
-            {"description": {"$regex": q, "$options": "i"}},
+            {"name": {"$regex": q_safe, "$options": "i"}},
+            {"description": {"$regex": q_safe, "$options": "i"}},
         ]
         if "$or" in query:
             existing_or = query.pop("$or")
@@ -3129,9 +3133,10 @@ async def list_ads(
         else:
             query["ad_tier"] = tier_lc
     if q:
+        q_safe = re.escape(q.strip())[:80]  # evita ReDoS / injeção de regex
         or_q = [
-            {"title": {"$regex": q, "$options": "i"}},
-            {"description": {"$regex": q, "$options": "i"}},
+            {"title": {"$regex": q_safe, "$options": "i"}},
+            {"description": {"$regex": q_safe, "$options": "i"}},
         ]
         if "$or" in query:
             existing_or = query.pop("$or")
@@ -6703,7 +6708,7 @@ async def _ensure_fictional_members() -> List[str]:
 
 
 @api_router.post("/admin/seed-marketplace")
-async def seed_marketplace(force: bool = False):
+async def seed_marketplace(force: bool = False, admin: dict = Depends(require_admin)):
     import random
     existing_count = await db.ads.count_documents({"active": True})
     if existing_count >= 50 and not force:
@@ -6733,7 +6738,7 @@ async def seed_marketplace(force: bool = False):
 
 
 @api_router.delete("/admin/seed-marketplace")
-async def clear_seed_marketplace():
+async def clear_seed_marketplace(admin: dict = Depends(require_admin)):
     r = await db.ads.delete_many({"is_seed": True})
     await db.members.delete_many({"is_fictional": True})
     return {"ok": True, "deleted_ads": r.deleted_count}
