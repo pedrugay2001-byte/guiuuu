@@ -3130,9 +3130,17 @@ async def list_ads(
             query["$or"] = or_q
     cur = db.ads.find(query, {"_id": 0}).sort("created_at", -1).limit(200)
     ads = await cur.to_list(length=200)
-    # enrich with seller nickname + tier
+    # enrich with seller nickname + tier — busca em LOTE (evita N+1 queries)
+    seller_ids = list({a.get("seller_id") for a in ads if a.get("seller_id")})
+    sellers: Dict[str, Any] = {}
+    if seller_ids:
+        async for m in db.members.find(
+            {"member_id": {"$in": seller_ids}},
+            {"_id": 0, "member_id": 1, "nickname": 1, "name": 1, "tier": 1, "avatar_base64": 1},
+        ):
+            sellers[m["member_id"]] = m
     for a in ads:
-        m = await db.members.find_one({"member_id": a.get("seller_id")}, {"_id": 0, "nickname": 1, "name": 1, "tier": 1, "avatar_base64": 1})
+        m = sellers.get(a.get("seller_id"))
         if m:
             a["seller_nickname"] = m.get("nickname") or (m.get("name") or "Membro").split(" ")[0]
             a["seller_tier"] = m.get("tier", "diamond")
