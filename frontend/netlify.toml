@@ -2,6 +2,13 @@
 # Todas as URLs (ex.: /catalog/diamond, /wallet/topup, etc.) caem no index.html
 # e o React Router resolve a rota no cliente. Status 200 (não 301/302) para que
 # o navegador não detecte como redirecionamento e mantenha a URL original.
+
+# Build config — garante que o Netlify (quando builda a partir do código) tenha
+# a URL do backend do Emergent. Sem isto, o Expo injeta "undefined" na API.
+# (Não define base/command/publish para não conflitar com a config do painel Netlify.)
+[build.environment]
+  EXPO_PUBLIC_BACKEND_URL = "https://member-shop-2.preview.emergentagent.com"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

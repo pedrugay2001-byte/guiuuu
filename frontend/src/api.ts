@@ -1,7 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { TierId } from "./theme";
 
-const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL as string;
+// URL do backend. Prioriza a env var (injetada pelo Emergent no build/deploy);
+// se ausente (ex.: build do Netlify sem a var), usa o backend do Emergent como
+// fallback — assim o app NUNCA monta URLs com "undefined".
+const BASE_URL = (
+  process.env.EXPO_PUBLIC_BACKEND_URL || "https://member-shop-2.preview.emergentagent.com"
+).replace(/\/$/, "");
 
 export type User = {
   user_id: string; email: string; name: string;

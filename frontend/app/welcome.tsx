@@ -12,7 +12,7 @@ import { BrandLogo } from "../src/brand";
 // Dark gym hero image as the background of the gate
 const BG = "https://images.unsplash.com/photo-1546483875-ad9014c88eba?auto=format&fit=crop&w=1200&q=60";
 
-const API_BASE = (process.env.EXPO_PUBLIC_BACKEND_URL || "") + "/api";
+const API_BASE = (process.env.EXPO_PUBLIC_BACKEND_URL || "https://member-shop-2.preview.emergentagent.com").replace(/\/$/, "") + "/api";
 
 export default function Welcome() {
   const router = useRouter();
