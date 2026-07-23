@@ -71,3 +71,12 @@ BACKLOG P0 (NÃO implementar sem aval — risco de regressão, usuário pediu es
 - SEC-001: membros não têm sessão/JWT; endpoints confiam no member_id enviado pelo cliente → BOLA/IDOR em massa (DMs, wallet, perfil, pix-orders, refund/confirm/mark-shipped). Correção = emitir JWT de membro no login e derivar identidade do token em ~119 rotas + api.ts. Toca no fluxo inteiro do membro; exige teste completo antes de publicar.
 - SEC-003 (parcial): /wallet/refund, /wallet/confirm, /pyx/orders/{tx}/mark-shipped confiam em IDs do body (parte do root cause do SEC-001).
 - Rotacionar OPENAI_API_KEY commitada no .env (repo privado → risco baixo).
+
+## Fix "undefined/api" no Netlify (23/07) — CAUSA RAIZ REAL
+O `.gitignore` tinha DOIS blocos com `*.env`; o fork anterior corrigiu só o primeiro. O segundo (linha ~98-100) continuava ignorando `frontend/.env` E `backend/.env` → nenhum dos dois estava no Git → build do Netlify sem `EXPO_PUBLIC_BACKEND_URL` → Expo injeta `undefined` → `undefined/api/members/login`.
+Correções:
+1. Removido o 2º bloco `.env/.env.*/*.env` do `.gitignore`; `frontend/.env` e `backend/.env` agora TRACKED (git add -f). NUNCA re-adicionar regras de .env.
+2. `frontend/src/api.ts` e `frontend/app/welcome.tsx`: `BASE_URL = (process.env.EXPO_PUBLIC_BACKEND_URL || "https://member-shop-2.preview.emergentagent.com").replace(/\/$/,"")` → nunca gera undefined (env var tem precedência).
+3. `frontend/netlify.toml`: `[build.environment] EXPO_PUBLIC_BACKEND_URL` para builds from-source do Netlify.
+4. static_frontend re-buildado (bundle confirmado sem "undefined/api"). Login Master validado E2E na Home.
+ARQUITETURA: o frontend no Netlify chama o backend do Emergent (preview URL) — MESMO backend/DB/usuários. NÃO usar Emergent Publish para o backend nesse cenário (criaria DB novo/vazio = causa da divergência anterior). Se o subdomínio do preview mudar (fork/reset do pod), atualizar a URL em api.ts/welcome.tsx/netlify.toml/frontend/.env e rebuildar.
