@@ -225,10 +225,12 @@ function BannerCard({ item, width, height, onPress }: BannerCardProps) {
       <View style={s.overlay} />
       {/* Conteúdo */}
       <View style={s.content}>
-        <View style={[s.catBadge, { borderColor: meta.color + "AA" }]}>
-          <Ionicons name={meta.icon as any} size={11} color={meta.color} />
-          <Text style={[s.catLabel, { color: meta.color }]}>{meta.label}</Text>
-        </View>
+        {!item.hide_category && (
+          <View style={[s.catBadge, { borderColor: meta.color + "AA" }]}>
+            <Ionicons name={meta.icon as any} size={11} color={meta.color} />
+            <Text style={[s.catLabel, { color: meta.color }]}>{meta.label}</Text>
+          </View>
+        )}
         <Text style={s.title} numberOfLines={1}>{item.title}</Text>
         {!!item.subtitle && (
           <Text style={s.subtitle} numberOfLines={2}>{item.subtitle}</Text>

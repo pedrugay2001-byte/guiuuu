@@ -93,6 +93,7 @@ type EditorState = {
   ctaLabel: string;
   ctaRoute: string;
   category: string;
+  hideCategory: boolean;
   accent: string;
   active: boolean;
   order: number;
@@ -109,6 +110,7 @@ const emptyEditor = (): EditorState => ({
   ctaLabel: "",
   ctaRoute: "",
   category: "novidade",
+  hideCategory: false,
   accent: "#C89A3A",
   active: true,
   order: 0,
@@ -150,6 +152,7 @@ export default function AdminBannersScreen() {
       ctaLabel: b.cta_label || "",
       ctaRoute: b.cta_route || "",
       category: b.category || "novidade",
+      hideCategory: b.hide_category === true,
       accent: b.accent_color || "#C89A3A",
       active: b.active !== false,
       order: b.order || 0,
@@ -183,6 +186,7 @@ export default function AdminBannersScreen() {
         cta_label: editor.ctaLabel.trim(),
         cta_route: editor.ctaRoute.trim(),
         category: editor.category,
+        hide_category: editor.hideCategory,
         accent_color: editor.accent,
         active: editor.active,
         order: editor.order,
@@ -672,6 +676,26 @@ function BannerEditorModal({
                 ))}
               </View>
 
+              {/* Ocultar nome da categoria */}
+              <TouchableOpacity
+                style={[s.hideCatRow, state.hideCategory && { borderColor: "#F5C15055" }]}
+                onPress={() => setState((e) => ({ ...e, hideCategory: !e.hideCategory }))}
+                testID="banner-editor-hide-category"
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={state.hideCategory ? "checkbox" : "square-outline"}
+                  size={18}
+                  color={state.hideCategory ? "#F5C150" : "#6B6B6B"}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.hideCatTitle}>Ocultar nome da categoria</Text>
+                  <Text style={s.hideCatSub}>
+                    O banner é exibido normalmente, mas sem o selo da categoria sobre a imagem.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
               {/* CTA */}
               <Text style={s.label}>BOTÃO DE AÇÃO (opcional)</Text>
               <TextInput
@@ -788,6 +812,14 @@ const s = StyleSheet.create({
     backgroundColor: "#F5C150", borderRadius: 10,
   },
   emptyCtaTxt: { color: "#0A0A0A", fontSize: 11.5, fontWeight: "900", letterSpacing: 1.5 },
+  hideCatRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    marginTop: 10, padding: 12,
+    backgroundColor: "#0E0E0E", borderWidth: 1, borderColor: "#242424",
+    borderRadius: 10,
+  },
+  hideCatTitle: { color: "#EDEDED", fontSize: 12.5, fontWeight: "800" },
+  hideCatSub: { color: "#8A8A8A", fontSize: 11, marginTop: 2 },
 
   // Section title (BANNERS PROMOCIONAIS)
   sectionTitle: {

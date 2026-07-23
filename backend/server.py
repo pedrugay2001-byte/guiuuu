@@ -664,6 +664,7 @@ class HomeBannerCreate(BaseModel):
     cta_route: Optional[str] = ""
     accent_color: Optional[str] = "#C89A3A"
     category: Optional[str] = "novidade"  # novidade | noticia | promocao
+    hide_category: Optional[bool] = False  # oculta o selo da categoria sobre o banner
     active: Optional[bool] = True
     order: Optional[int] = 0
 
@@ -677,6 +678,7 @@ class HomeBannerUpdate(BaseModel):
     cta_route: Optional[str] = None
     accent_color: Optional[str] = None
     category: Optional[str] = None
+    hide_category: Optional[bool] = None
     active: Optional[bool] = None
     order: Optional[int] = None
 
@@ -745,6 +747,7 @@ async def admin_create_home_banner(data: HomeBannerCreate, request: Request, sta
         "cta_route": (data.cta_route or "").strip(),
         "accent_color": (data.accent_color or "#C89A3A").strip(),
         "category": (data.category or "novidade").strip().lower(),
+        "hide_category": bool(data.hide_category or False),
         "active": bool(data.active if data.active is not None else True),
         "order": int(data.order or 0),
         "created_by": staff.get("user_id") or staff.get("email"),
@@ -765,6 +768,8 @@ async def admin_update_home_banner(banner_id: str, data: HomeBannerUpdate, reque
         v = getattr(data, field)
         if v is not None:
             updates[field] = v.strip() if isinstance(v, str) else v
+    if data.hide_category is not None:
+        updates["hide_category"] = bool(data.hide_category)
     if data.active is not None:
         updates["active"] = bool(data.active)
     if data.order is not None:

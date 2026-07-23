@@ -121,6 +121,7 @@ export type HomeBanner = {
   cta_route?: string;
   accent_color?: string;
   category: HomeBannerCategory | string;
+  hide_category?: boolean;
   active: boolean;
   order: number;
   created_at?: string;
@@ -135,6 +136,7 @@ export type HomeBannerInput = {
   cta_route?: string;
   accent_color?: string;
   category?: HomeBannerCategory | string;
+  hide_category?: boolean;
   active?: boolean;
   order?: number;
 };
