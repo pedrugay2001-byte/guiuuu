@@ -3150,13 +3150,16 @@ async def list_ads(
             query["$or"] = or_q
     cur = db.ads.find(query, {"_id": 0}).sort("created_at", -1).limit(200)
     ads = await cur.to_list(length=200)
-    # enrich with seller nickname + tier — busca em LOTE (evita N+1 queries)
+    # enrich with seller nickname + tier — busca em LOTE (evita N+1 queries).
+    # NÃO incluímos o avatar_base64 aqui: na LISTA ele era duplicado por anúncio
+    # (mesmo vendedor) inflando a resposta em vários MB e travando a web.
+    # O avatar do vendedor é carregado sob demanda no detalhe (GET /ads/{id}).
     seller_ids = list({a.get("seller_id") for a in ads if a.get("seller_id")})
     sellers: Dict[str, Any] = {}
     if seller_ids:
         async for m in db.members.find(
             {"member_id": {"$in": seller_ids}},
-            {"_id": 0, "member_id": 1, "nickname": 1, "name": 1, "tier": 1, "avatar_base64": 1},
+            {"_id": 0, "member_id": 1, "nickname": 1, "name": 1, "tier": 1},
         ):
             sellers[m["member_id"]] = m
     for a in ads:
@@ -3164,7 +3167,6 @@ async def list_ads(
         if m:
             a["seller_nickname"] = m.get("nickname") or (m.get("name") or "Membro").split(" ")[0]
             a["seller_tier"] = m.get("tier", "diamond")
-            a["seller_avatar"] = m.get("avatar_base64")
     return ads
 
 
@@ -5586,9 +5588,29 @@ async def pyx_rate_get():
         "pyx_per_usd_display": pyx_per_usd_display,
         "updated_at": doc.get("updated_at"),
         "updated_by_name": doc.get("updated_by_name"),
-        # Finance hero banner (imagem de fundo do painel financeiro na home)
-        "finance_hero_image_base64": doc.get("finance_hero_image_base64") or "",
+        # Finance hero banner: NÃO enviamos mais o base64 aqui (era ~450KB baixados
+        # a cada poll de 30s, travando a web). Enviamos só a URL (leve) + uma versão.
+        # A imagem base64 é buscada uma única vez via GET /pyx/finance-hero e
+        # cacheada no cliente, revalidando só quando `finance_hero_updated_at` muda.
+        "finance_hero_updated_at": (
+            doc.get("finance_hero_updated_at").isoformat()
+            if isinstance(doc.get("finance_hero_updated_at"), datetime)
+            else (doc.get("finance_hero_updated_at") or "")
+        ),
         "finance_hero_image_url": doc.get("finance_hero_image_url") or "",
+    }
+
+
+@api_router.get("/pyx/finance-hero")
+async def pyx_finance_hero_get():
+    """Imagem do painel financeiro (hero) da home — endpoint dedicado e cacheável.
+    Separado do /pyx/rate para não trafegar o base64 pesado no poll de cotação."""
+    doc = await _get_pyx_rate_doc()
+    upd = doc.get("finance_hero_updated_at")
+    return {
+        "image_base64": doc.get("finance_hero_image_base64") or "",
+        "image_url": doc.get("finance_hero_image_url") or "",
+        "updated_at": upd.isoformat() if isinstance(upd, datetime) else (upd or ""),
     }
 
 
@@ -5602,7 +5624,7 @@ async def admin_finance_hero_set(data: FinanceHeroUpdate, user: dict = Depends(r
     """Admin only: atualiza a imagem de fundo do painel financeiro (hero) da home.
     Aceita base64 (upload) OU url. Passe strings vazias para limpar (volta ao SVG padrão)."""
     now = datetime.now(timezone.utc)
-    update: Dict[str, Any] = {"updated_at": now}
+    update: Dict[str, Any] = {"updated_at": now, "finance_hero_updated_at": now}
     if data.image_base64 is not None:
         # aceita com ou sem prefixo data:image/...
         raw = data.image_base64.strip()

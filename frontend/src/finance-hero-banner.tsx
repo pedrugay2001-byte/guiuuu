@@ -26,6 +26,7 @@ import Svg, {
 } from "react-native-svg";
 import { formatPYXParts, formatUSxParts } from "./pyx";
 import { usePYXRate } from "./pyx-rate";
+import { useFinanceHero } from "./use-finance-hero";
 import { useBalanceVisibility } from "./use-balance-visibility";
 
 const GOLD = "#F5C150";
@@ -108,10 +109,8 @@ export function FinanceHeroBanner({
   const usxP = formatUSxParts(balanceCentavos || 0, rateCentavos);
   const rateDisplay = rate?.pyx_per_usd_display || "5,00";
 
-  const customBg =
-    (rate?.finance_hero_image_base64 && rate.finance_hero_image_base64.trim()) ||
-    (rate?.finance_hero_image_url && rate.finance_hero_image_url.trim()) ||
-    "";
+  // Imagem hero carregada de forma cacheada (fora do poll de cotação)
+  const customBg = useFinanceHero(rate?.finance_hero_updated_at, rate?.finance_hero_image_url);
 
   return (
     <View style={[s.card, { height }]} testID="home-finance-hero">

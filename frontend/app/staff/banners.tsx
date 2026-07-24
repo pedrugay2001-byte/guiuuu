@@ -24,6 +24,7 @@ import { api, HomeBanner, HomeBannerInput } from "../../src/api";
 import { pickCompressedImage } from "../../src/imagepicker";
 import { notify, confirm } from "../../src/alerts";
 import { usePYXRate } from "../../src/pyx-rate";
+import { useFinanceHero } from "../../src/use-finance-hero";
 
 const CATEGORIES = [
   { id: "novidade",  label: "NOVIDADE",  color: "#4FD1C5" },
@@ -335,10 +336,10 @@ function FinanceHeroImageManager() {
     if (rate?.finance_hero_image_url) setUrlInput(rate.finance_hero_image_url);
   }, [rate?.finance_hero_image_url]);
 
-  const currentPreview =
-    (rate?.finance_hero_image_base64 && rate.finance_hero_image_base64) ||
-    (rate?.finance_hero_image_url && rate.finance_hero_image_url) ||
-    "";
+  const currentPreview = useFinanceHero(
+    rate?.finance_hero_updated_at,
+    rate?.finance_hero_image_url,
+  );
 
   const upload = async () => {
     setBusy("upload");

@@ -477,6 +477,10 @@ export const api = {
 
   // ----- PYX/USx Rate (cotação configurável pelo master admin) -----
   pyxRate: () => request<PyxRate>("/pyx/rate"),
+  pyxFinanceHero: () =>
+    request<{ image_base64: string; image_url: string; updated_at?: string }>(
+      "/pyx/finance-hero",
+    ),
   pyxRateSet: (body: { pyx_per_usd_centavos?: number; pyx_per_usd?: number }) =>
     request<PyxRate>("/pyx/rate", { method: "PUT", body: JSON.stringify(body) }),
   pyxRateHistory: (limit = 50) =>
@@ -864,8 +868,9 @@ export type PyxRate = {
   pyx_per_usd_display: string;      // "5,00"
   updated_at?: string;
   updated_by_name?: string | null;
-  // Finance hero (banner financeiro na home) — configurável pelo admin
-  finance_hero_image_base64?: string;
+  // Finance hero (banner financeiro na home) — configurável pelo admin.
+  // O base64 NÃO vem mais aqui (é pesado); use api.pyxFinanceHero() para buscá-lo.
+  finance_hero_updated_at?: string;
   finance_hero_image_url?: string;
 };
 export type PyxRateHistory = {
