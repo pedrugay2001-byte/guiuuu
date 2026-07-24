@@ -80,3 +80,11 @@ Correções:
 3. `frontend/netlify.toml`: `[build.environment] EXPO_PUBLIC_BACKEND_URL` para builds from-source do Netlify.
 4. static_frontend re-buildado (bundle confirmado sem "undefined/api"). Login Master validado E2E na Home.
 ARQUITETURA: o frontend no Netlify chama o backend do Emergent (preview URL) — MESMO backend/DB/usuários. NÃO usar Emergent Publish para o backend nesse cenário (criaria DB novo/vazio = causa da divergência anterior). Se o subdomínio do preview mudar (fork/reset do pod), atualizar a URL em api.ts/welcome.tsx/netlify.toml/frontend/.env e rebuildar.
+
+## Fix travamento na web (24/07) — payloads pesados (base64 em JSON)
+CAUSA: imagens base64 embutidas nas respostas de LISTA inflavam o JSON e travavam a web (pior no Netlify pois o backend do preview é mais lento).
+Medições antes: /ads=14MB, feed/posts=2.6MB, members/login=1MB, community/members=550KB, /pyx/rate=448KB (baixado a CADA poll de 30s + gravado no localStorage).
+CORRIGIDO:
+1. /pyx/rate: removido finance_hero_image_base64 (448KB->~200B). Novo GET /api/pyx/finance-hero (base64) + campo finance_hero_updated_at (versão). Frontend: hook src/use-finance-hero.ts busca a imagem 1x e cacheia (mem+AsyncStorage+localStorage), revalida só quando a versão muda. finance-hero-banner.tsx e staff/banners.tsx (FinanceHeroImageManager) usam o hook.
+2. /ads: removido seller_avatar (base64) da LISTA — era duplicado em 73 anúncios (~9.5MB). Mantido no detalhe GET /ads/{id}. 14MB->4.6MB. ads/index.tsx não usa avatar (só detalhe usa).
+PENDENTE (opcional, menor impacto/one-time): feed/posts 2.6MB e community/members 550KB ainda trazem avatares base64; members/login 1MB. Ideal futuro: thumbnails/compressão no upload + paginação do /ads.
